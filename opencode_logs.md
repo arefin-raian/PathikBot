@@ -225,3 +225,18 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 **Analysis:** Traceback line 344 referenced `return await distributor_mgmt_handler(update, context)`, but current code has this at line 349 (line 344 is blank). Error was from stale `__pycache__` bytecode. Current code is correct — both `distributor_mgmt_handler` and `start_setting_change` are `async def` and properly awaited. Cleared all `__pycache__` and restarted.
 
 **Status:** Could not reproduce after cache clear + restart. Likely fixed by cache cleanup.
+
+---
+
+### Fix 10: /cancel never worked — silent TypeError in all fallbacks (2026-06-03)
+
+**Root cause:** PTB v20.7's `BaseHandler.handle_update` does `return await self.callback(update, context)`. All 4 conv fallbacks used `lambda u, c: ConversationHandler.END` which returns `-1` (an int). `await -1` → `TypeError: object int can't be used in 'await' expression`. Every `/cancel` command caught the error, PTB logged the traceback, but **the conversation never ended**.
+
+**Fixed convs (3 of 4):**
+- `bot/handlers/settings.py` (edit/delete conv + settings conv): Replaced lambdas with `async def cancel_conversation(u, c) → return ConversationHandler.END`
+- `bot/handlers/archive.py`: Added `async def archive_cancel(u, c) → return ConversationHandler.END`
+
+**Already correct (1 of 4):**
+- `bot/handlers/new_entry.py`: Already had its own `async def cancel()` that returns `END`
+
+**Verified:** `CommandHandler('cancel', cancel_handler).handle_update(...)` now returns `-1` correctly instead of crashing.

@@ -84,6 +84,9 @@ async def archive_month_selection_handler(update: Update, context: ContextTypes.
 
     return SELECTING_ARCHIVE_MONTH
 
+async def archive_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return ConversationHandler.END
+
 def get_archive_handler():
     return ConversationHandler(
         entry_points=[
@@ -93,5 +96,5 @@ def get_archive_handler():
         states={
             SELECTING_ARCHIVE_MONTH: [CallbackQueryHandler(archive_month_selection_handler)]
         },
-        fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+        fallbacks=[CommandHandler("cancel", archive_cancel)],
     )

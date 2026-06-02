@@ -288,6 +288,9 @@ async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_
         
     return ConversationHandler.END
 
+async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return ConversationHandler.END
+
 def get_edit_delete_conv_handler():
     return ConversationHandler(
         entry_points=[
@@ -305,7 +308,7 @@ def get_edit_delete_conv_handler():
             CHOOSING_ENTRY_TO_DELETE: [CallbackQueryHandler(handle_delete_selection, pattern="^delete_|^edit_delete_menu$")],
             CONFIRM_DELETE: [CallbackQueryHandler(confirm_delete_callback, pattern="^confirm_|^back$")],
         },
-        fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+        fallbacks=[CommandHandler("cancel", cancel_conversation)],
     )
 
 async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -393,5 +396,5 @@ def get_settings_conv_handler():
             MANAGING_DISTRIBUTORS: [CallbackQueryHandler(handle_distributor_mgmt_callback)],
             ADDING_DISTRIBUTOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_distributor_name)]
         },
-        fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+        fallbacks=[CommandHandler("cancel", cancel_conversation)],
     )
