@@ -168,7 +168,12 @@ async def handle_distributor_mgmt_callback(update: Update, context: ContextTypes
         return ADDING_DISTRIBUTOR
         
     if query.data.startswith("remove_dist_"):
-        name = query.data.replace("remove_dist_", "")
+        idx = int(query.data.split("_")[2])
+        dists = await get_distributors()
+        if idx < 0 or idx >= len(dists):
+            await query.edit_message_text("পরিবেশক খুঁজে পাওয়া যায়নি।", reply_markup=get_distributor_mgmt_keyboard(dists))
+            return MANAGING_DISTRIBUTORS
+        name = dists[idx]
         await remove_distributor(name)
         dists = await get_distributors()
         await query.edit_message_text(f"✅ '{name}' রিমুভ করা হয়েছে।", reply_markup=get_distributor_mgmt_keyboard(dists))

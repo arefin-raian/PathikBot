@@ -192,7 +192,7 @@ def get_distributor_mgmt_keyboard(distributors):
     for d in distributors:
         keyboard.append([
             InlineKeyboardButton(d, callback_data="ignore"),
-            InlineKeyboardButton("❌", callback_data=f"remove_dist_{d}")
+            InlineKeyboardButton("❌", callback_data=f"remove_dist_{i}")
         ])
     
     keyboard.append([InlineKeyboardButton("➕ নতুন পরিবেশক যোগ করুন", callback_data="add_distributor")])
