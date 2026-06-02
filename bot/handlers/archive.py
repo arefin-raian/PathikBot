@@ -94,5 +94,4 @@ def get_archive_handler():
             SELECTING_ARCHIVE_MONTH: [CallbackQueryHandler(archive_month_selection_handler)]
         },
         fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
-        per_message=False
     )

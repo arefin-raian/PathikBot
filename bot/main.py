@@ -1,7 +1,14 @@
 import os
 import logging
+import warnings
 from telegram import Update, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
+from telegram.warnings import PTBUserWarning
+
+# Suppress harmless PTB warnings about per_message settings with mixed handler types
+warnings.filterwarnings("ignore", category=PTBUserWarning, message="If 'per_message=False'")
+warnings.filterwarnings("ignore", category=PTBUserWarning, message="If 'per_message=True'")
+
 from dotenv import load_dotenv
 
 from bot.handlers.start import start_command, help_command, main_menu_callback
