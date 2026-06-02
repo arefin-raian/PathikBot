@@ -9,6 +9,7 @@ from telegram.ext import (
 )
 from datetime import datetime
 import calendar
+import os
 from core.database import add_entry, get_last_odo, get_last_day_in_month, get_distributors
 from core.calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost
 from bot.keyboards import (
@@ -45,8 +46,9 @@ from bot.keyboards import (
     CONFIRM_ENTRY,
     ENTER_VENUE,
     ENTER_TRANSPORT_FEE,
-    CONFIRM_FINAL_ENTRY
-) = range(19)
+    CONFIRM_FINAL_ENTRY,
+    CONFIRM_TRANSPORT_FEE
+) = range(20)
 
 # Add a history for back button
 HISTORY = "step_history"
@@ -128,9 +130,20 @@ async def handle_type_selection(update: Update, context: ContextTypes.DEFAULT_TY
             return SELECT_MONTH
     elif query.data == "type_meeting":
         context.user_data['entry_type'] = 'MONTHLY_MEETING'
-        push_history(context, ENTER_VENUE)
-        await query.edit_message_text("ভেন্যুর নাম লিখুন (যেমন: রংপুর সেলস সেন্টার):", reply_markup=get_back_keyboard())
-        return ENTER_VENUE
+        context.user_data['venue'] = "রংপুর সেলস সেন্টার"
+        push_history(context, SELECT_MONTH)
+        if 'selected_month' in context.user_data:
+            month = context.user_data['selected_month']
+            year = context.user_data['selected_year']
+            last_day = await get_last_day_in_month(month, year)
+            await query.edit_message_text(
+                f"তারিখ নির্বাচন করুন ({MONTHS_BN_FULL[month]} {to_bn_number(year)}):",
+                reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
+            )
+            return SELECT_DATE
+        else:
+            await query.edit_message_text("মাস নির্বাচন করুন:", reply_markup=get_month_selection_keyboard())
+            return SELECT_MONTH
     elif query.data == "cancel":
         await query.edit_message_text("বাতিল করা হয়েছে।", reply_markup=get_main_menu())
         return ConversationHandler.END
@@ -172,11 +185,11 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
     
     if query.data == "back":
         prev = pop_history(context)
-        if prev == SELECT_MONTH: return await handle_type_selection(update, context) # This will show month selection
-        if prev == ENTER_VENUE: 
-            context.user_data['entry_type'] = 'MONTHLY_MEETING'
-            await query.edit_message_text("ভেন্যুর নাম লিখুন (যেমন: রংপুর সেলস সেন্টার):", reply_markup=get_back_keyboard())
-            return ENTER_VENUE
+        if prev == SELECT_MONTH:
+            return await handle_type_selection(update, context)
+        if prev == CHOOSING_TYPE:
+            await query.edit_message_text("কি ধরনের এন্ট্রি?", reply_markup=get_entry_type_keyboard())
+            return CHOOSING_TYPE
         return CHOOSING_TYPE
 
     year = context.user_data['selected_year']
@@ -200,9 +213,14 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
             )
             return ENTER_ODO_START
         else:
-            push_history(context, ENTER_TRANSPORT_FEE)
-            await query.edit_message_text("যাতায়াত ভাড়া (টাকা) লিখুন:", reply_markup=get_back_keyboard())
-            return ENTER_TRANSPORT_FEE
+            transport_fee = int(os.getenv('TRANSPORT_FEE', '460'))
+            context.user_data['transport_fee'] = transport_fee
+            push_history(context, CONFIRM_TRANSPORT_FEE)
+            await query.edit_message_text(
+                f"যাতায়াত ভাড়া: {to_bn_number(transport_fee)} টাকা\nঠিক আছে?",
+                reply_markup=get_yes_no_keyboard("transport")
+            )
+            return CONFIRM_TRANSPORT_FEE
     elif query.data == "cancel":
         await query.edit_message_text("বাতিল করা হয়েছে।", reply_markup=get_main_menu())
         return ConversationHandler.END
@@ -525,6 +543,53 @@ async def handle_transport_fee(update: Update, context: ContextTypes.DEFAULT_TYP
         await add_message_to_delete(update, context, m.message_id)
         return ENTER_TRANSPORT_FEE
 
+async def handle_transport_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "transport_yes":
+        fee = context.user_data.get('transport_fee', int(os.getenv('TRANSPORT_FEE', '460')))
+        context.user_data['transport_fee'] = fee
+        last_odo = await get_last_odo()
+        context.user_data['odo_start'] = last_odo
+        context.user_data['odo_end'] = last_odo
+        context.user_data['total_km'] = 0
+        context.user_data['petrol_liters'] = 0
+        context.user_data['petrol_cost'] = 0
+        context.user_data['mobil_liters'] = 0
+        context.user_data['mobil_cost'] = 0
+        context.user_data['da_amount'] = 0
+        context.user_data['others_designation'] = "মাসিক মিটিং"
+        push_history(context, CONFIRM_ENTRY)
+        return await show_confirmation(update, context)
+
+    elif query.data == "transport_no":
+        await query.edit_message_text("যাতায়াত ভাড়া (টাকা) লিখুন:", reply_markup=get_back_keyboard())
+        return ENTER_TRANSPORT_FEE
+
+    elif query.data == "back":
+        pop_history(context)
+        month = context.user_data['selected_month']
+        year = context.user_data['selected_year']
+        last_day = await get_last_day_in_month(month, year)
+        await query.edit_message_text(
+            f"তারিখ নির্বাচন করুন ({MONTHS_BN_FULL[month]} {to_bn_number(year)}):",
+            reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
+        )
+        return SELECT_DATE
+
+    return CONFIRM_TRANSPORT_FEE
+
+async def handle_back_to_confirm_transport(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    context.user_data['transport_fee'] = int(os.getenv('TRANSPORT_FEE', '460'))
+    await query.edit_message_text(
+        f"যাতায়াত ভাড়া: {to_bn_number(context.user_data['transport_fee'])} টাকা\nঠিক আছে?",
+        reply_markup=get_yes_no_keyboard("transport")
+    )
+    return CONFIRM_TRANSPORT_FEE
+
 async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data
     cost = calculate_total_entry_cost(
@@ -581,10 +646,14 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if query.data == "back":
         pop_history(context)
         if context.user_data['entry_type'] == 'REGULAR':
-            return await handle_da_confirm(update, context) # shows distributor selection
+            return await handle_da_confirm(update, context)
         else:
-            await query.edit_message_text("যাতায়াত ভাড়া (টাকা) লিখুন:", reply_markup=get_back_keyboard())
-            return ENTER_TRANSPORT_FEE
+            transport_fee = context.user_data.get('transport_fee', int(os.getenv('TRANSPORT_FEE', '460')))
+            await query.edit_message_text(
+                f"যাতায়াত ভাড়া: {to_bn_number(transport_fee)} টাকা\nঠিক আছে?",
+                reply_markup=get_yes_no_keyboard("transport")
+            )
+            return CONFIRM_TRANSPORT_FEE
 
     if query.data == "confirm_save":
         await delete_previous_messages(update, context)
@@ -690,6 +759,7 @@ def get_new_entry_handler():
             ],
             DA_CONFIRM: [CallbackQueryHandler(handle_da_confirm, pattern="^da_|^back$")],
             SELECT_DISTRIBUTORS: [CallbackQueryHandler(handle_distributor_selection, pattern="^toggle_dist_|^dist_done|^cancel$|^back$")],
+            CONFIRM_TRANSPORT_FEE: [CallbackQueryHandler(handle_transport_confirm, pattern="^transport_|^back$")],
             CONFIRM_ENTRY: [CallbackQueryHandler(save_entry_callback, pattern="^confirm_|^back$")],
             CONFIRM_FINAL_ENTRY: [CallbackQueryHandler(handle_final_entry_confirm, pattern="^final_entry_")],
             ENTER_VENUE: [
@@ -698,7 +768,7 @@ def get_new_entry_handler():
             ],
             ENTER_TRANSPORT_FEE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_transport_fee),
-                CallbackQueryHandler(handle_date_selection, pattern="^back$")
+                CallbackQueryHandler(handle_back_to_confirm_transport, pattern="^back$")
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(cancel, pattern="^cancel$")]
