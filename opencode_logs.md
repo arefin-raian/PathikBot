@@ -90,6 +90,13 @@
 
 ## Session: 2026-06-03 (continued)
 
+### Added back buttons to entries & summary views
+**What:** User requested back/main menu buttons after viewing entries (`/listentries`) and summary (`/summary`).
+**Changes in `summary.py`:**
+- Added `get_main_menu` import
+- Every `edit_message_text` and `reply_text` call in both `list_entries_handler` and `summary_handler` now includes `reply_markup=get_main_menu()` — including the "no entries" fallback messages.
+- Now after viewing entries or summary, user sees the main menu with all action buttons instead of being stranded.
+
 ### User reinforced: bot restart EVERY response
 **What happened:** User called me out for not restarting the bot after every response. Corrected this immediately — killed old instances, ran `python -m bot.main`, verified clean startup (no syntax errors, Telegram connected), then cleaned up.
 **Log updated with rule #7:** "ALWAYS restart bot after every response — kill running instance, run run.bat, check errors, fix them. Non-negotiable."
