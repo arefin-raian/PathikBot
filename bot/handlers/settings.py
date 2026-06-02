@@ -74,6 +74,10 @@ async def handle_edit_selection(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
     
+    if query.data == "edit_delete_menu":
+        await edit_delete_menu_handler(update, context)
+        return ConversationHandler.END
+    
     if query.data.startswith("edit_"):
         entry_id = int(query.data.split("_")[1])
         context.user_data['editing_id'] = entry_id
@@ -83,6 +87,9 @@ async def handle_edit_selection(update: Update, context: ContextTypes.DEFAULT_TY
 async def start_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    
+    if query.data == "edit_entry":
+        return await start_edit_entry(update, context)
     
     parts = query.data.split("_")
     field = parts[2]
@@ -250,6 +257,10 @@ async def handle_delete_selection(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     await query.answer()
     
+    if query.data == "edit_delete_menu":
+        await edit_delete_menu_handler(update, context)
+        return ConversationHandler.END
+    
     entry_id = int(query.data.split("_")[1])
     context.user_data['deleting_id'] = entry_id
     
@@ -260,7 +271,10 @@ async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     await query.answer()
     
-    if query.data == "confirm_save": # Using confirm_save for Yes
+    if query.data == "back":
+        return await start_delete_entry(update, context)
+    
+    if query.data == "confirm_save":
         entry_id = context.user_data['deleting_id']
         await delete_entry(entry_id)
         await query.edit_message_text("✅ এন্ট্রি ডিলিট করা হয়েছে এবং ওডোমিটার সমন্বয় করা হয়েছে।", reply_markup=get_main_menu())
@@ -279,12 +293,12 @@ def get_edit_delete_conv_handler():
             CommandHandler("delentry", start_delete_entry)
         ],
         states={
-            CHOOSING_ENTRY_TO_EDIT: [CallbackQueryHandler(handle_edit_selection, pattern="^edit_")],
-            CHOOSING_FIELD_TO_EDIT: [CallbackQueryHandler(start_field_edit, pattern="^edit_field_")],
+            CHOOSING_ENTRY_TO_EDIT: [CallbackQueryHandler(handle_edit_selection, pattern="^edit_|^edit_delete_menu$")],
+            CHOOSING_FIELD_TO_EDIT: [CallbackQueryHandler(start_field_edit, pattern="^edit_field_|^edit_entry$")],
             ENTERING_NEW_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_value)],
             EDITING_DISTRIBUTORS: [CallbackQueryHandler(handle_edit_distributors, pattern="^toggle_dist_|^dist_done|^cancel$")],
-            CHOOSING_ENTRY_TO_DELETE: [CallbackQueryHandler(handle_delete_selection, pattern="^delete_")],
-            CONFIRM_DELETE: [CallbackQueryHandler(confirm_delete_callback, pattern="^confirm_")],
+            CHOOSING_ENTRY_TO_DELETE: [CallbackQueryHandler(handle_delete_selection, pattern="^delete_|^edit_delete_menu$")],
+            CONFIRM_DELETE: [CallbackQueryHandler(confirm_delete_callback, pattern="^confirm_|^back$")],
         },
         fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
     )

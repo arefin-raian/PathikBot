@@ -147,3 +147,22 @@
 **Edit/Delete flow:** `/editentry` or `/delentry` → pick entry from list → edit field or confirm delete → cascade odometer recalculation → done.
 
 **Report flow:** `/generate` or archive "generate" → collects entries for month → clones template tables → fills Bijoy-encoded data → saves .docx → sends to Telegram.
+
+---
+
+### Fix 4: All back buttons in Edit/Delete conversation (2026-06-03)
+
+**Issue:** User reported "🔙 ফিরে যান" buttons don't work during delete/edit flows.
+
+**Root cause:** 4 broken back buttons in `bot/handlers/settings.py`:
+1. **Edit entry selection** (`handle_edit_selection`): Pattern `^edit_` matched `edit_delete_menu` but crashed on `int(query.data.split("_")[1])` because `parts[1]` = `"delete"`.
+2. **Delete entry selection** (`handle_delete_selection`): Pattern `^delete_` did NOT match `edit_delete_menu` callback → update silently dropped.
+3. **Delete confirmation** (`confirm_delete_callback`): Pattern `^confirm_` did NOT match `back` callback → update silently dropped.
+4. **Edit field selection** (`start_field_edit`): Pattern `^edit_field_` did NOT match `edit_entry` callback → update silently dropped.
+
+**Fixes:**
+- `handle_edit_selection`: Added early `if query.data == "edit_delete_menu"` check → calls `edit_delete_menu_handler()` + returns `END`.
+- `handle_delete_selection`: Same pattern fix → added early check + proper exit.
+- `confirm_delete_callback`: Added `if query.data == "back"` → calls `start_delete_entry()` to return to entry list (returns `CHOOSING_ENTRY_TO_DELETE`).
+- `start_field_edit`: Added `if query.data == "edit_entry"` → calls `start_edit_entry()` to return to entry selection (returns `CHOOSING_ENTRY_TO_EDIT`).
+- Updated conv state patterns to include back callbacks: `^edit_|^edit_delete_menu$`, `^edit_field_|^edit_entry$`, `^delete_|^edit_delete_menu$`, `^confirm_|^back$`.
