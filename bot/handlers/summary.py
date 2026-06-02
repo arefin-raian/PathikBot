@@ -26,39 +26,43 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         return
         
     text = ""
-    # If filtered, show all. If not, show last 10
     display_entries = entries if (month and year) else entries[-10:]
     for i, e in enumerate(display_entries, 1):
-        dt_str = datetime.strptime(e['date'], '%Y-%m-%d').strftime('%d/%m/%y')
-        text += f"#{to_bn_number(i)} {'ফিল্ড ট্যুর' if e['entry_type'] == 'REGULAR' else 'মাসিক মিটিং'} — {to_bn_number(dt_str)}\n"
-        # ... existing fields ...
-        text += f"মিটার শুরু: {to_bn_number(e['odo_start'])}\n"
-        text += f"মিটার শেষ: {to_bn_number(e['odo_end'])}\n"
-        text += f"দূরত্ব: {to_bn_number(e['total_km'])} কিমি\n"
-        
-        if e.get('petrol_liters'):
-            text += f"তেল: {to_bn_number(e['petrol_liters'])} লি = {to_bn_number(e['petrol_cost'])} টাকা\n"
-        
-        if e.get('mobil_liters'):
-            text += f"মবিল: {to_bn_number(e['mobil_liters'])} লি = {to_bn_number(e['mobil_cost'])} টাকা\n"
-            
-        text += f"DA বিল: {to_bn_number(e['da_amount'])} টাকা\n"
-        
-        if e['entry_type'] == 'MONTHLY_MEETING':
-            text += f"যাতায়াত ভাড়া: {to_bn_number(e.get('transport_fee', 0))} টাকা\n"
+        dt = datetime.strptime(e['date'], '%Y-%m-%d')
+        dt_str = dt.strftime('%d/%m/%y')
+        if e['entry_type'] == 'REGULAR':
+            text += f"<blockquote><b>#{to_bn_number(i)} ফিল্ড ট্যুর — {to_bn_number(dt_str)}</b></blockquote>\n"
+            text += f"মিটার শুরু: <b>{to_bn_number(e['odo_start'])}</b>\n"
+            text += f"মিটার শেষ: <b>{to_bn_number(e['odo_end'])}</b>\n"
+            text += f"দূরত্ব: <b>{to_bn_number(e['total_km'])}</b> কিমি\n"
+            if e.get('petrol_liters'):
+                text += f"তেল: <b>{to_bn_number(e['petrol_liters'])}</b> লি = <b>{to_bn_number(e['petrol_cost'])}</b> টাকা\n"
+            if e.get('mobil_liters'):
+                text += f"মবিল: <b>{to_bn_number(e['mobil_liters'])}</b> লি = <b>{to_bn_number(e['mobil_cost'])}</b> টাকা\n"
+            text += f"DA বিল: <b>{to_bn_number(e['da_amount'])}</b> টাকা\n"
+            text += f"মোট খরচ: <b>{to_bn_number(e['total_cost'])}</b> টাকা\n"
+            if e.get('distributors_raw'):
+                text += "<blockquote expandable>"
+                for dist in e['distributors_raw']:
+                    text += f"পরিবেশক: <i>{dist}</i>\n"
+                text += "</blockquote>"
+        else:
+            text += f"<blockquote><b>#{to_bn_number(i)} মাসিক মিটিং — {to_bn_number(dt_str)}</b></blockquote>\n"
+            text += f"মিটার শুরু: <b>{to_bn_number(e['odo_start'])}</b>\n"
+            text += f"মিটার শেষ: <b>{to_bn_number(e['odo_end'])}</b>\n"
+            text += f"দূরত্ব: <b>{to_bn_number(e['total_km'])}</b> কিমি\n"
+            text += "<blockquote expandable>"
+            text += f"DA বিল: <b>{to_bn_number(e['da_amount'])}</b> টাকা\n"
+            text += f"যাতায়াত ভাড়া: <b>{to_bn_number(e.get('transport_fee', 0))}</b> টাকা\n"
             text += f"বিবরণ: {e.get('venue', '')}\n"
-            
-        text += f"মোট খরচ: {to_bn_number(e['total_cost'])} টাকা\n"
-        
-        if e['entry_type'] == 'REGULAR' and e.get('distributors_raw'):
-            for dist in e['distributors_raw']:
-                text += f"পরিবেশক: {dist}\n"
+            text += f"মোট খরচ: <b>{to_bn_number(e['total_cost'])}</b> টাকা\n"
+            text += "</blockquote>"
         text += "\n"
     
     if query:
-        await query.edit_message_text(text, reply_markup=BACK_TO_MENU)
+        await query.edit_message_text(text, reply_markup=BACK_TO_MENU, parse_mode='HTML')
     else:
-        await update.message.reply_text(text, reply_markup=BACK_TO_MENU)
+        await update.message.reply_text(text, reply_markup=BACK_TO_MENU, parse_mode='HTML')
 
 async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query

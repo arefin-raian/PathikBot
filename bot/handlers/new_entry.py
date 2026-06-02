@@ -601,41 +601,42 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     data['total_cost'] = cost
     
-    # Format date for summary
     dt = datetime.strptime(data['date'], '%Y-%m-%d')
     date_bn = dt.strftime('%d/%m/%y')
-    
-    summary = f"📋 **এন্ট্রি সংক্ষিপ্ত বিবরণ:**\n\n"
-    summary += f"  ধরন: {'ফিল্ড ট্যুর' if data['entry_type'] == 'REGULAR' else 'মাসিক মিটিং'}\n"
-    summary += f"  তারিখ: {to_bn_number(date_bn)}\n"
-    summary += f"  মিটার শুরু: {to_bn_number(data['odo_start'])}\n"
-    summary += f"  মিটার শেষ: {to_bn_number(data['odo_end'])}\n"
-    summary += f"  দূরত্ব: {to_bn_number(data['total_km'])} কিমি\n"
-    
-    if data.get('petrol_liters'):
-        summary += f"  পেট্রোল: {to_bn_number(data['petrol_liters'])} লি = {to_bn_number(data['petrol_cost'])} টাকা\n"
-    
-    if data.get('mobil_liters'):
-        summary += f"  মবিল: {to_bn_number(data['mobil_liters'])} লি = {to_bn_number(data['mobil_cost'])} টাকা\n"
-        
-    summary += f"  DA বিল: {to_bn_number(data['da_amount'])} টাকা\n"
-    
-    if data['entry_type'] == 'MONTHLY_MEETING':
-        summary += f"  যাতায়াত ভাড়া: {to_bn_number(data['transport_fee'])} টাকা\n"
-        summary += f"  বিবরণ: {data['venue']}\n"
-    
-    summary += f"  মোট খরচ: {to_bn_number(cost)} টাকা\n"
-    
+
     if data['entry_type'] == 'REGULAR':
-        summary += f"\n  পরিবেশকবৃন্দ:\n"
-        for name in data['distributors_raw']:
-            summary += f"  – {name}\n"
-        
+        summary = f"<blockquote><b>ফিল্ড ট্যুর — {to_bn_number(date_bn)}</b></blockquote>\n"
+        summary += f"মিটার শুরু: <b>{to_bn_number(data['odo_start'])}</b>\n"
+        summary += f"মিটার শেষ: <b>{to_bn_number(data['odo_end'])}</b>\n"
+        summary += f"দূরত্ব: <b>{to_bn_number(data['total_km'])}</b> কিমি\n"
+        if data.get('petrol_liters'):
+            summary += f"তেল: <b>{to_bn_number(data['petrol_liters'])}</b> লি = <b>{to_bn_number(data['petrol_cost'])}</b> টাকা\n"
+        if data.get('mobil_liters'):
+            summary += f"মবিল: <b>{to_bn_number(data['mobil_liters'])}</b> লি = <b>{to_bn_number(data['mobil_cost'])}</b> টাকা\n"
+        summary += f"DA বিল: <b>{to_bn_number(data['da_amount'])}</b> টাকা\n"
+        summary += f"মোট খরচ: <b>{to_bn_number(cost)}</b> টাকা\n"
+        if data.get('distributors_raw'):
+            summary += "<blockquote expandable>"
+            for name in data['distributors_raw']:
+                summary += f"পরিবেশক: <i>{name}</i>\n"
+            summary += "</blockquote>"
+    else:
+        summary = f"<blockquote><b>মাসিক মিটিং — {to_bn_number(date_bn)}</b></blockquote>\n"
+        summary += f"মিটার শুরু: <b>{to_bn_number(data['odo_start'])}</b>\n"
+        summary += f"মিটার শেষ: <b>{to_bn_number(data['odo_end'])}</b>\n"
+        summary += f"দূরত্ব: <b>{to_bn_number(data['total_km'])}</b> কিমি\n"
+        summary += "<blockquote expandable>"
+        summary += f"DA বিল: <b>{to_bn_number(data['da_amount'])}</b> টাকা\n"
+        summary += f"যাতায়াত ভাড়া: <b>{to_bn_number(data['transport_fee'])}</b> টাকা\n"
+        summary += f"বিবরণ: {data['venue']}\n"
+        summary += f"মোট খরচ: <b>{to_bn_number(cost)}</b> টাকা\n"
+        summary += "</blockquote>"
+
     msg = summary + "\nআপনি কি এটি সংরক্ষণ করতে চান?"
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=get_confirmation_keyboard(), parse_mode='Markdown')
+        await update.callback_query.edit_message_text(msg, reply_markup=get_confirmation_keyboard(), parse_mode='HTML')
     else:
-        m = await update.message.reply_text(msg, reply_markup=get_confirmation_keyboard(), parse_mode='Markdown')
+        m = await update.message.reply_text(msg, reply_markup=get_confirmation_keyboard(), parse_mode='HTML')
         await add_message_to_delete(update, context, m.message_id)
     return CONFIRM_ENTRY
 

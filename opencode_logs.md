@@ -240,3 +240,30 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 - `bot/handlers/new_entry.py`: Already had its own `async def cancel()` that returns `END`
 
 **Verified:** `CommandHandler('cancel', cancel_handler).handle_update(...)` now returns `-1` correctly instead of crashing.
+
+---
+
+### Fix 11: Monthly meeting flow refactor (2026-06-03)
+
+**What needed to change:**
+- Meeting should auto-set venue = "রংপুর সেলস সেন্টার" (not ask for venue input)
+- Meeting should use sticky month → date → confirm transport fee (yes/no) → summary → save
+- No odometer, petrol, mobil, DA, distributor, manager fields for meetings
+- All those values set to defaults (odo = last_odo, rest = 0)
+
+**Changes in `bot/handlers/new_entry.py`:**
+- Added `CONFIRM_TRANSPORT_FEE = 19` state, `range(20)`
+- `handle_type_selection("type_meeting")`: Sets venue to "রংপুর সেলস সেন্টার", skips venue state, uses sticky month logic
+- `handle_date_selection` meeting branch: Shows transport fee confirmation with yes/no keyboard instead of text input
+- New `handle_transport_confirm()`: Handles `transport_yes` (fill defaults → confirmation), `transport_no` (→ text input for custom fee), `back` (→ date selection)
+- New `handle_back_to_confirm_transport()`: ENTER_TRANSPORT_FEE back → goes to CONFIRM_TRANSPORT_FEE UI (not date selection), with history preserved
+- `save_entry_callback` back for meeting: Shows CONFIRM_TRANSPORT_FEE UI directly (avoids double-pop issue)
+- Added `CONFIRM_TRANSPORT_FEE` to conv handler states
+
+**Back navigation chain:**
+- CONFIRM_ENTRY → CONFIRM_TRANSPORT_FEE → SELECT_DATE → CHOOSING_TYPE
+- ENTER_TRANSPORT_FEE → CONFIRM_TRANSPORT_FEE → SELECT_DATE → CHOOSING_TYPE
+
+**Bug fixed:** ENTER_TRANSPORT_FEE back handler was calling `handle_date_selection` which popped too far back. Replaced with new `handle_back_to_confirm_transport`.
+
+**Commit:** `8ab6e9c` — "Fix monthly meeting flow: transport fee confirm, back navigation, venue name ঠিক করা"
