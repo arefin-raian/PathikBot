@@ -267,3 +267,56 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 **Bug fixed:** ENTER_TRANSPORT_FEE back handler was calling `handle_date_selection` which popped too far back. Replaced with new `handle_back_to_confirm_transport`.
 
 **Commit:** `8ab6e9c` — "Fix monthly meeting flow: transport fee confirm, back navigation, venue name ঠিক করা"
+
+---
+
+### Fix 12: Entry display redesign — blockquote + bold + alignment spaces (2026-06-03)
+
+**User request:** Redesign entry formatting to match a specific visual style with blockquote headers, bold values, and trailing alignment spaces.
+
+**Design pattern (regular):**
+```
+<blockquote><b>#১ ফিল্ড ট্যুর — </b>০১/০৬/২৬<b>                 </b></blockquote>
+মিটার শুরু: <b>৫৩৯১৫</b>
+মিটার শেষ: <b>৫৪০০৭</b>
+দূরত্ব: <b>৯২</b> কিমি
+...
+<blockquote expandable>পরিবেশক: <i>মেসার্স ...</i>
+পরিবেশক: <i>মেসার্স ...</i></blockquote>
+```
+
+**Design pattern (meeting):**
+```
+<blockquote><b>#৩ মাসিক মিটিং — </b>০৩/০৬/২৬<b>                 </b></blockquote>
+মিটার শুরু: <b>৫৪০৯৬</b>
+মিটার শেষ: <b>৫৪০৯৬</b>
+দূরত্ব: <b>০</b> কিমি
+<blockquote expandable>DA বিল: <b>০</b> টাকা                        
+যাতায়াত ভাড়া: <b>৪৬০</b> টাকা
+বিবরণ: রংপুর সেলস সেন্টার
+মোট খরচ: <b>৪৬০</b> টাকা</blockquote>
+```
+
+**Key rules:**
+- Header in `<blockquote>`: **bold** entry type, normal date, **bold** trailing spaces (for alignment)
+- All value numbers are `<b>`bolded
+- Distributors in `<blockquote expandable>` with `<i>`italic names
+- Meeting DA/transport/venue/total in `<blockquote expandable>`
+- Trailing alignment spaces after DA Bill line in meeting (to match width of other lines)
+- `parse_mode` changed from `Markdown` to `HTML` for `<blockquote>` support
+
+**Files changed:**
+- `bot/handlers/summary.py` — `list_entries_handler`: Full redesign of entry formatting loop
+- `bot/handlers/new_entry.py` — `show_confirmation`: Same redesign for pre-save view
+
+**User corrections applied:**
+1. Bold wraps only type part, date is normal weight (not all-bold)
+2. Trailing bold spaces preserved for alignment (`<b>                 </b>` — 17 spaces)
+3. Meeting headers also get trailing bold spaces (same as regular)
+4. Trailing alignment spaces after `DA বিল:` line in meeting's expandable blockquote
+
+**Commits:**
+- `bb01ba5` — "Redesign entry display: blockquote headers, bold values, expandable sections"
+- `e866457` — "Fix header format: bold type only, date normal, preserve trailing spaces"
+- `2fe0543` — "Add trailing bold spaces to meeting headers too"
+- `28a331a` — "Add trailing alignment spaces after DA Bill in meeting expandable blockquote"
