@@ -31,7 +31,7 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         dt = datetime.strptime(e['date'], '%Y-%m-%d')
         dt_str = dt.strftime('%d/%m/%y')
         if e['entry_type'] == 'REGULAR':
-            text += f"<blockquote><b>#{to_bn_number(i)} ফিল্ড ট্যুর — {to_bn_number(dt_str)}</b></blockquote>\n"
+            text += f"<blockquote><b>#{to_bn_number(i)} ফিল্ড ট্যুর — </b>{to_bn_number(dt_str)}<b>                 </b></blockquote>\n"
             text += f"মিটার শুরু: <b>{to_bn_number(e['odo_start'])}</b>\n"
             text += f"মিটার শেষ: <b>{to_bn_number(e['odo_end'])}</b>\n"
             text += f"দূরত্ব: <b>{to_bn_number(e['total_km'])}</b> কিমি\n"
