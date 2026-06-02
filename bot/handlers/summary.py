@@ -52,7 +52,7 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             text += f"মিটার শেষ: <b>{to_bn_number(e['odo_end'])}</b>\n"
             text += f"দূরত্ব: <b>{to_bn_number(e['total_km'])}</b> কিমি\n"
             text += "<blockquote expandable>"
-            text += f"DA বিল: <b>{to_bn_number(e['da_amount'])}</b> টাকা\n"
+            text += f"DA বিল: <b>{to_bn_number(e['da_amount'])}</b> টাকা                        \n"
             text += f"যাতায়াত ভাড়া: <b>{to_bn_number(e.get('transport_fee', 0))}</b> টাকা\n"
             text += f"বিবরণ: {e.get('venue', '')}\n"
             text += f"মোট খরচ: <b>{to_bn_number(e['total_cost'])}</b> টাকা\n"

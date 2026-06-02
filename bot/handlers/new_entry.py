@@ -626,7 +626,7 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
         summary += f"মিটার শেষ: <b>{to_bn_number(data['odo_end'])}</b>\n"
         summary += f"দূরত্ব: <b>{to_bn_number(data['total_km'])}</b> কিমি\n"
         summary += "<blockquote expandable>"
-        summary += f"DA বিল: <b>{to_bn_number(data['da_amount'])}</b> টাকা\n"
+        summary += f"DA বিল: <b>{to_bn_number(data['da_amount'])}</b> টাকা                        \n"
         summary += f"যাতায়াত ভাড়া: <b>{to_bn_number(data['transport_fee'])}</b> টাকা\n"
         summary += f"বিবরণ: {data['venue']}\n"
         summary += f"মোট খরচ: <b>{to_bn_number(cost)}</b> টাকা\n"
