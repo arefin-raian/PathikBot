@@ -73,9 +73,29 @@
 - `README.md` — Beautiful project documentation with features, setup, structure
 - `.gitignore` — Python/IDE/OS patterns excluded
 
+### GitHub Push (2026-06-03)
+- **Username:** arefin-raian
+- **Repo created:** `PathikBot` (public) via GitHub API
+- **Pushed:** All 31 files committed and pushed to `origin/master`
+- **Remote:** https://github.com/arefin-raian/PathikBot.git
+
 ## Pending Items
 
 - [x] Complete settings back-to-settings flow rewrite
 - [x] Test run the bot, fix any startup errors
 - [x] Create README.md
-- [ ] Push to GitHub — **NEED TOKEN FROM USER**
+- [x] Push to GitHub
+
+---
+
+### Bot Flow Summary (for future reference)
+
+**Entry flow:** `/newentry` → type selection → sticky month check → date picker (skip Fridays) → suggested odo start (yes/no) → distance (expression support) → confirm odo end → petrol? → mobil? → manager? → DA confirm → distributor picker (toggle UI) → confirmation → save → final entry check.
+
+**Settings flow:** `/settings` (conv starts) → settings menu → any sub-action (conv stays alive) → back → settings → main menu (conv ends).
+
+**Archive flow:** `/months` (conv starts) → month list → pick month → actions (list/summary/generate) → delegates to global handler → conv ends.
+
+**Edit/Delete flow:** `/editentry` or `/delentry` → pick entry from list → edit field or confirm delete → cascade odometer recalculation → done.
+
+**Report flow:** `/generate` or archive "generate" → collects entries for month → clones template tables → fills Bijoy-encoded data → saves .docx → sends to Telegram.
