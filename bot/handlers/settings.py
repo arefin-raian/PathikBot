@@ -289,6 +289,11 @@ async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_
     return ConversationHandler.END
 
 async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = "❌ কার্যক্রম বাতিল করা হয়েছে।"
+    if update.callback_query:
+        await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())
+    else:
+        await update.message.reply_text(msg, reply_markup=get_main_menu())
     return ConversationHandler.END
 
 def get_edit_delete_conv_handler():

@@ -85,6 +85,11 @@ async def archive_month_selection_handler(update: Update, context: ContextTypes.
     return SELECTING_ARCHIVE_MONTH
 
 async def archive_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = "❌ কার্যক্রম বাতিল করা হয়েছে।"
+    if update.callback_query:
+        await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())
+    else:
+        await update.message.reply_text(msg, reply_markup=get_main_menu())
     return ConversationHandler.END
 
 def get_archive_handler():
