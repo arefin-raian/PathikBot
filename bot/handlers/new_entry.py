@@ -621,7 +621,7 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 summary += f"পরিবেশক: <i>{name}</i>\n"
             summary += "</blockquote>"
     else:
-        summary = f"<blockquote><b>মাসিক মিটিং — {to_bn_number(date_bn)}</b></blockquote>\n"
+        summary = f"<blockquote><b>মাসিক মিটিং — </b>{to_bn_number(date_bn)}<b>                 </b></blockquote>\n"
         summary += f"মিটার শুরু: <b>{to_bn_number(data['odo_start'])}</b>\n"
         summary += f"মিটার শেষ: <b>{to_bn_number(data['odo_end'])}</b>\n"
         summary += f"দূরত্ব: <b>{to_bn_number(data['total_km'])}</b> কিমি\n"

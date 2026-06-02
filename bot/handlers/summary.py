@@ -47,7 +47,7 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
                     text += f"পরিবেশক: <i>{dist}</i>\n"
                 text += "</blockquote>"
         else:
-            text += f"<blockquote><b>#{to_bn_number(i)} মাসিক মিটিং — {to_bn_number(dt_str)}</b></blockquote>\n"
+            text += f"<blockquote><b>#{to_bn_number(i)} মাসিক মিটিং — </b>{to_bn_number(dt_str)}<b>                 </b></blockquote>\n"
             text += f"মিটার শুরু: <b>{to_bn_number(e['odo_start'])}</b>\n"
             text += f"মিটার শেষ: <b>{to_bn_number(e['odo_end'])}</b>\n"
             text += f"দূরত্ব: <b>{to_bn_number(e['total_km'])}</b> কিমি\n"
