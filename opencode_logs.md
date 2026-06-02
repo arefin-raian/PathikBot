@@ -166,3 +166,22 @@
 - `confirm_delete_callback`: Added `if query.data == "back"` → calls `start_delete_entry()` to return to entry list (returns `CHOOSING_ENTRY_TO_DELETE`).
 - `start_field_edit`: Added `if query.data == "edit_entry"` → calls `start_edit_entry()` to return to entry selection (returns `CHOOSING_ENTRY_TO_EDIT`).
 - Updated conv state patterns to include back callbacks: `^edit_|^edit_delete_menu$`, `^edit_field_|^edit_entry$`, `^delete_|^edit_delete_menu$`, `^confirm_|^back$`.
+
+---
+
+### Fix 5: Suppress PTBUserWarning `per_message` warnings (2026-06-03)
+
+**Issue:** 4 startup warnings like:
+```
+PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be tracked for every message.
+```
+
+**Root cause:** PTB v20.7 defaults `per_message=False` in `ConversationHandler`. When a conv uses `CallbackQueryHandler` with `per_message=False`, it warns that callbacks aren't tracked per message. Changing to `per_message=True` would give a different warning: "all handlers must be CallbackQueryHandler" — because 3 of 4 convs also use `MessageHandler` for text input.
+
+**Fix:** Add `warnings.filterwarnings()` in `main.py` to suppress both `per_message=False` and `per_message=True` PTBUserWarning variants. Also removed the explicit `per_message=False` from `archive.py` (now uses default).
+
+**Files changed:**
+- `bot/main.py`: Added `import warnings`, `from telegram.warnings import PTBUserWarning`, 2 `filterwarnings` calls
+- `bot/handlers/archive.py`: Removed `per_message=False` line (no behavioral change)
+
+**Verified:** Bot starts with zero warnings.
