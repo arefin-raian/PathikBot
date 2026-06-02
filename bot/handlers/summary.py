@@ -1,9 +1,11 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from core.database import get_entries
 from core.calculations import calculate_summary
-from bot.keyboards import to_bn_number, get_main_menu
+from bot.keyboards import to_bn_number
 from datetime import datetime
+
+BACK_TO_MENU = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 মূল মেনু", callback_data="main_menu")]])
 
 async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -18,9 +20,9 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     if not entries:
         msg = "কোনো এন্ট্রি পাওয়া যায়নি।"
         if query:
-            await query.edit_message_text(msg, reply_markup=get_main_menu())
+            await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
         else:
-            await update.message.reply_text(msg, reply_markup=get_main_menu())
+            await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
         return
         
     text = ""
@@ -54,9 +56,9 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         text += "\n"
     
     if query:
-        await query.edit_message_text(text, reply_markup=get_main_menu())
+        await query.edit_message_text(text, reply_markup=BACK_TO_MENU)
     else:
-        await update.message.reply_text(text, reply_markup=get_main_menu())
+        await update.message.reply_text(text, reply_markup=BACK_TO_MENU)
 
 async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -71,9 +73,9 @@ async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not entries:
         msg = "কোনো এন্ট্রি পাওয়া যায়নি।"
         if query:
-            await query.edit_message_text(msg, reply_markup=get_main_menu())
+            await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
         else:
-            await update.message.reply_text(msg, reply_markup=get_main_menu())
+            await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
         return
         
     summary = calculate_summary(entries)
@@ -88,6 +90,6 @@ async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"    **সর্বমোট: {to_bn_number(summary['grand_total'])}/-**"
     )
     if query:
-        await query.edit_message_text(text, reply_markup=get_main_menu(), parse_mode='Markdown')
+        await query.edit_message_text(text, reply_markup=BACK_TO_MENU, parse_mode='Markdown')
     else:
-        await update.message.reply_text(text, reply_markup=get_main_menu(), parse_mode='Markdown')
+        await update.message.reply_text(text, reply_markup=BACK_TO_MENU, parse_mode='Markdown')
