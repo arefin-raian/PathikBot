@@ -189,7 +189,7 @@ def get_settings_keyboard():
 def get_distributor_mgmt_keyboard(distributors):
     keyboard = []
     # List all with a delete icon
-    for d in distributors:
+    for i, d in enumerate(distributors):
         keyboard.append([
             InlineKeyboardButton(d, callback_data="ignore"),
             InlineKeyboardButton("❌", callback_data=f"remove_dist_{i}")
