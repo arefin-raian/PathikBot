@@ -193,3 +193,35 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 **Issue:** User typed Bangla in CMD window but glyphs were garbled/layout destroyed — classic CMD can't render complex scripts.
 
 **Fix:** Installed Windows Terminal v1.24.11321.0 via `winget install Microsoft.WindowsTerminal`. Updated `run.bat` to launch bot inside Windows Terminal (`wt --title PathikBot cmd /k python -m bot.main`) instead of bare CMD. Windows Terminal has full Unicode + complex script support — Bangla renders correctly.
+
+### Fix 7: Revert Windows Terminal change (2026-06-03)
+
+**Issue:** I misunderstood — the Bangla garbling was in opencode's terminal, not the bot's CMD window. User already had Windows Terminal.
+
+**Fix:** Reverted `run.bat` back to original `python -m bot.main` with `pause`. Removed `wt` launching.
+
+### Fix 8: Button_data_invalid crash in Distributor Mgmt (2026-06-03)
+
+**Issue:** When clicking ❌ to delete a distributor, `telegram.error.BadRequest: Button_data_invalid` crashed the bot.
+
+**Root cause:** `callback_data=f"remove_dist_{d}"` where `d` is a Bangla name. Telegram's callback_data limit is 64 bytes. Bangla is 3 bytes/char in UTF-8, so a ~17-char name exceeds the limit.
+
+**Fix:** Changed `for d in distributors:` to `for i, d in enumerate(distributors):` and used `callback_data=f"remove_dist_{i}"`. The handler looks up the name by index: `name = dists[int(query.data.split("_")[2])]`.
+
+**Files changed:** `bot/keyboards.py`, `bot/handlers/settings.py`
+
+### Fix 9: PTBUserWarning suppression (final) (2026-06-03)
+
+**Issue:** 4 startup warnings about `per_message=False` in ConversationHandlers.
+
+**Root cause:** PTB v20.7 defaults `per_message=False`. The 4 convs mix `CallbackQueryHandler` (for button clicks) and `MessageHandler` (for text input), which always triggers this warning.
+
+**Fix:** Added `warnings.filterwarnings("ignore", category=PTBUserWarning, message="If 'per_message=False'")` and same for True variant in `bot/main.py`. Removed the explicit `per_message=False` from `archive.py`.
+
+### Bug: TypeError in handle_settings_navigation (2026-06-03)
+
+**User reported:** `TypeError: object int can't be used in 'await' expression` at line 344 in `handle_settings_navigation`.
+
+**Analysis:** Traceback line 344 referenced `return await distributor_mgmt_handler(update, context)`, but current code has this at line 349 (line 344 is blank). Error was from stale `__pycache__` bytecode. Current code is correct — both `distributor_mgmt_handler` and `start_setting_change` are `async def` and properly awaited. Cleared all `__pycache__` and restarted.
+
+**Status:** Could not reproduce after cache clear + restart. Likely fixed by cache cleanup.
