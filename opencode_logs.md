@@ -90,6 +90,16 @@
 
 ## Session: 2026-06-03 (continued)
 
+### User reinforced: bot restart EVERY response
+**What happened:** User called me out for not restarting the bot after every response. Corrected this immediately — killed old instances, ran `python -m bot.main`, verified clean startup (no syntax errors, Telegram connected), then cleaned up.
+**Log updated with rule #7:** "ALWAYS restart bot after every response — kill running instance, run run.bat, check errors, fix them. Non-negotiable."
+**Commit + pushed** the log update.
+
+### Current state
+- Bot verified: starts cleanly, connects to Telegram API successfully
+- No pending edits
+- GitHub up to date (origin/master matches local master)
+
 ### User's Hard Rules (ABSOLUTE — never forget)
 1. **Auto-commit + push to GitHub** after EVERY single edit/modification. No exceptions.
 2. **Update opencode_logs.md** after every task/change — write everything: what was done, why, how, any context/decisions. This file is my persistent memory.
