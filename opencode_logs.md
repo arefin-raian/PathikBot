@@ -88,6 +88,26 @@
 
 ---
 
+## Session: 2026-06-03 (continued)
+
+### User's Hard Rules (ABSOLUTE — never forget)
+1. **Auto-commit + push to GitHub** after EVERY single edit/modification. No exceptions.
+2. **Update opencode_logs.md** after every task/change — write everything: what was done, why, how, any context/decisions. This file is my persistent memory.
+3. **Write ALL context in the log** — commands received, decisions made, bugs found, fixes applied, everything.
+4. **Bot UI stays in Bangla** — all Telegram messages and keyboards are Bangla.
+5. **Reply to user in English** — always, even if asked in Bangla.
+6. **User makes typos** — use codebase context to infer intent.
+
+### Workflow (must follow)
+1. Receive command/task from user
+2. Analyze codebase / read logs for context
+3. Make edits
+4. **Update opencode_logs.md** with full details
+5. **Test** (run bot, check for errors)
+6. **Commit + push** to GitHub (`git add -A && git commit -m "..." && git push`)
+
+---
+
 ### Bot Flow Summary (for future reference)
 
 **Entry flow:** `/newentry` → type selection → sticky month check → date picker (skip Fridays) → suggested odo start (yes/no) → distance (expression support) → confirm odo end → petrol? → mobil? → manager? → DA confirm → distributor picker (toggle UI) → confirmation → save → final entry check.
