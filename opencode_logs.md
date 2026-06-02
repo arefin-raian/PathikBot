@@ -97,6 +97,7 @@
 4. **Bot UI stays in Bangla** — all Telegram messages and keyboards are Bangla.
 5. **Reply to user in English** — always, even if asked in Bangla.
 6. **User makes typos** — use codebase context to infer intent.
+7. **ALWAYS restart bot after every response** — after every edit/reply, kill any running bot instance, run `run.bat`, check for startup errors, fix them. This is non-negotiable.
 
 ### Workflow (must follow)
 1. Receive command/task from user
