@@ -185,3 +185,11 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 - `bot/handlers/archive.py`: Removed `per_message=False` line (no behavioral change)
 
 **Verified:** Bot starts with zero warnings.
+
+---
+
+### Fix 6: Bangla rendering in terminal (2026-06-03)
+
+**Issue:** User typed Bangla in CMD window but glyphs were garbled/layout destroyed — classic CMD can't render complex scripts.
+
+**Fix:** Installed Windows Terminal v1.24.11321.0 via `winget install Microsoft.WindowsTerminal`. Updated `run.bat` to launch bot inside Windows Terminal (`wt --title PathikBot cmd /k python -m bot.main`) instead of bare CMD. Windows Terminal has full Unicode + complex script support — Bangla renders correctly.

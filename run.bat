@@ -1,4 +1,2 @@
 @echo off
-echo Starting PathikBot...
-python -m bot.main
-pause
+wt --title PathikBot cmd /k python -m bot.main
