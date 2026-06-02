@@ -1,0 +1,101 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DEFAULT_PETROL_PRICE = float(os.getenv('PETROL_PRICE_PER_LITER', 140.7))
+DEFAULT_MOBIL_PRICE = float(os.getenv('MOBIL_PRICE_PER_LITER', 560.0))
+DEFAULT_DA_AMOUNT = 200
+
+def calculate_km(odo_start, odo_end):
+    """Calculate total kilometers."""
+    return max(0, odo_end - odo_start)
+
+def calculate_petrol_cost(liters, price_per_liter=None):
+    """Calculate petrol cost."""
+    if price_per_liter is None:
+        price_per_liter = DEFAULT_PETROL_PRICE
+    return round(liters * price_per_liter)
+
+def calculate_mobil_cost(liters, price_per_liter=None):
+    """Calculate mobil cost."""
+    if price_per_liter is None:
+        price_per_liter = DEFAULT_MOBIL_PRICE
+    return round(liters * price_per_liter)
+
+def calculate_total_entry_cost(entry_type, petrol_liters=0, mobil_liters=0, da_amount=None, transport_fee=0):
+    """Calculate total cost for an entry based on its type."""
+    if da_amount is None:
+        da_amount = DEFAULT_DA_AMOUNT
+        
+    if entry_type == 'MONTHLY_MEETING':
+        return transport_fee
+    else:
+        petrol_cost = calculate_petrol_cost(petrol_liters)
+        mobil_cost = calculate_mobil_cost(mobil_liters)
+        return petrol_cost + mobil_cost + da_amount
+
+def calculate_summary(entries):
+    """Calculate summary statistics for a list of entries (usually for a month)."""
+    total_km = 0
+    total_liters_petrol = 0
+    total_liters_mobil = 0
+    total_petrol_cost = 0
+    total_mobil_cost = 0
+    total_da = 0
+    total_others = 0 # Transport fees
+    
+    tour_count = 0
+    friday_tour_count = 0
+    meeting_count = 0
+    manager_tour_count = 0
+    short_tour_count = 0 # < 50km
+    
+    for entry in entries:
+        e_type = entry.get('entry_type', 'REGULAR')
+        km = entry.get('total_km', 0)
+        
+        if e_type == 'MONTHLY_MEETING':
+            meeting_count += 1
+            total_others += entry.get('transport_fee', 0)
+        else:
+            tour_count += 1
+            total_km += km
+            total_liters_petrol += entry.get('petrol_liters', 0)
+            total_liters_mobil += entry.get('mobil_liters', 0)
+            total_petrol_cost += entry.get('petrol_cost', 0)
+            total_mobil_cost += entry.get('mobil_cost', 0)
+            total_da += entry.get('da_amount', 0)
+            
+            # Friday check
+            from datetime import datetime
+            dt = datetime.strptime(entry['date'], '%Y-%m-%d')
+            if dt.weekday() == 4: # Friday
+                friday_tour_count += 1
+            
+            if entry.get('others_designation'):
+                manager_tour_count += 1
+            
+            if km < 50:
+                short_tour_count += 1
+                
+    net_tours = tour_count - friday_tour_count - meeting_count
+    
+    total_amount = total_petrol_cost + total_mobil_cost + total_da + total_others
+    
+    return {
+        'total_tour': tour_count + meeting_count,
+        'friday_tour': friday_tour_count,
+        'meeting_count': meeting_count,
+        'manager_tour': manager_tour_count,
+        'short_tour': short_tour_count,
+        'net_tours': net_tours if net_tours >= 0 else 0,
+        'total_liters_petrol': total_liters_petrol,
+        'total_liters_mobil': total_liters_mobil,
+        'total_km': total_km,
+        'total_petrol_cost': total_petrol_cost,
+        'total_mobil_cost': total_mobil_cost,
+        'total_da': total_da,
+        'total_others': total_others,
+        'grand_total': total_amount
+    }
