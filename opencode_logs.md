@@ -97,8 +97,15 @@
 
 ### Current state
 - Bot verified: starts cleanly, connects to Telegram API successfully
+- Bot is now RUNNING in a separate CMD window via `run.bat` on user's machine
 - No pending edits
 - GitHub up to date (origin/master matches local master)
+
+### Bot restart workflow (locked in)
+1. Kill all `python*` processes (closes old bot CMD window)
+2. Run `Start-Process run.bat` (opens NEW CMD window running bot)
+3. Do this AFTER every response, every edit
+4. Never skip, never forget
 
 ### User's Hard Rules (ABSOLUTE — never forget)
 1. **Auto-commit + push to GitHub** after EVERY single edit/modification. No exceptions.
