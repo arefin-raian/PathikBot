@@ -422,3 +422,47 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 **Fixed:** Indentation error in `handle_petrol_question` (extra indentation after back branch comment).
 
 **Verified:** Bot imports cleanly after cache clear.
+
+---
+
+### Task: Externalize all Bangla strings to bot/strings.json — 2026-06-03
+
+**User request:** Move every user-facing Bangla text (button labels, prompts, messages, help text, etc.) into a single JSON file so user can edit text in one place without touching code. Also change the main menu format.
+
+**New files created:**
+- **`bot/strings.json`** — Complete JSON file with ALL user-facing Bangla text, organized by module:
+  - `keyboards.*` — All inline button labels (mainmenu, edit/delete, editfields, entrytype, month/date selection, distributor, yes/no, confirmation, settings, distributormgmt, entryselection, archiveactions)
+  - `start.*` — Welcome title, menu header, bot info, menu prompt
+  - `help.*` — Title + 9 help sections (start, new_entry, edit_entry, del_entry, cancel, list_entries, summary, months, settings, generate)
+  - `new_entry.*` — All step prompts, confirmation, success, error, cancel messages (30+ keys)
+  - `summary.*` — Entry display templates (regular/meeting headers + bodies), summary lines (header, total_tour, total_km, petrol, mobil, da, transport, grand_total), no_entries, conditional sub-templates (petrol_line, mobil_line, distributor_line)
+  - `settings.*` — Edit/delete prompts, config display template, distributor management, setting change prompts, success/error messages (30+ keys)
+  - `archive.*` — No entries, prompt, action prompt, cancelled, month_label
+  - `report.*` — No entries, success, error messages
+  - `common.*` — Shared back_to_menu, back, cancelled, cancelled_plain
+  - `bot_commands.*` — All 11 Telegram menu command descriptions
+- **`bot/strings.py`** — Loader module with `S(key, **kwargs)` function (dot-separated key access with format args) and `bot_commands()` helper
+
+**Updated files to use S() from strings.py:**
+- **`bot/keyboards.py`** — All button labels → `S('keyboards.{section}.{key}')`; dynamic labels pass format args (month_name, year, etc.)
+- **`bot/handlers/start.py`** — Welcome/main menu → new format (`S('start.menu_header')`, `S('start.bot_info')`, `S('start.menu_prompt')`); help text → `S('help.title')` + `S('help.sections.*')`
+- **`bot/handlers/new_entry.py`** — Every prompt, error, confirmation, success message → `S('new_entry.*')` with format args
+- **`bot/handlers/summary.py`** — Entry display templates → `S('summary.entry_header_*')` + `S('summary.entry_body_*')` + sub-templates; summary display → `S('summary.summary_line_*')`; no_entries → `S('summary.no_entries')`
+- **`bot/handlers/settings.py`** — All prompts, config display, distributor mgmt, success/error → `S('settings.*')`
+- **`bot/handlers/archive.py`** — No entries, prompt, action prompt, month labels → `S('archive.*')`; action keyboard → `S('keyboards.archive_actions.*')`
+- **`bot/handlers/report.py`** — No entries, success, error → `S('report.*')` with format args
+- **`bot/main.py`** — `post_init` → `bot_commands()` from strings.py
+
+**New main menu format** (applied to both `/start` and `main_menu_callback`):
+```
+স্বাগতম {user_name}! 👋
+
+মূল মেনু  ‣  চলতি মাস: জুন ২০২৬
+পথিকবট — মোটরসাইকেল লগশীট অটোমেশন সিস্টেম
+
+নিচের মেনু থেকে আপনার পছন্দের অপশনটি নির্বাচন করুন:
+```
+
+**Verified:** Bot imports cleanly (all modules load, no syntax errors).
+
+**Commit:** `0a01b58` — "Externalize all Bangla strings to bot/strings.json; new main menu format"
