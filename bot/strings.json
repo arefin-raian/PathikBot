@@ -163,7 +163,7 @@
     "entry_petrol_line": "তেল: <b>{liters}</b> লি = <b>{cost}</b> টাকা\n",
     "entry_mobil_line": "মবিল: <b>{liters}</b> লি = <b>{cost}</b> টাকা\n",
     "entry_distributor_line": "পরিবেশক: {name}\n",
-    "summary_header": "<blockquote><b>📊 সার সংক্ষেপ                 </b></blockquote>",
+    "summary_header": "<blockquote><b>📊 সার সংক্ষেপ                         </b></blockquote>",
     "summary_line_total_tour": "    মোট ট্যুর: <b>{total_tour}</b>টি",
     "summary_line_total_km": "    মোট কিমি: <b>{total_km}</b> কিমি",
     "summary_line_petrol": "    মোট পেট্রোল: <b>{liters}</b> লি = <b>{cost}</b>/-",
