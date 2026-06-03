@@ -466,3 +466,37 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 **Verified:** Bot imports cleanly (all modules load, no syntax errors).
 
 **Commit:** `0a01b58` — "Externalize all Bangla strings to bot/strings.json; new main menu format"
+
+---
+
+## Session: 2026-06-03 (afternoon)
+
+### Fix: Message deletion bug & missing parse_mode=HTML
+
+**Problem:**
+1. After saving an entry, all tracked messages (including the interactive message chain) were deleted before `query.edit_message_text(save_success)`, causing a Telegram API error ("message to edit not found") that silently crashed the handler and prevented the summary from being sent.
+2. Many `parse_mode='HTML'` calls were missing after the strings.json refactoring, causing raw HTML tags (`<b>`, `<blockquote>`) to show instead of formatted text.
+
+**Root cause of the deletion bug:**
+- The entry flow uses both `edit_message_text` (in-place edits) and `reply_text` (new messages)
+- `reply_text` messages (distance_result, petrol_result, etc.) were tracked via `add_message_to_delete`
+- Throughout the flow, these tracked messages were edited in-place (via callback_query.edit_message_text) to become subsequent prompts
+- At save time, `delete_previous_messages` deleted the tracked message IDs — including the current confirmation message the user just clicked
+- `query.edit_message_text(save_success)` then failed because the message was gone
+
+**Fix:**
+- `delete_previous_messages` now accepts an optional `exclude` parameter (message ID to skip)
+- `save_entry_callback` passes `query.message.message_id` as `exclude`
+- All `save_entry_callback`, `cancel`, and `handle_final_entry_confirm` callers updated
+- Also fixed broken indentation + undefined variable in `handle_back_to_confirm_transport`
+
+**parse_mode fix:**
+- Added `parse_mode='HTML'` to all `reply_text`/`edit_message_text`/`send_message` calls using HTML strings across `new_entry.py`, `settings.py`, `start.py`, `summary.py`, `archive.py`
+
+**Files changed:**
+- `bot/handlers/new_entry.py` — delete_previous_messages exclude param, all HTML callers fixed, broken indent in handle_back_to_confirm_transport
+- `bot/handlers/settings.py` — parse_mode on setting_changed
+- `bot/handlers/start.py` — parse_mode on welcome, help, main_menu
+- `bot/handlers/summary.py` — parse_mode on send_entry_message, send_summary_message, list_entries_handler, summary_handler
+- `bot/handlers/archive.py` — parse_mode on archive action_prompt
+- `bot/handlers/report.py` — parse_mode was already present
