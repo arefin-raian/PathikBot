@@ -214,3 +214,34 @@ async def get_last_odo():
         return 0
     # entries are sorted by date, so last one is most recent
     return entries[-1].get('odo_end', 0)
+
+# ── User preferences (persistent across bot restarts) ─────
+
+USER_PREFS_PATH = 'data/user_prefs.json'
+
+async def get_user_prefs(user_id: int) -> dict:
+    try:
+        if not os.path.exists(USER_PREFS_PATH):
+            return {}
+        async with aiofiles.open(USER_PREFS_PATH, mode='r', encoding='utf-8') as f:
+            content = await f.read()
+            if not content.strip():
+                return {}
+            all_prefs = json.loads(content)
+            return all_prefs.get(str(user_id), {})
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+async def set_user_prefs(user_id: int, prefs: dict):
+    try:
+        if os.path.exists(USER_PREFS_PATH):
+            async with aiofiles.open(USER_PREFS_PATH, mode='r', encoding='utf-8') as f:
+                content = await f.read()
+                all_prefs = json.loads(content) if content.strip() else {}
+        else:
+            all_prefs = {}
+    except (FileNotFoundError, json.JSONDecodeError):
+        all_prefs = {}
+    all_prefs[str(user_id)] = prefs
+    async with aiofiles.open(USER_PREFS_PATH, mode='w', encoding='utf-8') as f:
+        await f.write(json.dumps(all_prefs, ensure_ascii=False, indent=2))

@@ -1,10 +1,24 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from core.database import get_entries
+from core.database import get_entries, get_user_prefs, set_user_prefs
 from core.calculations import calculate_summary
-from bot.keyboards import to_bn_number, BACK_TO_MENU
+from bot.keyboards import to_bn_number, BACK_TO_MENU, FILTER_KEYS, get_list_entries_choice_keyboard, get_filter_checkboxes_keyboard
 from bot.strings import S
 from datetime import datetime
+
+def matches_filter(entry, selected):
+    if not any(selected.get(k, False) for k in FILTER_KEYS):
+        return False
+    result = False
+    if selected.get('petrol', False):
+        result = result or (entry.get('petrol_liters', 0) > 0)
+    if selected.get('mobil', False):
+        result = result or (entry.get('mobil_liters', 0) > 0)
+    if selected.get('meeting', False):
+        result = result or (entry.get('entry_type') == 'MONTHLY_MEETING')
+    if selected.get('manager', False):
+        result = result or bool(entry.get('others_designation', ''))
+    return result
 
 async def send_entry_message(context, chat_id, i, e, first_entry=False, query=None):
     dt = datetime.strptime(e['date'], '%Y-%m-%d')
@@ -64,33 +78,118 @@ async def send_summary_message(context, chat_id, entries, reply_markup=None):
     )
     await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
 
+async def display_entries(update, context, entries, query=None):
+    chat_id = update.effective_chat.id
+    for i, e in enumerate(entries, 1):
+        await send_entry_message(context, chat_id, i, e, first_entry=(i == 1), query=query)
+    reply_markup = BACK_TO_MENU if query else None
+    await send_summary_message(context, chat_id, entries, reply_markup=reply_markup)
+
+async def show_filter_choice(update, context, query=None):
+    user_id = update.effective_user.id
+    prefs = await get_user_prefs(user_id)
+    saved = prefs.get('list_filters', {})
+    has_saved = any(saved.get(k, False) for k in FILTER_KEYS)
+    text = S('list_entries.choose_option')
+    if has_saved:
+        names = []
+        if saved.get('petrol'): names.append(S('keyboards.list_entries.filter_petrol'))
+        if saved.get('mobil'): names.append(S('keyboards.list_entries.filter_mobil'))
+        if saved.get('meeting'): names.append(S('keyboards.list_entries.filter_meeting'))
+        if saved.get('manager'): names.append(S('keyboards.list_entries.filter_manager'))
+        text += "\n\n" + S('list_entries.last_filter_hint', filter_names=", ".join(names))
+    if query:
+        await query.edit_message_text(text, reply_markup=get_list_entries_choice_keyboard(saved))
+    else:
+        await update.message.reply_text(text, reply_markup=get_list_entries_choice_keyboard(saved))
+
 async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    year, month = None, None
     if query:
         await query.answer()
-        if query.data.startswith("list_entries_"):
-            parts = query.data.split("_")
+        data = query.data
+        parts = data.split("_")
+
+        # 1. Archive month: list_entries_2026_6 — show entries directly
+        if len(parts) >= 4 and parts[2].isdigit() and parts[3].isdigit():
             year, month = int(parts[2]), int(parts[3])
-    
-    entries = await get_entries(month, year)
-    if not entries:
-        msg = S('summary.no_entries')
-        if query:
-            await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
-        else:
-            await update.message.reply_text(msg)
-        return
+            entries = await get_entries(month, year)
+            if not entries:
+                await query.edit_message_text(S('summary.no_entries'), reply_markup=BACK_TO_MENU)
+                return
+            await display_entries(update, context, entries, query)
+            return
 
-    display_entries = entries if (month and year) else entries[-10:]
-    chat_id = update.effective_chat.id
+        # 2. Main menu → show filter choice
+        if data == "list_entries":
+            await show_filter_choice(update, context, query)
+            return
 
-    for i, e in enumerate(display_entries, 1):
-        await send_entry_message(context, chat_id, i, e, first_entry=(i == 1), query=query)
+        # 3. All entries
+        if data == "list_entries_all":
+            entries = await get_entries()
+            if not entries:
+                await query.edit_message_text(S('summary.no_entries'), reply_markup=BACK_TO_MENU)
+                return
+            await display_entries(update, context, entries, query)
+            return
 
-    # Context-aware: command → no back button; menu callback → show back button
-    reply_markup = BACK_TO_MENU if query else None
-    await send_summary_message(context, chat_id, display_entries, reply_markup=reply_markup)
+        # 4. Use last saved filter
+        if data == "list_entries_last_filter":
+            prefs = await get_user_prefs(update.effective_user.id)
+            filters = prefs.get('list_filters', {})
+            entries = await get_entries()
+            filtered = [e for e in entries if matches_filter(e, filters)]
+            if not filtered:
+                await query.edit_message_text(S('list_entries.no_matches'), reply_markup=BACK_TO_MENU)
+                return
+            await display_entries(update, context, filtered, query)
+            return
+
+        # 5. Show filter checkboxes
+        if data == "list_entries_filter":
+            prefs = await get_user_prefs(update.effective_user.id)
+            saved = prefs.get('list_filters', {})
+            context.user_data['list_filter_state'] = dict(saved)
+            await query.edit_message_text(S('list_entries.filter_title'), reply_markup=get_filter_checkboxes_keyboard(saved))
+            return
+
+        # 6. Toggle a filter checkbox
+        if data.startswith("list_entries_filter_toggle_"):
+            idx = int(data.split("_")[-1])
+            key = FILTER_KEYS[idx]
+            state = context.user_data.get('list_filter_state', {})
+            state[key] = not state.get(key, False)
+            context.user_data['list_filter_state'] = state
+            await query.edit_message_text(S('list_entries.filter_title'), reply_markup=get_filter_checkboxes_keyboard(state))
+            return
+
+        # 7. Apply filter
+        if data == "list_entries_filter_apply":
+            state = context.user_data.get('list_filter_state', {})
+            prefs = await get_user_prefs(update.effective_user.id)
+            prefs['list_filters'] = state
+            await set_user_prefs(update.effective_user.id, prefs)
+            entries = await get_entries()
+            filtered = [e for e in entries if matches_filter(e, state)]
+            if not filtered:
+                await query.edit_message_text(S('list_entries.no_matches'), reply_markup=BACK_TO_MENU)
+                return
+            await display_entries(update, context, filtered, query)
+            return
+
+        # 8. Back from filter checkboxes
+        if data == "list_entries_filter_back":
+            await show_filter_choice(update, context, query)
+            return
+
+    else:
+        # Slash command: /listentries
+        entries = await get_entries()
+        if not entries:
+            await update.message.reply_text(S('summary.no_entries'))
+            return
+        await show_filter_choice(update, context)
 
 async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query

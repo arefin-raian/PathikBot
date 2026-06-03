@@ -192,6 +192,37 @@ def get_confirmation_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
+FILTER_KEYS = ['petrol', 'mobil', 'meeting', 'manager']
+
+def get_list_entries_choice_keyboard(saved_filters=None):
+    b = S('keyboards.list_entries')
+    buttons = []
+    buttons.append([InlineKeyboardButton(b['all_entries'], callback_data="list_entries_all")])
+    if saved_filters and any(saved_filters.get(k, False) for k in FILTER_KEYS):
+        names = []
+        if saved_filters.get('petrol'): names.append(b['filter_petrol'])
+        if saved_filters.get('mobil'): names.append(b['filter_mobil'])
+        if saved_filters.get('meeting'): names.append(b['filter_meeting'])
+        if saved_filters.get('manager'): names.append(b['filter_manager'])
+        label = b['last_filter'] + ": " + ", ".join(names)
+        buttons.append([InlineKeyboardButton(label, callback_data="list_entries_last_filter")])
+    buttons.append([InlineKeyboardButton(b['filter'], callback_data="list_entries_filter")])
+    return InlineKeyboardMarkup(buttons)
+
+def get_filter_checkboxes_keyboard(selected):
+    b = S('keyboards.list_entries')
+    labels = [b['filter_petrol'], b['filter_mobil'], b['filter_meeting'], b['filter_manager']]
+    keyboard = []
+    for i, key in enumerate(FILTER_KEYS):
+        checked = selected.get(key, False) if selected else False
+        prefix = "✅ " if checked else ""
+        keyboard.append([InlineKeyboardButton(prefix + labels[i], callback_data=f"list_entries_filter_toggle_{i}")])
+    keyboard.append([
+        InlineKeyboardButton(b['apply'], callback_data="list_entries_filter_apply"),
+        InlineKeyboardButton(b['back'], callback_data="list_entries_filter_back")
+    ])
+    return InlineKeyboardMarkup(keyboard)
+
 def get_settings_keyboard(show_back_to_menu=True):
     b = S('keyboards.settings')
     keyboard = [
