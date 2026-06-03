@@ -10,7 +10,7 @@ from telegram.ext import (
 from datetime import datetime
 import calendar
 import os
-from core.database import add_entry, get_last_odo, get_last_day_in_month, get_distributors
+from core.database import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors
 from core.calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost
 from bot.keyboards import (
     get_entry_type_keyboard, 
@@ -664,19 +664,29 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         dt = datetime.strptime(context.user_data['date'], '%Y-%m-%d')
         days_in_month = calendar.monthrange(dt.year, dt.month)[1]
         
+        # Show success
+        await query.edit_message_text(f"✅ এন্ট্রি সফলভাবে সংরক্ষণ করা হয়েছে! (ID: {to_bn_number(entry_id)})")
+        
+        # Show summary for the month
+        from bot.handlers.summary import send_summary_message
+        month_entries = await get_entries(dt.month, dt.year)
+        await send_summary_message(context, update.effective_chat.id, month_entries)
+        
         if dt.day >= days_in_month - 2:
-            # Within last 3 days
-            await query.edit_message_text(
-                f"✅ এন্ট্রি সফলভাবে সংরক্ষণ করা হয়েছে! (ID: {to_bn_number(entry_id)})\n\n"
-                "❓ এটি কি এই মাসের শেষ এন্ট্রি?",
+            # Within last 3 days — ask if final entry
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="❓ এটি কি এই মাসের শেষ এন্ট্রি?",
                 reply_markup=get_yes_no_keyboard('final_entry')
             )
             return CONFIRM_FINAL_ENTRY
         else:
-            await query.edit_message_text(f"✅ এন্ট্রি সফলভাবে সংরক্ষণ করা হয়েছে! (ID: {to_bn_number(entry_id)})", reply_markup=get_main_menu())
-            # Final Aggressive Cleanup: If this message was a reply to a command, we might want to delete it too
-            # and send a fresh start menu? But for now, editing it to main menu is standard.
-            
+            # Show main menu
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="মূল মেনুতে ফিরে যান:",
+                reply_markup=get_main_menu()
+            )
             # Keep month/year for sticky logic
             to_keep = ['selected_month', 'selected_year']
             kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}

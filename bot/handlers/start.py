@@ -1,17 +1,24 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from bot.keyboards import get_main_menu
+from bot.keyboards import get_main_menu, MONTHS_BN_FULL, to_bn_number
+from datetime import datetime
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /start command."""
     user = update.effective_user
+    now = datetime.now()
+    month_name = MONTHS_BN_FULL[now.month]
+    year = to_bn_number(now.year)
+    today = to_bn_number(now.strftime('%d/%m/%y'))
     welcome_text = (
         f"স্বাগতম {user.first_name}! 👋\n\n"
-        "**পথিকবট** মোটর সাইকেল লগশীট অটোমেশন সিস্টেমে আপনাকে স্বাগতম।\n"
-        "আমি আপনাকে আপনার দৈনন্দিন ভিজিট ট্র্যাক করতে এবং মাসিক রিপোর্ট তৈরি করতে সাহায্য করব।\n\n"
-        "আজ আপনি কী করতে চান?"
+        f"<b>পথিকবট</b> — মোটরসাইকেল লগশীট অটোমেশন সিস্টেম\n\n"
+        f"চলতি মাস: <b>{month_name} {year}</b>\n"
+        f"আজকের তারিখ: <b>{today}</b>\n\n"
+        f"আপনার দৈনন্দিন ফিল্ড ট্যুর ও খরচ ট্র্যাক করুন এবং মাসিক রিপোর্ট তৈরি করুন।\n"
+        f"নিচের মেনু থেকে আপনার পছন্দের অপশনটি নির্বাচন করুন:"
     )
-    await update.message.reply_text(welcome_text, reply_markup=get_main_menu(), parse_mode='Markdown')
+    await update.message.reply_text(welcome_text, reply_markup=get_main_menu(), parse_mode='HTML')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /help command with detailed Bangla explanations."""
@@ -52,7 +59,13 @@ async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer()
     
     if query.data == "main_menu":
+        now = datetime.now()
+        month_name = MONTHS_BN_FULL[now.month]
+        year = to_bn_number(now.year)
         await query.edit_message_text(
-            "মূল মেনু:\nআপনি কী করতে চান?",
-            reply_markup=get_main_menu()
+            f"<b>মূল মেনু</b>\n"
+            f"চলতি মাস: <b>{month_name} {year}</b>\n\n"
+            f"আপনার পছন্দের অপশনটি নির্বাচন করুন:",
+            reply_markup=get_main_menu(),
+            parse_mode='HTML'
         )

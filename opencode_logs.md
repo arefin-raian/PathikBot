@@ -354,3 +354,31 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 **Issue:** Box-drawing characters (`─`) in `verify()` couldn't print to Windows cp1252 terminal.
 
 **Note:** This is a terminal encoding issue, not a code bug. Run with `$env:PYTHONIOENCODING='utf-8'` or use Windows Terminal. User doesn't need to fix this — it's just a display issue in CMD/PowerShell.
+
+---
+
+### Task: UI layout changes (listentries, new entry summary, menu text) — 2026-06-03
+
+**User requests:**
+1. `/listentries` — each entry sent as separate message; remove "সারসংক্ষেপ" from entry display; show summary after all entries
+2. After saving a new entry — also show summary of the month
+3. Main menu — add current month info; elaborate prompt text so menu button widths don't get shrunk
+
+**Changes made:**
+
+**`bot/handlers/summary.py`:**
+- Extracted entry rendering into `send_entry_message()` helper — sends each entry as separate message, first via `edit_message_text` (replaces menu), rest via `bot.send_message`
+- Extracted summary rendering into `send_summary_message()` helper (HTML format, reusable from other handlers)
+- `list_entries_handler`: loops through entries calling `send_entry_message()`, then calls `send_summary_message()` with `BACK_TO_MENU`
+- `summary_handler`: changed to use HTML `<b>` instead of Markdown `**` for consistency
+- Added `get_main_menu` import (needed by `send_summary_message` callers)
+
+**`bot/handlers/new_entry.py`:**
+- Added `get_entries` to database imports
+- `save_entry_callback`: after save success, calls `send_summary_message()` for the current month; for non-final-entry case, follows up with main menu message; for final-entry case, follows up with final-entry question
+
+**`bot/handlers/start.py`:**
+- `start_command`: welcome text now shows current month name/year, today's date, and an elaborated prompt ("আপনার দৈনন্দিন ফিল্ড ট্যুর ও খরচ ট্র্যাক করুন এবং মাসিক রিপোর্ট তৈরি করুন। নিচের মেনু থেকে আপনার পছন্দের অপশনটি নির্বাচন করুন:") — changed to HTML parse_mode
+- `main_menu_callback`: shows current month info in the menu header with elaborated text
+
+**Verified:** Bot imports cleanly (no syntax errors), all modules load correctly.
