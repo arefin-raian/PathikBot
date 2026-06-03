@@ -17,6 +17,7 @@ from bot.handlers.report import generate_report_handler
 from bot.handlers.summary import list_entries_handler, summary_handler
 from bot.handlers.settings import settings_handler, get_settings_conv_handler, get_edit_delete_conv_handler
 from bot.handlers.archive import get_archive_handler
+from bot.strings import bot_commands
 from core.database import init_db
 
 # Load environment variables
@@ -32,22 +33,7 @@ logging.basicConfig(
 async def post_init(application):
     """Run after the bot has been initialized."""
     await init_db()
-    
-    # Set bot commands for the Telegram Menu
-    commands = [
-        BotCommand("start", "বটের স্বাগত বার্তা ও ব্যবহার নির্দেশিকা"),
-        BotCommand("newentry", "নতুন ফিল্ড ট্যুর বা মাসিক মিটিং এন্ট্রি শুরু করুন"),
-        BotCommand("editentry", "পুরানো এন্ট্রি এডিট করুন"),
-        BotCommand("delentry", "পুরানো এন্ট্রি ডিলিট করুন"),
-        BotCommand("cancel", "বর্তমান অপারেশন বাতিল করুন"),
-        BotCommand("help", "সব কমান্ডের বিস্তারিত ব্যাখ্যা"),
-        BotCommand("listentries", "চলতি মাসের সব এন্ট্রি দেখুন"),
-        BotCommand("summary", "চলতি মাসের সারসংক্ষেপ দেখুন"),
-        BotCommand("months", "পুরানো মাসের রেকর্ড দেখুন (আর্কাইভ)"),
-        BotCommand("settings", "বর্তমান কনফিগারেশন ও পরিবেশক দেখুন"),
-        BotCommand("generate", "চলতি মাসের DOCX রিপোর্ট তৈরি করুন")
-    ]
-    await application.bot.set_my_commands(commands)
+    await application.bot.set_my_commands(bot_commands())
 
 def main():
     if not TOKEN:

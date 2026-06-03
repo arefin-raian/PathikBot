@@ -19,6 +19,7 @@ from bot.keyboards import (
     get_distributor_mgmt_keyboard,
     get_distributor_keyboard
 )
+from bot.strings import S
 from core.database import (
     get_entries, 
     delete_entry, 
@@ -46,7 +47,7 @@ SHOWING_SETTINGS = 10
 async def edit_delete_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text("এডিট বা ডিলিট অপশন নির্বাচন করুন:", reply_markup=get_edit_delete_keyboard())
+    await query.edit_message_text(S('settings.edit_delete_prompt'), reply_markup=get_edit_delete_keyboard())
 
 async def start_edit_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -55,14 +56,14 @@ async def start_edit_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     entries = await get_entries()
     if not entries:
-        msg = "কোনো এন্ট্রি পাওয়া যায়নি।"
+        msg = S('settings.no_entries')
         if query:
             await query.edit_message_text(msg, reply_markup=get_main_menu())
         else:
             await update.message.reply_text(msg, reply_markup=get_main_menu())
         return ConversationHandler.END
         
-    msg = "কোন তারিখের এন্ট্রি এডিট করতে চান?"
+    msg = S('settings.edit_prompt')
     kb = get_entries_selection_keyboard(entries[-15:], "edit")
     if query:
         await query.edit_message_text(msg, reply_markup=kb)
@@ -81,7 +82,7 @@ async def handle_edit_selection(update: Update, context: ContextTypes.DEFAULT_TY
     if query.data.startswith("edit_"):
         entry_id = int(query.data.split("_")[1])
         context.user_data['editing_id'] = entry_id
-        await query.edit_message_text("কি পরিবর্তন করতে চান?", reply_markup=get_edit_fields_keyboard(entry_id))
+        await query.edit_message_text(S('settings.edit_field_prompt'), reply_markup=get_edit_fields_keyboard(entry_id))
         return CHOOSING_FIELD_TO_EDIT
 
 async def start_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -98,17 +99,17 @@ async def start_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['editing_field'] = field
     
     prompts = {
-        "km": "📏 নতুন দূরত্ব (কিমি) লিখুন:",
-        "start": "🔢 নতুন শুরুর ওডোমিটার রিডিং লিখুন:",
-        "end": "🔢 নতুন শেষ ওডোমিটার রিডিং লিখুন:",
-        "petrol": "⛽ নতুন পেট্রোল লিটার লিখুন:",
-        "mobil": "🛢 নতুন মবিল লিটার লিখুন:"
+        "km": S('settings.prompt_edit_km'),
+        "start": S('settings.prompt_edit_start'),
+        "end": S('settings.prompt_edit_end'),
+        "petrol": S('settings.prompt_edit_petrol'),
+        "mobil": S('settings.prompt_edit_mobil')
     }
     
     if field == "dist":
         from bot.keyboards import get_distributor_keyboard
         context.user_data['selected_dist_indices'] = []
-        await query.edit_message_text("🤝 নতুন পরিবেশক নির্বাচন করুন (একাধিক হতে পারে):", reply_markup=get_distributor_keyboard())
+        await query.edit_message_text(S('settings.edit_field_dist_prompt'), reply_markup=get_distributor_keyboard())
         return EDITING_DISTRIBUTORS
     
     await query.edit_message_text(prompts[field])
@@ -134,13 +135,13 @@ async def handle_edit_distributors(update: Update, context: ContextTypes.DEFAULT
         names = [dists[i] for i in selected]
         entry_id = context.user_data['editing_id']
         await update_entry_and_cascade(entry_id, {'distributors_raw': names})
-        await query.edit_message_text("✅ পরিবেশক তালিকা সফলভাবে আপডেট করা হয়েছে।", reply_markup=get_main_menu())
+        await query.edit_message_text(S('settings.edit_dist_success'), reply_markup=get_main_menu())
         return ConversationHandler.END
     elif query.data == "back":
-        await query.edit_message_text("কি পরিবর্তন করতে চান?", reply_markup=get_edit_fields_keyboard(context.user_data['editing_id']))
+        await query.edit_message_text(S('settings.edit_field_prompt'), reply_markup=get_edit_fields_keyboard(context.user_data['editing_id']))
         return CHOOSING_FIELD_TO_EDIT
     elif query.data == "cancel":
-        await query.edit_message_text("বাতিল করা হয়েছে।", reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
         return ConversationHandler.END
 
 async def distributor_mgmt_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -148,12 +149,12 @@ async def distributor_mgmt_handler(update: Update, context: ContextTypes.DEFAULT
     if query: await query.answer()
     
     dists = await get_distributors()
-    msg = "<b>🤝 পরিবেশক ম্যানেজমেন্ট</b>\n\nনতুন পরিবেশক যোগ করতে বা পুরানো ডিলিট করতে নিচের অপশন ব্যবহার করুন।"
+    msg = S('settings.dist_mgmt_title')
     
     if query:
-        await query.edit_message_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='HTML')
+        await query.edit_message_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists))
     else:
-        await update.message.reply_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='HTML')
+        await update.message.reply_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists))
     return MANAGING_DISTRIBUTORS
 
 async def handle_distributor_mgmt_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -164,19 +165,19 @@ async def handle_distributor_mgmt_callback(update: Update, context: ContextTypes
         return await settings_handler(update, context)
         
     if query.data == "add_distributor":
-        await query.edit_message_text("➕ নতুন পরিবেশকের নাম লিখুন:")
+        await query.edit_message_text(S('settings.dist_add_prompt'))
         return ADDING_DISTRIBUTOR
         
     if query.data.startswith("remove_dist_"):
         idx = int(query.data.split("_")[2])
         dists = await get_distributors()
         if idx < 0 or idx >= len(dists):
-            await query.edit_message_text("পরিবেশক খুঁজে পাওয়া যায়নি।", reply_markup=get_distributor_mgmt_keyboard(dists))
+            await query.edit_message_text(S('settings.dist_not_found'), reply_markup=get_distributor_mgmt_keyboard(dists))
             return MANAGING_DISTRIBUTORS
         name = dists[idx]
         await remove_distributor(name)
         dists = await get_distributors()
-        await query.edit_message_text(f"✅ '{name}' রিমুভ করা হয়েছে।", reply_markup=get_distributor_mgmt_keyboard(dists))
+        await query.edit_message_text(S('settings.dist_removed', name=name), reply_markup=get_distributor_mgmt_keyboard(dists))
         return MANAGING_DISTRIBUTORS
         
     return MANAGING_DISTRIBUTORS
@@ -186,7 +187,7 @@ async def handle_new_distributor_name(update: Update, context: ContextTypes.DEFA
     if name:
         await add_distributor(name)
         dists = await get_distributors()
-        await update.message.reply_text(f"✅ '{name}' যোগ করা হয়েছে।", reply_markup=get_distributor_mgmt_keyboard(dists))
+        await update.message.reply_text(S('settings.dist_added', name=name), reply_markup=get_distributor_mgmt_keyboard(dists))
         return MANAGING_DISTRIBUTORS
     return ADDING_DISTRIBUTOR
 
@@ -199,7 +200,7 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         entry = await get_entry_by_id(entry_id)
         if not entry:
-            await update.message.reply_text("এন্ট্রি খুঁজে পাওয়া যায়নি।", reply_markup=get_main_menu())
+            await update.message.reply_text(S('settings.entry_not_found'), reply_markup=get_main_menu())
             return ConversationHandler.END
             
         updates = {}
@@ -216,8 +217,6 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
             updates['mobil_liters'] = val
             updates['mobil_cost'] = calculate_mobil_cost(val)
             
-        # Re-calculate total cost for this entry
-        # We merge existing with updates for calculation
         temp_entry = entry.copy()
         temp_entry.update(updates)
         updates['total_cost'] = calculate_total_entry_cost(
@@ -229,11 +228,11 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         await update_entry_and_cascade(entry_id, updates)
-        await update.message.reply_text("✅ সফলভাবে আপডেট করা হয়েছে এবং পরবর্তী ওডোমিটারগুলো সমন্বয় করা হয়েছে।", reply_markup=get_main_menu())
+        await update.message.reply_text(S('settings.update_success'), reply_markup=get_main_menu())
         return ConversationHandler.END
         
     except ValueError:
-        await update.message.reply_text("দয়া করে সঠিক সংখ্যা লিখুন।")
+        await update.message.reply_text(S('new_entry.error_invalid_number'))
         return ENTERING_NEW_VALUE
 
 async def start_delete_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -243,14 +242,14 @@ async def start_delete_entry(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     entries = await get_entries()
     if not entries:
-        msg = "কোনো এন্ট্রি পাওয়া যায়নি।"
+        msg = S('settings.no_entries')
         if query:
             await query.edit_message_text(msg, reply_markup=get_main_menu())
         else:
             await update.message.reply_text(msg, reply_markup=get_main_menu())
         return ConversationHandler.END
         
-    msg = "কোন তারিখের এন্ট্রি ডিলিট করতে চান?"
+    msg = S('settings.delete_prompt')
     kb = get_entries_selection_keyboard(entries[-15:], "delete")
     if query:
         await query.edit_message_text(msg, reply_markup=kb)
@@ -269,7 +268,7 @@ async def handle_delete_selection(update: Update, context: ContextTypes.DEFAULT_
     entry_id = int(query.data.split("_")[1])
     context.user_data['deleting_id'] = entry_id
     
-    await query.edit_message_text("আপনি কি নিশ্চিতভাবে এই এন্ট্রিটি ডিলিট করতে চান?", reply_markup=get_confirmation_keyboard())
+    await query.edit_message_text(S('settings.delete_confirm_prompt'), reply_markup=get_confirmation_keyboard())
     return CONFIRM_DELETE
 
 async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -282,14 +281,14 @@ async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_
     if query.data == "confirm_save":
         entry_id = context.user_data['deleting_id']
         await delete_entry(entry_id)
-        await query.edit_message_text("✅ এন্ট্রি ডিলিট করা হয়েছে এবং ওডোমিটার সমন্বয় করা হয়েছে।", reply_markup=get_main_menu())
+        await query.edit_message_text(S('settings.delete_success'), reply_markup=get_main_menu())
     else:
-        await query.edit_message_text("বাতিল করা হয়েছে।", reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
         
     return ConversationHandler.END
 
 async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = "❌ কার্যক্রম বাতিল করা হয়েছে।"
+    msg = S('settings.cancelled')
     if update.callback_query:
         await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())
     else:
@@ -326,18 +325,18 @@ async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     transport = os.getenv('TRANSPORT_FEE', '460')
     
     text = (
-        "<b>⚙️ বর্তমান কনফিগারেশন</b>\n\n"
-        f"⛽ পেট্রোল মূল্য: <b>{to_bn_number(petrol)}</b> টাকা/লি\n"
-        f"🛢 মবিল মূল্য: <b>{to_bn_number(mobil)}</b> টাকা/লি\n"
-        f"💰 DA রেট: <b>{to_bn_number(da)}</b> টাকা/প্রতি ট্যুর\n"
-        f"🚌 পরিবহন ভাড়া: <b>{to_bn_number(transport)}</b> টাকা/মাসিক মিটিং\n\n"
-        "পরিবর্তন করতে নিচের বাটন ব্যবহার করুন।"
+        f"{S('settings.config_display_title')}\n\n"
+        f"{S('settings.config_display_petrol', petrol=to_bn_number(petrol))}\n"
+        f"{S('settings.config_display_mobil', mobil=to_bn_number(mobil))}\n"
+        f"{S('settings.config_display_da', da=to_bn_number(da))}\n"
+        f"{S('settings.config_display_transport', transport=to_bn_number(transport))}\n\n"
+        f"{S('settings.config_display_action')}"
     )
     
     if query:
-        await query.edit_message_text(text, reply_markup=get_settings_keyboard(), parse_mode='HTML')
+        await query.edit_message_text(text, reply_markup=get_settings_keyboard())
     else:
-        await update.message.reply_text(text, reply_markup=get_settings_keyboard(), parse_mode='HTML')
+        await update.message.reply_text(text, reply_markup=get_settings_keyboard())
     return SHOWING_SETTINGS
 
 async def handle_settings_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -363,10 +362,10 @@ async def start_setting_change(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     
     setting_map = {
-        "set_petrol_price": ("PETROL_PRICE_PER_LITER", "⛽ নতুন পেট্রোল মূল্য লিখুন:"),
-        "set_mobil_price": ("MOBIL_PRICE_PER_LITER", "🛢 নতুন মবিল মূল্য লিখুন:"),
-        "set_da_rate": ("DA_AMOUNT", "💰 নতুন DA রেট লিখুন:"),
-        "set_transport_fee": ("TRANSPORT_FEE", "🚌 নতুন পরিবহন ভাড়া লিখুন:")
+        "set_petrol_price": ("PETROL_PRICE_PER_LITER", S('settings.prompt_petrol')),
+        "set_mobil_price": ("MOBIL_PRICE_PER_LITER", S('settings.prompt_mobil')),
+        "set_da_rate": ("DA_AMOUNT", S('settings.prompt_da')),
+        "set_transport_fee": ("TRANSPORT_FEE", S('settings.prompt_transport'))
     }
     
     env_key, prompt = setting_map[query.data]
@@ -377,14 +376,11 @@ async def start_setting_change(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     value = update.message.text
-    # In a real app, we'd update .env file. For now, we update os.environ
     key = context.user_data.get('changing_setting')
     if key:
         os.environ[key] = value
-        # Ideally, we should also write back to .env file here
-        # but let's keep it simple for now.
     
-    await update.message.reply_text(f"✅ সফলভাবে পরিবর্তিত হয়েছে: <b>{value}</b>", reply_markup=get_main_menu(), parse_mode='HTML')
+    await update.message.reply_text(S('settings.setting_changed', value=value), reply_markup=get_main_menu())
     return ConversationHandler.END
 
 def get_settings_conv_handler():

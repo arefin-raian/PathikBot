@@ -25,6 +25,7 @@ from bot.keyboards import (
     MONTHS_BN_FULL,
     to_bn_number
 )
+from bot.strings import S
 
 # States
 (
@@ -95,7 +96,7 @@ async def start_new_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.update(kept_data)
     
     query = update.callback_query
-    msg = "এন্ট্রির ধরন নির্বাচন করুন:"
+    msg = S('new_entry.type_prompt')
     push_history(context, CHOOSING_TYPE)
     
     if query:
@@ -121,12 +122,12 @@ async def handle_type_selection(update: Update, context: ContextTypes.DEFAULT_TY
             year = context.user_data['selected_year']
             last_day = await get_last_day_in_month(month, year)
             await query.edit_message_text(
-                f"তারিখ নির্বাচন করুন ({MONTHS_BN_FULL[month]} {to_bn_number(year)}):",
+                S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
                 reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
             )
             return SELECT_DATE
         else:
-            await query.edit_message_text("মাস নির্বাচন করুন:", reply_markup=get_month_selection_keyboard())
+            await query.edit_message_text(S('new_entry.month_prompt'), reply_markup=get_month_selection_keyboard())
             return SELECT_MONTH
     elif query.data == "type_meeting":
         context.user_data['entry_type'] = 'MONTHLY_MEETING'
@@ -137,15 +138,15 @@ async def handle_type_selection(update: Update, context: ContextTypes.DEFAULT_TY
             year = context.user_data['selected_year']
             last_day = await get_last_day_in_month(month, year)
             await query.edit_message_text(
-                f"তারিখ নির্বাচন করুন ({MONTHS_BN_FULL[month]} {to_bn_number(year)}):",
+                S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
                 reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
             )
             return SELECT_DATE
         else:
-            await query.edit_message_text("মাস নির্বাচন করুন:", reply_markup=get_month_selection_keyboard())
+            await query.edit_message_text(S('new_entry.month_prompt'), reply_markup=get_month_selection_keyboard())
             return SELECT_MONTH
     elif query.data == "cancel":
-        await query.edit_message_text("বাতিল করা হয়েছে।", reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
         return ConversationHandler.END
 
 async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -159,7 +160,7 @@ async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_T
 
     if query.data == "show_more_months":
         year = datetime.now().year
-        await query.edit_message_text("সব মাসের তালিকা:", reply_markup=get_all_months_keyboard(year))
+        await query.edit_message_text(S('keyboards.month_selection.all_months_title'), reply_markup=get_all_months_keyboard(year))
         return SELECT_MONTH
     elif query.data.startswith("select_month_"):
         parts = query.data.split("_")
@@ -171,12 +172,12 @@ async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_T
         
         push_history(context, SELECT_DATE)
         await query.edit_message_text(
-            f"তারিখ নির্বাচন করুন ({MONTHS_BN_FULL[month]}):",
+            S('keyboards.date_selection.title_with_month_only', month_name=MONTHS_BN_FULL[month]),
             reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
         )
         return SELECT_DATE
     elif query.data == "cancel":
-        await query.edit_message_text("বাতিল করা হয়েছে।", reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
         return ConversationHandler.END
 
 async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -188,7 +189,7 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
         if prev == SELECT_MONTH:
             return await handle_type_selection(update, context)
         if prev == CHOOSING_TYPE:
-            await query.edit_message_text("কি ধরনের এন্ট্রি?", reply_markup=get_entry_type_keyboard())
+            await query.edit_message_text(S('new_entry.what_type'), reply_markup=get_entry_type_keyboard())
             return CHOOSING_TYPE
         return CHOOSING_TYPE
 
@@ -197,7 +198,7 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
 
     if query.data == "show_all_dates":
         last_day = await get_last_day_in_month(month, year)
-        await query.edit_message_text("তারিখ নির্বাচন করুন (শুক্রবার বাদে):", reply_markup=get_date_selection_keyboard(year, month, last_day=last_day, show_all=True))
+        await query.edit_message_text(S('keyboards.date_selection.title_all_dates'), reply_markup=get_date_selection_keyboard(year, month, last_day=last_day, show_all=True))
         return SELECT_DATE
     elif query.data.startswith("select_date_"):
         day = int(query.data.split("_")[2])
@@ -208,9 +209,8 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
             context.user_data['suggested_odo_start'] = last_odo
             push_history(context, ENTER_ODO_START)
             await query.edit_message_text(
-                f"শুরুর ওডোমিটার কি <b>{to_bn_number(last_odo)}</b> হয়?",
-                reply_markup=get_yes_no_keyboard('odo_start_confirm', include_back=True),
-                parse_mode='HTML'
+                S('new_entry.odo_start_confirm', last_odo=to_bn_number(last_odo)),
+                reply_markup=get_yes_no_keyboard('odo_start_confirm', include_back=True)
             )
             return ENTER_ODO_START
         else:
@@ -218,13 +218,12 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
             context.user_data['transport_fee'] = transport_fee
             push_history(context, CONFIRM_TRANSPORT_FEE)
             await query.edit_message_text(
-                f"যাতায়াত ভাড়া: <b>{to_bn_number(transport_fee)}</b> টাকা\nঠিক আছে?",
-                reply_markup=get_yes_no_keyboard("transport"),
-                parse_mode='HTML'
+                S('new_entry.transport_confirm', transport_fee=to_bn_number(transport_fee)),
+                reply_markup=get_yes_no_keyboard("transport")
             )
             return CONFIRM_TRANSPORT_FEE
     elif query.data == "cancel":
-        await query.edit_message_text("বাতিল করা হয়েছে।", reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
         return ConversationHandler.END
 
 async def handle_odo_start_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -233,19 +232,18 @@ async def handle_odo_start_confirm(update: Update, context: ContextTypes.DEFAULT
     
     if query.data == "back":
         pop_history(context)
-        return await handle_month_selection(update, context) # Shows date selection
+        return await handle_month_selection(update, context)
 
     if query.data == "odo_start_confirm_yes":
         context.user_data['odo_start'] = context.user_data['suggested_odo_start']
         push_history(context, ENTER_DISTANCE)
         await query.edit_message_text(
-            "📏 আজকের মোট দূরত্ব লিখুন:\n"
-            "একটি সংখ্যা হতে পারে (যেমন: 64) অথবা যোগফল (যেমন: 14+15+16) অথবা গুণ (যেমন: 2*30+5):",
+            S('new_entry.distance_prompt'),
             reply_markup=get_back_keyboard()
         )
         return ENTER_DISTANCE
     else:
-        await query.edit_message_text("তাহলে শুরুর সঠিক ওডোমিটার রিডিংটি লিখুন:", reply_markup=get_back_keyboard())
+        await query.edit_message_text(S('new_entry.odo_start_prompt'), reply_markup=get_back_keyboard())
         return ENTER_ODO_START
 
 async def handle_odo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -255,14 +253,13 @@ async def handle_odo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['odo_start'] = odo
         push_history(context, ENTER_DISTANCE)
         m = await update.message.reply_text(
-            "📏 আজকের মোট দূরত্ব লিখুন:\n"
-            "একটি সংখ্যা হতে পারে (যেমন: 64) অথবা যোগফল (যেমন: 14+15+16) অথবা গুণ (যেমন: 2*30+5):",
+            S('new_entry.distance_prompt'),
             reply_markup=get_back_keyboard()
         )
         await add_message_to_delete(update, context, m.message_id)
         return ENTER_DISTANCE
     except ValueError:
-        m = await update.message.reply_text("দয়া করে সঠিক সংখ্যা লিখুন।")
+        m = await update.message.reply_text(S('new_entry.error_invalid_number'))
         await add_message_to_delete(update, context, m.message_id)
         return ENTER_ODO_START
 
@@ -278,15 +275,13 @@ async def handle_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         push_history(context, CONFIRM_ODO_END)
         m = await update.message.reply_text(
-            f"✅ দূরত্ব: <b>{to_bn_number(dist)}</b> কি:মি:\n"
-            f"🔚 তাহলে শেষ ওডোমিটার কি <b>{to_bn_number(context.user_data['odo_end'])}</b> হয়?",
-            reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True),
-            parse_mode='HTML'
+            S('new_entry.distance_result', dist=to_bn_number(dist), odo_end=to_bn_number(context.user_data['odo_end'])),
+            reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True)
         )
         await add_message_to_delete(update, context, m.message_id)
         return CONFIRM_ODO_END
     except Exception:
-        m = await update.message.reply_text("দয়া করে সঠিক হিসাব বা সংখ্যা লিখুন (যেমন: 64 বা 14+15)।")
+        m = await update.message.reply_text(S('new_entry.error_invalid_calculation'))
         await add_message_to_delete(update, context, m.message_id)
         return ENTER_DISTANCE
 
@@ -296,11 +291,8 @@ async def handle_odo_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     if query.data == "back":
         pop_history(context)
-        # We need to show distance entry again. But distance was a MessageHandler.
-        # So we just re-send the prompt.
         await query.edit_message_text(
-            "📏 আজকের মোট দূরত্ব লিখুন:\n"
-            "একটি সংখ্যা হতে পারে (যেমন: 64) অথবা যোগফল (যেমন: 14+15+16) অথবা গুণ (যেমন: 2*30+5):",
+            S('new_entry.distance_prompt'),
             reply_markup=get_back_keyboard()
         )
         return ENTER_DISTANCE
@@ -308,13 +300,13 @@ async def handle_odo_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if query.data == "odo_confirm_yes":
         push_history(context, PETROL_QUESTION)
         await query.edit_message_text(
-            "⛽ আজ কি পেট্রোল কিনেছেন?",
+            S('new_entry.petrol_question'),
             reply_markup=get_yes_no_keyboard('petrol', include_back=True)
         )
         return PETROL_QUESTION
     else:
-        await query.edit_message_text("তাহলে সঠিক শেষ ওডোমিটার রিডিংটি লিখুন:", reply_markup=get_back_keyboard())
-        return ENTER_ODO_END # This state might need a MessageHandler too
+        await query.edit_message_text(S('new_entry.odo_end_prompt'), reply_markup=get_back_keyboard())
+        return ENTER_ODO_END
 
 async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -323,23 +315,21 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
     if query.data == "back":
         pop_history(context)
         await query.edit_message_text(
-            f"✅ দূরত্ব: <b>{to_bn_number(context.user_data['total_km'])}</b> কি:মি:\n"
-            f"🔚 তাহলে শেষ ওডোমিটার কি <b>{to_bn_number(context.user_data['odo_end'])}</b> হয়?",
-            reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True),
-            parse_mode='HTML'
+            S('new_entry.distance_result', dist=to_bn_number(context.user_data['total_km']), odo_end=to_bn_number(context.user_data['odo_end'])),
+            reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True)
         )
         return CONFIRM_ODO_END
 
     if query.data == "petrol_yes":
         push_history(context, ENTER_LITERS)
-        await query.edit_message_text("⛽ পেট্রোল লিটার লিখুন:", reply_markup=get_back_keyboard())
+        await query.edit_message_text(S('new_entry.petrol_liters_prompt'), reply_markup=get_back_keyboard())
         return ENTER_LITERS
     else:
         context.user_data['petrol_liters'] = 0
         context.user_data['petrol_cost'] = 0
         push_history(context, MOBIL_QUESTION)
         await query.edit_message_text(
-            "🛢 আজ কি মবিল কিনেছেন?",
+            S('new_entry.mobil_question'),
             reply_markup=get_yes_no_keyboard('mobil', include_back=True)
         )
         return MOBIL_QUESTION
@@ -353,15 +343,13 @@ async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         push_history(context, MOBIL_QUESTION)
         m = await update.message.reply_text(
-            f"✅ পেট্রোল খরচ: <b>{to_bn_number(context.user_data['petrol_cost'])}</b>/-\n"
-            "🛢 আজ কি মবিল কিনেছেন?",
-            reply_markup=get_yes_no_keyboard('mobil', include_back=True),
-            parse_mode='HTML'
+            S('new_entry.petrol_result', petrol_cost=to_bn_number(context.user_data['petrol_cost'])),
+            reply_markup=get_yes_no_keyboard('mobil', include_back=True)
         )
         await add_message_to_delete(update, context, m.message_id)
         return MOBIL_QUESTION
     except ValueError:
-        m = await update.message.reply_text("দয়া করে সঠিক সংখ্যা লিখুন (যেমন: ১০ বা ১০.৫)।")
+        m = await update.message.reply_text(S('new_entry.error_invalid_float'))
         await add_message_to_delete(update, context, m.message_id)
         return ENTER_LITERS
 
@@ -372,21 +360,21 @@ async def handle_mobil_question(update: Update, context: ContextTypes.DEFAULT_TY
     if query.data == "back":
         pop_history(context)
         await query.edit_message_text(
-            "⛽ আজ কি পেট্রোল কিনেছেন?",
+            S('new_entry.petrol_question'),
             reply_markup=get_yes_no_keyboard('petrol', include_back=True)
         )
         return PETROL_QUESTION
 
     if query.data == "mobil_yes":
         push_history(context, ENTER_MOBIL_LITERS)
-        await query.edit_message_text("🛢 মবিল লিটার লিখুন:", reply_markup=get_back_keyboard())
+        await query.edit_message_text(S('new_entry.mobil_liters_prompt'), reply_markup=get_back_keyboard())
         return ENTER_MOBIL_LITERS
     else:
         context.user_data['mobil_liters'] = 0
         context.user_data['mobil_cost'] = 0
         push_history(context, MANAGER_QUESTION)
         await query.edit_message_text(
-            "💰 আপনার সাথে কি ম্যানেজার বা অন্য কেউ ছিলেন?",
+            S('new_entry.manager_question'),
             reply_markup=get_yes_no_keyboard('manager', include_back=True)
         )
         return MANAGER_QUESTION
@@ -400,15 +388,13 @@ async def handle_mobil_liters(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         push_history(context, MANAGER_QUESTION)
         m = await update.message.reply_text(
-            f"✅ মবিল খরচ: <b>{to_bn_number(context.user_data['mobil_cost'])}</b>/-\n"
-            "💰 আপনার সাথে কি ম্যানেজার বা অন্য কেউ ছিলেন?",
-            reply_markup=get_yes_no_keyboard('manager', include_back=True),
-            parse_mode='HTML'
+            S('new_entry.mobil_result', mobil_cost=to_bn_number(context.user_data['mobil_cost'])),
+            reply_markup=get_yes_no_keyboard('manager', include_back=True)
         )
         await add_message_to_delete(update, context, m.message_id)
         return MANAGER_QUESTION
     except ValueError:
-        m = await update.message.reply_text("দয়া করে সঠিক সংখ্যা লিখুন (যেমন: ১ বা ০.৫)।")
+        m = await update.message.reply_text(S('new_entry.error_invalid_mobil_float'))
         await add_message_to_delete(update, context, m.message_id)
         return ENTER_MOBIL_LITERS
 
@@ -419,20 +405,20 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
     if query.data == "back":
         pop_history(context)
         await query.edit_message_text(
-            "🛢 আজ কি মবিল কিনেছেন?",
+            S('new_entry.mobil_question'),
             reply_markup=get_yes_no_keyboard('mobil', include_back=True)
         )
         return MOBIL_QUESTION
 
     if query.data == "manager_yes":
         push_history(context, ENTER_MANAGER)
-        await query.edit_message_text("তার পদবী লিখুন (যেমন: ম্যানেজার সাহেব):", reply_markup=get_back_keyboard())
+        await query.edit_message_text(S('new_entry.manager_designation_prompt'), reply_markup=get_back_keyboard())
         return ENTER_MANAGER
     else:
         context.user_data['others_designation'] = ""
         push_history(context, DA_CONFIRM)
         await query.edit_message_text(
-            "💰 সাধারণ DA ২০০/- টাকা। এটি কি সঠিক?",
+            S('new_entry.da_confirm', da_amount=to_bn_number(200)),
             reply_markup=get_yes_no_keyboard('da', include_back=True)
         )
         return DA_CONFIRM
@@ -442,7 +428,7 @@ async def handle_manager_designation(update: Update, context: ContextTypes.DEFAU
     context.user_data['others_designation'] = update.message.text
     push_history(context, DA_CONFIRM)
     m = await update.message.reply_text(
-        "💰 সাধারণ DA ২০০/- টাকা। এটি কি সঠিক?",
+        S('new_entry.da_confirm', da_amount=to_bn_number(200)),
         reply_markup=get_yes_no_keyboard('da', include_back=True)
     )
     await add_message_to_delete(update, context, m.message_id)
@@ -455,7 +441,7 @@ async def handle_da_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "back":
         pop_history(context)
         await query.edit_message_text(
-            "💰 আপনার সাথে কি ম্যানেজার বা অন্য কেউ ছিলেন?",
+            S('new_entry.manager_question'),
             reply_markup=get_yes_no_keyboard('manager', include_back=True)
         )
         return MANAGER_QUESTION
@@ -468,7 +454,7 @@ async def handle_da_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     push_history(context, SELECT_DISTRIBUTORS)
     context.user_data['selected_dist_indices'] = []
     dists = await get_distributors()
-    await query.edit_message_text("পরিবেশক নির্বাচন করুন (একাধিক হতে পারে):", reply_markup=get_distributor_keyboard(dists))
+    await query.edit_message_text(S('new_entry.distributor_prompt'), reply_markup=get_distributor_keyboard(dists))
     return SELECT_DISTRIBUTORS
 
 async def handle_distributor_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -478,7 +464,7 @@ async def handle_distributor_selection(update: Update, context: ContextTypes.DEF
     if query.data == "back":
         pop_history(context)
         await query.edit_message_text(
-            "💰 সাধারণ DA ২০০/- টাকা। এটি কি সঠিক?",
+            S('new_entry.da_confirm', da_amount=to_bn_number(200)),
             reply_markup=get_yes_no_keyboard('da', include_back=True)
         )
         return DA_CONFIRM
@@ -501,7 +487,7 @@ async def handle_distributor_selection(update: Update, context: ContextTypes.DEF
         push_history(context, CONFIRM_ENTRY)
         return await show_confirmation(update, context)
     elif query.data == "cancel":
-        await query.edit_message_text("বাতিল করা হয়েছে।", reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
         return ConversationHandler.END
 
 async def handle_venue(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -514,13 +500,13 @@ async def handle_venue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         year = context.user_data['selected_year']
         last_day = await get_last_day_in_month(month, year)
         m = await update.message.reply_text(
-            f"তারিখ নির্বাচন করুন ({MONTHS_BN_FULL[month]} {to_bn_number(year)}):",
+            S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
             reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
         )
         await add_message_to_delete(update, context, m.message_id)
         return SELECT_DATE
     else:
-        m = await update.message.reply_text("মাস নির্বাচন করুন:", reply_markup=get_month_selection_keyboard())
+        m = await update.message.reply_text(S('new_entry.month_prompt'), reply_markup=get_month_selection_keyboard())
         await add_message_to_delete(update, context, m.message_id)
         return SELECT_MONTH
 
@@ -539,12 +525,12 @@ async def handle_transport_fee(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data['mobil_liters'] = 0
         context.user_data['mobil_cost'] = 0
         context.user_data['da_amount'] = 0
-        context.user_data['others_designation'] = "মাসিক মিটিং"
+        context.user_data['others_designation'] = S('new_entry.da_skip')
         
         push_history(context, CONFIRM_ENTRY)
         return await show_confirmation(update, context)
     except ValueError:
-        m = await update.message.reply_text("দয়া করে সঠিক পূর্ণসংখ্যা লিখুন।")
+        m = await update.message.reply_text(S('new_entry.error_invalid_int'))
         await add_message_to_delete(update, context, m.message_id)
         return ENTER_TRANSPORT_FEE
 
@@ -564,12 +550,12 @@ async def handle_transport_confirm(update: Update, context: ContextTypes.DEFAULT
         context.user_data['mobil_liters'] = 0
         context.user_data['mobil_cost'] = 0
         context.user_data['da_amount'] = 0
-        context.user_data['others_designation'] = "মাসিক মিটিং"
+        context.user_data['others_designation'] = S('new_entry.da_skip')
         push_history(context, CONFIRM_ENTRY)
         return await show_confirmation(update, context)
 
     elif query.data == "transport_no":
-        await query.edit_message_text("যাতায়াত ভাড়া (টাকা) লিখুন:", reply_markup=get_back_keyboard())
+        await query.edit_message_text(S('new_entry.transport_prompt'), reply_markup=get_back_keyboard())
         return ENTER_TRANSPORT_FEE
 
     elif query.data == "back":
@@ -578,7 +564,7 @@ async def handle_transport_confirm(update: Update, context: ContextTypes.DEFAULT
         year = context.user_data['selected_year']
         last_day = await get_last_day_in_month(month, year)
         await query.edit_message_text(
-            f"তারিখ নির্বাচন করুন ({MONTHS_BN_FULL[month]} {to_bn_number(year)}):",
+            S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
             reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
         )
         return SELECT_DATE
@@ -590,9 +576,8 @@ async def handle_back_to_confirm_transport(update: Update, context: ContextTypes
     await query.answer()
     context.user_data['transport_fee'] = int(os.getenv('TRANSPORT_FEE', '460'))
     await query.edit_message_text(
-        f"যাতায়াত ভাড়া: <b>{to_bn_number(context.user_data['transport_fee'])}</b> টাকা\nঠিক আছে?",
-        reply_markup=get_yes_no_keyboard("transport"),
-        parse_mode='HTML'
+        S('new_entry.transport_confirm', transport_fee=to_bn_number(context.user_data['transport_fee'])),
+        reply_markup=get_yes_no_keyboard("transport")
     )
     return CONFIRM_TRANSPORT_FEE
 
@@ -608,41 +593,49 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data['total_cost'] = cost
     
     dt = datetime.strptime(data['date'], '%Y-%m-%d')
-    date_bn = dt.strftime('%d/%m/%y')
+    date_bn = to_bn_number(dt.strftime('%d/%m/%y'))
 
     if data['entry_type'] == 'REGULAR':
-        summary = f"<blockquote><b>ফিল্ড ট্যুর — </b>{to_bn_number(date_bn)}<b>                 </b></blockquote>\n"
-        summary += f"মিটার শুরু: <b>{to_bn_number(data['odo_start'])}</b>\n"
-        summary += f"মিটার শেষ: <b>{to_bn_number(data['odo_end'])}</b>\n"
-        summary += f"দূরত্ব: <b>{to_bn_number(data['total_km'])}</b> কিমি\n"
-        if data.get('petrol_liters'):
-            summary += f"তেল: <b>{to_bn_number(data['petrol_liters'])}</b> লি = <b>{to_bn_number(data['petrol_cost'])}</b> টাকা\n"
-        if data.get('mobil_liters'):
-            summary += f"মবিল: <b>{to_bn_number(data['mobil_liters'])}</b> লি = <b>{to_bn_number(data['mobil_cost'])}</b> টাকা\n"
-        summary += f"DA বিল: <b>{to_bn_number(data['da_amount'])}</b> টাকা\n"
-        summary += f"মোট খরচ: <b>{to_bn_number(cost)}</b> টাকা\n"
+        petrol_l = data.get('petrol_liters', 0)
+        mobil_l = data.get('mobil_liters', 0)
+        petrol_line = S('summary.entry_petrol_line', liters=to_bn_number(petrol_l), cost=to_bn_number(data.get('petrol_cost', 0))) if petrol_l else ""
+        mobil_line = S('summary.entry_mobil_line', liters=to_bn_number(mobil_l), cost=to_bn_number(data.get('mobil_cost', 0))) if mobil_l else ""
+        dist_block = ""
         if data.get('distributors_raw'):
-            summary += "<blockquote expandable>"
+            dist_block = "<blockquote expandable>"
             for name in data['distributors_raw']:
-                summary += f"পরিবেশক: {name}\n"
-            summary += "</blockquote>"
+                dist_block += S('summary.entry_distributor_line', name=name)
+            dist_block += "</blockquote>"
+        summary = (
+            S('summary.entry_header_regular', index="", date=date_bn) + "\n" +
+            S('summary.entry_body_regular',
+                odo_start=to_bn_number(data['odo_start']),
+                odo_end=to_bn_number(data['odo_end']),
+                total_km=to_bn_number(data['total_km']),
+                petrol_line=petrol_line,
+                mobil_line=mobil_line,
+                da_amount=to_bn_number(data['da_amount']),
+                total_cost=to_bn_number(cost),
+                distributors_block=dist_block)
+        )
     else:
-        summary = f"<blockquote><b>মাসিক মিটিং — </b>{to_bn_number(date_bn)}<b>                 </b></blockquote>\n"
-        summary += f"মিটার শুরু: <b>{to_bn_number(data['odo_start'])}</b>\n"
-        summary += f"মিটার শেষ: <b>{to_bn_number(data['odo_end'])}</b>\n"
-        summary += f"দূরত্ব: <b>{to_bn_number(data['total_km'])}</b> কিমি\n"
-        summary += "<blockquote expandable>"
-        summary += f"DA বিল: <b>{to_bn_number(data['da_amount'])}</b> টাকা                        \n"
-        summary += f"যাতায়াত ভাড়া: <b>{to_bn_number(data['transport_fee'])}</b> টাকা\n"
-        summary += f"বিবরণ: {data['venue']}\n"
-        summary += f"মোট খরচ: <b>{to_bn_number(cost)}</b> টাকা\n"
-        summary += "</blockquote>"
+        summary = (
+            S('summary.entry_header_meeting', index="", date=date_bn) + "\n" +
+            S('summary.entry_body_meeting',
+                odo_start=to_bn_number(data['odo_start']),
+                odo_end=to_bn_number(data['odo_end']),
+                total_km=to_bn_number(data['total_km']),
+                da_amount=to_bn_number(data['da_amount']),
+                transport_fee=to_bn_number(data.get('transport_fee', 0)),
+                venue=data.get('venue', ''),
+                total_cost=to_bn_number(cost))
+        )
 
-    msg = summary + "\nআপনি কি এটি সংরক্ষণ করতে চান?"
+    msg = summary + S('new_entry.confirm_footer')
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=get_confirmation_keyboard(), parse_mode='HTML')
+        await update.callback_query.edit_message_text(msg, reply_markup=get_confirmation_keyboard())
     else:
-        m = await update.message.reply_text(msg, reply_markup=get_confirmation_keyboard(), parse_mode='HTML')
+        m = await update.message.reply_text(msg, reply_markup=get_confirmation_keyboard())
         await add_message_to_delete(update, context, m.message_id)
     return CONFIRM_ENTRY
 
@@ -657,9 +650,8 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         else:
             transport_fee = context.user_data.get('transport_fee', int(os.getenv('TRANSPORT_FEE', '460')))
             await query.edit_message_text(
-                f"যাতায়াত ভাড়া: <b>{to_bn_number(transport_fee)}</b> টাকা\nঠিক আছে?",
-                reply_markup=get_yes_no_keyboard("transport"),
-                parse_mode='HTML'
+                S('new_entry.transport_confirm', transport_fee=to_bn_number(transport_fee)),
+                reply_markup=get_yes_no_keyboard("transport")
             )
             return CONFIRM_TRANSPORT_FEE
 
@@ -667,34 +659,30 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         await delete_previous_messages(update, context)
         entry_id = await add_entry(context.user_data.copy())
         
-        # Check if it's the last 3 days of the month
         dt = datetime.strptime(context.user_data['date'], '%Y-%m-%d')
         days_in_month = calendar.monthrange(dt.year, dt.month)[1]
         
-        # Show success
-        await query.edit_message_text(f"✅ এন্ট্রি সফলভাবে সংরক্ষণ করা হয়েছে! (ID: <b>{to_bn_number(entry_id)}</b>)", parse_mode='HTML')
+        await query.edit_message_text(
+            S('new_entry.save_success', entry_id=to_bn_number(entry_id))
+        )
         
-        # Show summary for the month
         from bot.handlers.summary import send_summary_message
         month_entries = await get_entries(dt.month, dt.year)
         await send_summary_message(context, update.effective_chat.id, month_entries)
         
         if dt.day >= days_in_month - 2:
-            # Within last 3 days — ask if final entry
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="❓ এটি কি এই মাসের শেষ এন্ট্রি?",
+                text=S('new_entry.final_entry_prompt'),
                 reply_markup=get_yes_no_keyboard('final_entry')
             )
             return CONFIRM_FINAL_ENTRY
         else:
-            # Show main menu
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="মূল মেনুতে ফিরে যান:",
+                text=S('new_entry.back_to_menu_prompt'),
                 reply_markup=get_main_menu()
             )
-            # Keep month/year for sticky logic
             to_keep = ['selected_month', 'selected_year']
             kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
             context.user_data.clear()
@@ -702,8 +690,7 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             return ConversationHandler.END
     else:
         await delete_previous_messages(update, context)
-        await query.edit_message_text("❌ এন্ট্রি বাতিল করা হয়েছে।", reply_markup=get_main_menu())
-        # Keep month/year for sticky logic
+        await query.edit_message_text(S('new_entry.save_discarded'), reply_markup=get_main_menu())
         to_keep = ['selected_month', 'selected_year']
         kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
         context.user_data.clear()
@@ -717,23 +704,21 @@ async def handle_final_entry_confirm(update: Update, context: ContextTypes.DEFAU
     await delete_previous_messages(update, context)
     
     if query.data == "final_entry_yes":
-        # Clear sticky month
         context.user_data.clear()
-        await query.edit_message_text("ধন্যবাদ। এই মাসের কাজ শেষ করা হয়েছে।", reply_markup=get_main_menu())
+        await query.edit_message_text(S('new_entry.final_entry_done'), reply_markup=get_main_menu())
     else:
-        # Keep sticky month
         to_keep = ['selected_month', 'selected_year']
         kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
         context.user_data.clear()
         context.user_data.update(kept_data)
-        await query.edit_message_text("ঠিক আছে, আপনি আরও এন্ট্রি যোগ করতে পারবেন।", reply_markup=get_main_menu())
+        await query.edit_message_text(S('new_entry.final_entry_not_done'), reply_markup=get_main_menu())
         
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel the conversation."""
     await delete_previous_messages(update, context)
-    msg = "❌ কার্যক্রম বাতিল করা হয়েছে।"
+    msg = S('new_entry.cancelled')
     if update.callback_query:
         await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())
     else:

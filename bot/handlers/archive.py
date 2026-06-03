@@ -2,6 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, ConversationHandler
 from core.database import get_entries
 from bot.keyboards import MONTHS_BN_FULL, to_bn_number, get_main_menu
+from bot.strings import S
 from datetime import datetime
 
 # States
@@ -11,14 +12,13 @@ async def months_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /months command."""
     entries = await get_entries()
     if not entries:
-        msg = "কোনো এন্ট্রি পাওয়া যায়নি।"
+        msg = S('archive.no_entries')
         if update.callback_query:
             await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())
         else:
             await update.message.reply_text(msg, reply_markup=get_main_menu())
         return ConversationHandler.END
 
-    # Get unique months and years from entries
     months_data = set()
     for e in entries:
         dt = datetime.strptime(e['date'], '%Y-%m-%d')
@@ -28,12 +28,12 @@ async def months_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     keyboard = []
     for year, month in sorted_months:
-        label = f"{MONTHS_BN_FULL[month]} {to_bn_number(year)}"
+        label = S('archive.month_label', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year))
         keyboard.append([InlineKeyboardButton(label, callback_data=f"archive_view_{year}_{month}")])
     
-    keyboard.append([InlineKeyboardButton("🔙 ফিরে যান", callback_data="main_menu")])
+    keyboard.append([InlineKeyboardButton(S('common.back_to_menu'), callback_data="main_menu")])
     
-    msg = "পুরানো মাসের রেকর্ড দেখতে মাস নির্বাচন করুন:"
+    msg = S('archive.prompt')
     if update.callback_query:
         await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
     else:
@@ -52,16 +52,16 @@ async def archive_month_selection_handler(update: Update, context: ContextTypes.
         parts = query.data.split("_")
         year, month = int(parts[2]), int(parts[3])
         
-        # Options for the selected month
+        b = S('keyboards.archive_actions')
         keyboard = [
-            [InlineKeyboardButton("📋 এন্ট্রি তালিকা", callback_data=f"list_entries_{year}_{month}")],
-            [InlineKeyboardButton("📊 সারসংক্ষেপ", callback_data=f"summary_{year}_{month}")],
-            [InlineKeyboardButton("📄 রিপোর্ট তৈরি করুন", callback_data=f"generate_{year}_{month}")],
-            [InlineKeyboardButton("🔙 ফিরে যান", callback_data="months_back")]
+            [InlineKeyboardButton(b['list_entries'], callback_data=f"list_entries_{year}_{month}")],
+            [InlineKeyboardButton(b['summary'], callback_data=f"summary_{year}_{month}")],
+            [InlineKeyboardButton(b['report'], callback_data=f"generate_{year}_{month}")],
+            [InlineKeyboardButton(b['back'], callback_data="months_back")]
         ]
         
-        msg = f"📂 <b>{MONTHS_BN_FULL[month]} {to_bn_number(year)}</b>-এর জন্য আপনি কী করতে চান?"
-        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+        msg = S('archive.action_prompt', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year))
+        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
         return SELECTING_ARCHIVE_MONTH
 
     if query.data == "months_back":
@@ -85,7 +85,7 @@ async def archive_month_selection_handler(update: Update, context: ContextTypes.
     return SELECTING_ARCHIVE_MONTH
 
 async def archive_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = "❌ কার্যক্রম বাতিল করা হয়েছে।"
+    msg = S('archive.cancelled')
     if update.callback_query:
         await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())
     else:

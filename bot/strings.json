@@ -1,0 +1,241 @@
+{
+  "meta": {
+    "description": "All user-facing Bangla text for PathikBot. Edit any value below to change what users see.",
+    "notes": "HTML tags (<b>, <blockquote>) control Telegram formatting. {placeholders} are replaced with dynamic values (numbers, dates, names). Keep the placeholders intact.",
+    "version": "1.0"
+  },
+
+  "keyboards": {
+    "main_menu_buttons": {
+      "new_entry": "➕ নতুন এন্ট্রি",
+      "list_entries": "📋 এন্ট্রি তালিকা",
+      "summary": "📊 সারসংক্ষেপ",
+      "archive_menu": "📁 পুরানো মাস",
+      "edit_delete": "📝 এডিট / 🗑 ডিলিট",
+      "generate_report": "📄 রিপোর্ট তৈরি করুন",
+      "settings": "⚙️ সেটিংস",
+      "help": "❓ সাহায্য"
+    },
+    "edit_delete": {
+      "edit": "📝 এন্ট্রি এডিট করুন",
+      "delete": "🗑 এন্ট্রি ডিলিট করুন",
+      "back_to_menu": "🔙 মূল মেনু"
+    },
+    "edit_fields": {
+      "km": "📏 দূরত্ব (কিমি)",
+      "start": "🔢 শুরুর ওডোমিটার",
+      "end": "🔢 শেষ ওডোমিটার",
+      "dist": "🤝 পরিবেশক পরিবর্তন",
+      "petrol": "⛽ পেট্রোল (লিটার)",
+      "mobil": "🛢 মবিল (লিটার)",
+      "back": "🔙 ফিরে যান"
+    },
+    "entry_type": {
+      "regular": "🛵 সাধারণ ট্যুর",
+      "meeting": "🏢 মাসিক মিটিং",
+      "cancel": "🔙 ফিরে যান"
+    },
+    "month_selection": {
+      "current_month": "চলতি মাস ({month_name} {year})",
+      "more_options": "📅 আরও অপশন",
+      "all_months_title": "সব মাসের তালিকা:",
+      "cancel": "🔙 বাতিল",
+      "back": "🔙 ফিরে যান"
+    },
+    "date_selection": {
+      "suggested": "সাজেস্টেড তারিখ: {day} {month_name}",
+      "show_all": "📅 আরও তারিখ দেখুন",
+      "title_with_month": "তারিখ নির্বাচন করুন ({month_name} {year}):",
+      "title_with_month_only": "তারিখ নির্বাচন করুন ({month_name}):",
+      "title_all_dates": "তারিখ নির্বাচন করুন (শুক্রবার বাদে):",
+      "back": "🔙 ফিরে যান"
+    },
+    "distributor_selection": {
+      "done": "🆗 সম্পন্ন",
+      "back": "🔙 ফিরে যান"
+    },
+    "yes_no": {
+      "yes": "✅ হ্যাঁ",
+      "no": "❌ না",
+      "back": "🔙 ফিরে যান"
+    },
+    "confirmation": {
+      "confirm": "✅ নিশ্চিত করুন",
+      "discard": "❌ বাতিল করুন",
+      "back": "🔙 ফিরে যান"
+    },
+    "settings": {
+      "petrol": "⛽ পেট্রোল মূল্য",
+      "mobil": "🛢 মবিল মূল্য",
+      "da": "💰 DA রেট",
+      "transport": "🚌 পরিবহন ভাড়া",
+      "distributors": "🤝 পরিবেশক ম্যানেজমেন্ট",
+      "back_to_menu": "🔙 মূল মেনু"
+    },
+    "distributor_mgmt": {
+      "add": "➕ নতুন পরিবেশক যোগ করুন",
+      "back": "🔙 ফিরে যান",
+      "remove_icon": "❌"
+    },
+    "entry_selection": {
+      "label": "{date} — {cost}/-",
+      "back": "🔙 ফিরে যান"
+    },
+    "archive_actions": {
+      "list_entries": "📋 এন্ট্রি তালিকা",
+      "summary": "📊 সারসংক্ষেপ",
+      "report": "📄 রিপোর্ট তৈরি করুন",
+      "back": "🔙 ফিরে যান"
+    }
+  },
+
+  "start": {
+    "welcome_title": "স্বাগতম {user_name}! 👋",
+    "menu_header": "<b>মূল মেনু  ‣  চলতি মাস: {month_name} {year}</b>",
+    "bot_info": "পথিকবট — মোটরসাইকেল লগশীট অটোমেশন সিস্টেম",
+    "menu_prompt": "নিচের মেনু থেকে আপনার পছন্দের অপশনটি নির্বাচন করুন:"
+  },
+
+  "help": {
+    "title": "📚 <b>কমান্ডগুলোর বিস্তারিত ব্যাখ্যা</b>",
+    "sections": {
+      "start": "• /start\nবট চালু করার পর প্রথমে এই কমান্ডটি দিন। এটি একটি স্বাগত বার্তা দেখাবে।",
+      "new_entry": "• /newentry (➕ নতুন এন্ট্রি)\nনতুন কোনো এন্ট্রি যোগ করতে এটি ব্যবহার করুন। বট আপনাকে ধাপে ধাপে প্রশ্ন করবে:\n  – এন্ট্রির ধরন (ফিল্ড ট্যুর নাকি মাসিক মিটিং)\n  – তারিখ ও মাস\n  – মিটার রিডিং ও দূরত্ব (যোগ/গুণ করা যাবে, যেমন: <b>14+15</b>)\n  – পেট্রোল ও মোবাইল রিচার্জের তথ্য",
+      "edit_entry": "• /editentry (📝 এডিট)\nপুরানো কোনো এন্ট্রি এডিট করতে এটি ব্যবহার করুন।",
+      "del_entry": "• /delentry (🗑 ডিলিট)\nভুল করে কোনো এন্ট্রি যোগ করলে তা ডিলিট করতে এটি ব্যবহার করুন।",
+      "cancel": "• /cancel\nমাঝপথে কোনো কাজ বাতিল করতে এই কমান্ডটি দিন।",
+      "list_entries": "• /listentries (📋 এন্ট্রি তালিকা)\nচলতি মাসের সব এন্ট্রি বিস্তারিত দেখতে এটি ব্যবহার করুন।",
+      "summary": "• /summary (📊 সারসংক্ষেপ)\nচলতি মাসের মোট খরচ ও দূরত্বের হিসাব দেখতে এটি ব্যবহার করুন।",
+      "months": "• /months (📁 পুরানো মাস)\nপুরানো মাসের এন্ট্রি ও সারসংক্ষেপ দেখতে এটি ব্যবহার করুন।",
+      "settings": "• /settings (⚙️ সেটিংস)\nপেট্রোলের দাম, DA রেট, মোবাইল খরচ — সব কনফিগারেশন দেখতে ও পরিবর্তন করতে এটি ব্যবহার করুন।",
+      "generate": "• /generate (📄 রিপোর্ট তৈরি)\nচলতি মাসের জন্য অফিসিয়াল DOCX লগশীট রিপোর্ট তৈরি করতে এটি ব্যবহার করুন।"
+    }
+  },
+
+  "new_entry": {
+    "type_prompt": "এন্ট্রির ধরন নির্বাচন করুন:",
+    "month_prompt": "মাস নির্বাচন করুন:",
+    "what_type": "কি ধরনের এন্ট্রি?",
+    "odo_start_confirm": "শুরুর ওডোমিটার কি <b>{last_odo}</b> হয়?",
+    "odo_start_prompt": "তাহলে শুরুর সঠিক ওডোমিটার রিডিংটি লিখুন:",
+    "distance_prompt": "📏 আজকের মোট দূরত্ব লিখুন:\nএকটি সংখ্যা হতে পারে (যেমন: 64) অথবা যোগফল (যেমন: 14+15+16) অথবা গুণ (যেমন: 2*30+5):",
+    "distance_result": "✅ দূরত্ব: <b>{dist}</b> কি:মি:\n🔚 তাহলে শেষ ওডোমিটার কি <b>{odo_end}</b> হয়?",
+    "odo_end_prompt": "তাহলে সঠিক শেষ ওডোমিটার রিডিংটি লিখুন:",
+    "petrol_question": "⛽ আজ কি পেট্রোল কিনেছেন?",
+    "petrol_liters_prompt": "⛽ পেট্রোল লিটার লিখুন:",
+    "petrol_result": "✅ পেট্রোল খরচ: <b>{petrol_cost}</b>/-\n🛢 আজ কি মবিল কিনেছেন?",
+    "mobil_question": "🛢 আজ কি মবিল কিনেছেন?",
+    "mobil_liters_prompt": "🛢 মবিল লিটার লিখুন:",
+    "mobil_result": "✅ মবিল খরচ: <b>{mobil_cost}</b>/-\n💰 আপনার সাথে কি ম্যানেজার বা অন্য কেউ ছিলেন?",
+    "manager_question": "💰 আপনার সাথে কি ম্যানেজার বা অন্য কেউ ছিলেন?",
+    "manager_designation_prompt": "তার পদবী লিখুন (যেমন: ম্যানেজার সাহেব):",
+    "da_confirm": "💰 সাধারণ DA <b>{da_amount}</b>/ টাকা। এটি কি সঠিক?",
+    "da_skip": "মাসিক মিটিং",
+    "distributor_prompt": "পরিবেশক নির্বাচন করুন (একাধিক হতে পারে):",
+    "transport_prompt": "যাতায়াত ভাড়া (টাকা) লিখুন:",
+    "transport_confirm": "যাতায়াত ভাড়া: <b>{transport_fee}</b> টাকা\nঠিক আছে?",
+    "confirm_footer": "\nআপনি কি এটি সংরক্ষণ করতে চান?",
+    "save_success": "✅ এন্ট্রি সফলভাবে সংরক্ষণ করা হয়েছে! (ID: <b>{entry_id}</b>)",
+    "save_discarded": "❌ এন্ট্রি বাতিল করা হয়েছে।",
+    "final_entry_prompt": "❓ এটি কি এই মাসের শেষ এন্ট্রি?",
+    "back_to_menu_prompt": "মূল মেনুতে ফিরে যান:",
+    "final_entry_done": "ধন্যবাদ। এই মাসের কাজ শেষ করা হয়েছে।",
+    "final_entry_not_done": "ঠিক আছে, আপনি আরও এন্ট্রি যোগ করতে পারবেন۔",
+    "error_invalid_number": "দয়া করে সঠিক সংখ্যা লিখুন।",
+    "error_invalid_calculation": "দয়া করে সঠিক হিসাব বা সংখ্যা লিখুন (যেমন: 64 বা 14+15)।",
+    "error_invalid_float": "দয়া করে সঠিক সংখ্যা লিখুন (যেমন: ১০ বা ১০.৫).",
+    "error_invalid_mobil_float": "দয়া করে সঠিক সংখ্যা লিখুন (যেমন: ১ বা ০.৫).",
+    "error_invalid_int": "দয়া করে সঠিক পূর্ণসংখ্যা লিখুন।",
+    "cancelled": "❌ কার্যক্রম বাতিল করা হয়েছে।"
+  },
+
+  "summary": {
+    "no_entries": "কোনো এন্ট্রি পাওয়া যায়নি।",
+    "entry_header_regular": "<blockquote><b>#{index} ফিল্ড ট্যুর — </b>{date}<b>                 </b></blockquote>",
+    "entry_header_meeting": "<blockquote><b>#{index} মাসিক মিটিং — </b>{date}<b>                 </b></blockquote>",
+    "entry_body_regular": "মিটার শুরু: <b>{odo_start}</b>\nমিটার শেষ: <b>{odo_end}</b>\nদূরত্ব: <b>{total_km}</b> কিমি\n{petrol_line}{mobil_line}DA বিল: <b>{da_amount}</b> টাকা\nমোট খরচ: <b>{total_cost}</b> টাকা\n{distributors_block}",
+    "entry_body_meeting": "মিটার শুরু: <b>{odo_start}</b>\nমিটার শেষ: <b>{odo_end}</b>\nদূরত্ব: <b>{total_km}</b> কিমি\n<blockquote expandable>\nDA বিল: <b>{da_amount}</b> টাকা                        \nযাতায়াত ভাড়া: <b>{transport_fee}</b> টাকা\nবিবরণ: {venue}\nমোট খরচ: <b>{total_cost}</b> টাকা\n</blockquote>",
+    "entry_petrol_line": "তেল: <b>{liters}</b> লি = <b>{cost}</b> টাকা\n",
+    "entry_mobil_line": "মবিল: <b>{liters}</b> লি = <b>{cost}</b> টাকা\n",
+    "entry_distributor_line": "পরিবেশক: {name}\n",
+    "summary_header": "<blockquote><b>📊 সার সংক্ষেপ                 </b></blockquote>",
+    "summary_line_total_tour": "    মোট ট্যুর: <b>{total_tour}</b>টি",
+    "summary_line_total_km": "    মোট কিমি: <b>{total_km}</b> কিমি",
+    "summary_line_petrol": "    মোট পেট্রোল: <b>{liters}</b> লি = <b>{cost}</b>/-",
+    "summary_line_mobil": "    মোট মবিল: <b>{liters}</b> লি = <b>{cost}</b>/-",
+    "summary_line_da": "    মোট DA: <b>{da}</b>/-",
+    "summary_line_transport": "    যাতায়াত ভাড়া: <b>{transport}</b>/-",
+    "summary_line_grand_total": "    <b>সর্বমোট: {grand_total}/-</b>"
+  },
+
+  "settings": {
+    "edit_delete_prompt": "এডিট বা ডিলিট অপশন নির্বাচন করুন:",
+    "edit_prompt": "কোন তারিখের এন্ট্রি এডিট করতে চান?",
+    "edit_field_prompt": "কি পরিবর্তন করতে চান?",
+    "edit_field_dist_prompt": "🤝 নতুন পরিবেশক নির্বাচন করুন (একাধিক হতে পারে):",
+    "edit_dist_success": "✅ পরিবেশক তালিকা সফলভাবে আপডেট করা হয়েছে।",
+    "delete_prompt": "কোন তারিখের এন্ট্রি ডিলিট করতে চান?",
+    "delete_confirm_prompt": "আপনি কি নিশ্চিতভাবে এই এন্ট্রিটি ডিলিট করতে চান?",
+    "delete_success": "✅ এন্ট্রি ডিলিট করা হয়েছে এবং ওডোমিটার সমন্বয় করা হয়েছে।",
+    "no_entries": "কোনো এন্ট্রি পাওয়া যায়নি।",
+    "entry_not_found": "এন্ট্রি খুঁজে পাওয়া যায়নি।",
+    "config_display_title": "<b>⚙️ বর্তমান কনফিগারেশন</b>",
+    "config_display_petrol": "⛽ পেট্রোল মূল্য: <b>{petrol}</b> টাকা/লি",
+    "config_display_mobil": "🛢 মবিল মূল্য: <b>{mobil}</b> টাকা/লি",
+    "config_display_da": "💰 DA রেট: <b>{da}</b> টাকা/প্রতি ট্যুর",
+    "config_display_transport": "🚌 পরিবহন ভাড়া: <b>{transport}</b> টাকা/মাসিক মিটিং",
+    "config_display_action": "পরিবর্তন করতে নিচের বাটন ব্যবহার করুন।",
+    "dist_mgmt_title": "<b>🤝 পরিবেশক ম্যানেজমেন্ট</b>\n\nনতুন পরিবেশক যোগ করতে বা পুরানো ডিলিট করতে নিচের অপশন ব্যবহার করুন।",
+    "dist_add_prompt": "➕ নতুন পরিবেশকের নাম লিখুন:",
+    "dist_added": "✅ '{name}' যোগ করা হয়েছে।",
+    "dist_removed": "✅ '{name}' রিমুভ করা হয়েছে।",
+    "dist_not_found": "পরিবেশক খুঁজে পাওয়া যায়নি।",
+    "update_success": "✅ সফলভাবে আপডেট করা হয়েছে এবং পরবর্তী ওডোমিটারগুলো সমন্বয় করা হয়েছে।",
+    "setting_changed": "✅ সফলভাবে পরিবর্তিত হয়েছে: <b>{value}</b>",
+    "prompt_petrol": "⛽ নতুন পেট্রোল মূল্য লিখুন:",
+    "prompt_mobil": "🛢 নতুন মবিল মূল্য লিখুন:",
+    "prompt_da": "💰 নতুন DA রেট লিখুন:",
+    "prompt_transport": "🚌 নতুন পরিবহন ভাড়া লিখুন:",
+    "prompt_edit_km": "📏 নতুন দূরত্ব (কিমি) লিখুন:",
+    "prompt_edit_start": "🔢 নতুন শুরুর ওডোমিটার রিডিং লিখুন:",
+    "prompt_edit_end": "🔢 নতুন শেষ ওডোমিটার রিডিং লিখুন:",
+    "prompt_edit_petrol": "⛽ নতুন পেট্রোল লিটার লিখুন:",
+    "prompt_edit_mobil": "🛢 নতুন মবিল লিটার লিখুন:",
+    "cancelled": "❌ কার্যক্রম বাতিল করা হয়েছে।"
+  },
+
+  "archive": {
+    "no_entries": "কোনো এন্ট্রি পাওয়া যায়নি।",
+    "prompt": "পুরানো মাসের রেকর্ড দেখতে মাস নির্বাচন করুন:",
+    "action_prompt": "📂 <b>{month_name} {year}</b>-এর জন্য আপনি কী করতে চান?",
+    "cancelled": "❌ কার্যক্রম বাতিল করা হয়েছে।",
+    "month_label": "{month_name} {year}"
+  },
+
+  "report": {
+    "no_entries": "দয়া করে মনে রাখুন, <b>{month}/{year}</b> এর জন্য কোনো এন্ট্রি পাওয়া যায়নি।",
+    "success": "✅ <b>{month}/{year}</b> এর জন্য রিপোর্ট তৈরি করা হয়েছে।\n\n⚠️ ফাইলটি সঠিকভাবে দেখতে SutonnyMJ ফন্ট কম্পিউটারে ইনস্টল করতে হবে।",
+    "error": "রিপোর্ট তৈরিতে সমস্যা হয়েছে: {error}"
+  },
+
+  "common": {
+    "back_to_menu": "🔙 মূল মেনু",
+    "back": "🔙 ফিরে যান",
+    "cancelled": "❌ কার্যক্রম বাতিল করা হয়েছে।",
+    "cancelled_plain": "বাতিল করা হয়েছে।"
+  },
+
+  "bot_commands": {
+    "start": "বটের স্বাগত বার্তা ও ব্যবহার নির্দেশিকা",
+    "newentry": "নতুন ফিল্ড ট্যুর বা মাসিক মিটিং এন্ট্রি শুরু করুন",
+    "editentry": "পুরানো এন্ট্রি এডিট করুন",
+    "delentry": "পুরানো এন্ট্রি ডিলিট করুন",
+    "cancel": "বর্তমান অপারেশন বাতিল করুন",
+    "help": "সব কমান্ডের বিস্তারিত ব্যাখ্যা",
+    "listentries": "চলতি মাসের সব এন্ট্রি দেখুন",
+    "summary": "চলতি মাসের সারসংক্ষেপ দেখুন",
+    "months": "পুরানো মাসের রেকর্ড দেখুন (আর্কাইভ)",
+    "settings": "বর্তমান কনফিগারেশন ও পরিবেশক দেখুন",
+    "generate": "চলতি মাসের DOCX রিপোর্ট তৈরি করুন"
+  }
+}

@@ -5,6 +5,7 @@ from core.database import get_entries
 from docx_generator.generator import LogsheetGenerator
 from datetime import datetime
 from bot.keyboards import to_bn_number
+from bot.strings import S
 
 async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -23,7 +24,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
     
     entries = await get_entries(month, year)
     if not entries:
-        msg = f"দয়া করে মনে রাখুন, {to_bn_number(month)}/{to_bn_number(year)} এর জন্য কোনো এন্ট্রি পাওয়া যায়নি।"
+        msg = S('report.no_entries', month=to_bn_number(month), year=to_bn_number(year))
         if query:
             await query.edit_message_text(msg)
         else:
@@ -39,13 +40,13 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         generator.generate_report(entries, month, year, output_path)
         
         with open(output_path, 'rb') as f:
-            msg = f"✅ <b>{to_bn_number(month)}/{to_bn_number(year)}</b> এর জন্য রিপোর্ট তৈরি করা হয়েছে।\n\n⚠️ ফাইলটি সঠিকভাবে দেখতে SutonnyMJ ফন্ট কম্পিউটারে ইনস্টল করতে হবে।"
+            msg = S('report.success', month=to_bn_number(month), year=to_bn_number(year))
             if query:
-                await query.message.reply_document(document=f, filename=filename, caption=msg, parse_mode='HTML')
+                await query.message.reply_document(document=f, filename=filename, caption=msg)
             else:
-                await update.message.reply_document(document=f, filename=filename, caption=msg, parse_mode='HTML')
+                await update.message.reply_document(document=f, filename=filename, caption=msg)
     except Exception as e:
-        error_msg = f"রিপোর্ট তৈরিতে সমস্যা হয়েছে: {str(e)}"
+        error_msg = S('report.error', error=str(e))
         if query:
             await query.edit_message_text(error_msg)
         else:
