@@ -787,3 +787,30 @@ Matching entries displayed + summary with BACK_TO_MENU
    - No changes to `send_entry_message`, `send_summary_message`, `summary_handler`
 
 **Commit:** `0d39e96` — "Add list entries filter: all/filter choice, petrol/mobil/meeting/manager filters, persistent user prefs"
+
+---
+
+## Session: 2026-06-04
+
+### Fix: Petrol/mobil reminder not triggering — refill entry's own km excluded from distance_since
+
+**User reported:** Petrol reminder never showed despite 402 km (June 1-7) + 92 km (June 8) = 494 km > 480 threshold.
+
+**Root cause:** `_refill_status()` and `calc_carry_forward()` in `core/calculations.py` both started the distance_since summation at `last_refill_idx + 1`, **excluding the refill entry's own `total_km`**. For the user's data:
+- Refill entry June 1: 50 km (EXCLUDED)
+- Entries June 2-7: 60+55+65+58+62+52 = 352 km (INCLUDED)
+- Current code: 352 + 92 (new) = 444 km < 480 → NO REMINDER ❌
+- Fixed code: 50 + 352 + 92 = 494 km >= 480 → REMINDER SHOWN ✓
+
+**Fix:**
+- Line 138: `range(last_refill_idx + 1, ...)` → `range(last_refill_idx, ...)` in `_refill_status`
+- Line 179: `range(last_refill_idx + 1, ...)` → `range(last_refill_idx, ...)` in `calc_carry_forward`
+
+**Tests created:** `tests/test_calculations.py` — 16 comprehensive scenarios:
+- No entries, no refill, refill includes own km, exact user scenario (494 > 480), last entry=refill, multiple refills, threshold boundary, carry-forward, mobil variant, key presence check
+
+**Verification:** All 16 tests pass; bot imports cleanly.
+
+**Also added:** `data/user_prefs.json` to `.gitignore` (generated data file, should not be committed).
+
+**Commit:** `84b494b` — "Fix petrol/mobil reminder: include refill entry's own total_km in distance_since"
