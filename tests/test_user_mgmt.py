@@ -23,23 +23,32 @@ from core.database import (
 
 @pytest.fixture(autouse=True)
 def clean_data_files():
-    """Ensure clean state before each test."""
+    """Ensure clean state before each test. Preserves owner's production data."""
     import glob
+    OWNER_ID = 6161189904
     os.makedirs('data', exist_ok=True)
-    # Clean all test data files
+    # Clean users.json (test state) and test-only user data files
     for f in glob.glob('data/users.json'):
         os.remove(f)
     for f in glob.glob('data/entries_*.json'):
-        os.remove(f)
+        uid = os.path.basename(f).replace('entries_', '').replace('.json', '')
+        if uid != str(OWNER_ID):
+            os.remove(f)
     for f in glob.glob('data/user_prefs/*.json'):
-        os.remove(f)
+        uid = os.path.basename(f).replace('.json', '')
+        if uid != str(OWNER_ID):
+            os.remove(f)
     yield
     for f in glob.glob('data/users.json'):
         os.remove(f)
     for f in glob.glob('data/entries_*.json'):
-        os.remove(f)
+        uid = os.path.basename(f).replace('entries_', '').replace('.json', '')
+        if uid != str(OWNER_ID):
+            os.remove(f)
     for f in glob.glob('data/user_prefs/*.json'):
-        os.remove(f)
+        uid = os.path.basename(f).replace('.json', '')
+        if uid != str(OWNER_ID):
+            os.remove(f)
 
 
 # ── Helpers ───────────────────────────────────────────────

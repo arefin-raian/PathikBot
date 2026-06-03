@@ -820,3 +820,112 @@ Matching entries displayed + summary with BACK_TO_MENU
 **Also added:** `data/user_prefs.json` to `.gitignore` (generated data file, should not be committed).
 
 **Commit:** `84b494b` — "Fix petrol/mobil reminder: include refill entry's own total_km in distance_since"
+
+---
+
+### Feature: User management system with per-user data isolation
+
+**User requirement:** Support multiple users (owner + registered users) with fully isolated data — each user has their own entries, preferences, and cannot see/affect other users' data. Unregistered users are blocked at every handler entry.
+
+**Implementation:**
+
+**`core/database.py` — New user management (sync):**
+- `OWNER_ID = 6161189904` — hardcoded owner, auto-registered on `init_db()`
+- `load_users()`, `save_users(users)` — read/write `data/users.json` as `{str(user_id): {"role": ..., "added_at": ...}}`
+- `add_user(user_id, role="user")` — adds if not already registered
+- `remove_user(user_id)` — removes any non-owner user
+- `is_registered(user_id)` — checks if user_id exists in registry
+- `is_owner(user_id)` — checks against `OWNER_ID`
+- `get_all_users()` — returns dict of all users
+- `init_user_storage(user_id)` — creates `data/entries_{user_id}.json` and `data/user_prefs/` directory
+- `init_db()` — creates `data/` and `data/user_prefs/` dirs, auto-registers owner, migrates legacy `data/entries.json` → `data/entries_{owner_id}.json`
+
+**`core/database.py` — Per-user entry isolation (async):**
+- All entry functions (`get_entries`, `add_entry`, `delete_entry`, `update_entry_and_cascade`, `get_last_odo`, `get_last_day_in_month`) now take `user_id` parameter operating on `data/entries_{user_id}.json`
+- `get_user_prefs(user_id)`, `set_user_prefs(user_id, prefs)` operate on `data/user_prefs/{user_id}.json`
+- Distributors remain shared (not per-user)
+
+**`bot/auth.py` — New module:**
+- `require_auth(update, context)` — checks `is_registered(update.effective_user.id)`; if not registered, sends "অনুমোদিত নন" message (from `strings.json auth.denied`), returns `False`
+- Imported and called at the start of every handler across all modules
+
+**`bot/handlers/admin.py` — New module:**
+- `/adduser <id>` — owner-only; adds user with success/duplicate/not-an-owner response (Bangla)
+- `/removeuser <id>` — owner-only; removes user but refuses to remove the owner itself
+- `/users` — owner-only; lists all registered users with roles and added dates
+
+**Updated handlers (all 6):**
+- `start.py`, `summary.py`, `new_entry.py`, `settings.py`, `archive.py`, `report.py` — all entry points call `if not await require_auth(update, context): return`; all DB calls pass `user_id = update.effective_user.id` or `context.user_data.get('user_id')` (from callback context)
+
+**`bot/strings.json`:**
+- Added `admin.*` section: `add_success`, `add_duplicate`, `add_not_owner`, `remove_success`, `remove_not_found`, `remove_owner_protected`, `remove_not_owner`, `users_title`, `users_empty`, `users_entry`, `users_footer` — all Bangla
+- Added `auth.*` section: `denied` ("অনুমোদিত নন") + `owner_denied`
+- Added admin commands to `bot_commands`
+
+**`bot/main.py`:**
+- Registered `/adduser`, `/removeuser`, `/users` command handlers via `admin_conv_handler`
+
+**Tests — `tests/test_user_mgmt.py` — 29 scenarios:**
+- Add user (normal, duplicate, custom role, storage files created)
+- Remove user (existing, nonexistent, doesn't affect others)
+- IsRegistered (unregistered, registered, owner check)
+- List users (all, empty)
+- Data isolation (separate entries, delete only own, last_odo isolation, prefs isolation, last_day_in_month isolation, update_entry isolation)
+- Edge cases (no entries for new user, get_last_odo no entries, get_last_day_in_month no entries, init_user_storage creates files, users file not exists/empty/corrupted, owner auto-registered on init_db)
+- Auth helpers (is_owner true/false, registered user recognized)
+
+**Key decisions:**
+- User management is sync (small file, fast); entry storage remains async
+- `OWNER_ID` hardcoded — cannot be removed via `/removeuser`
+- Legacy `data/entries.json` migrated to `data/entries_{owner_id}.json` on first `init_db()`
+- Distributors remain shared
+
+### Fix: Test cleanup — leftover data files causing false negatives
+
+**Issue:** `test_delete_only_affects_own_user` failed because entries files from prior test runs (`data/entries_*.json`) were not cleaned up. The entry ID counter used `max existing id + 1`, picking up fake IDs from leftover files.
+
+**Fix:** Replaced `clean_users_file` fixture with `clean_data_files` that removes `data/entries_*.json` and `data/user_prefs/*.json` in addition to `data/users.json`, both before and after each test.
+
+**Updated `.gitignore`:** Added `data/users.json`, `data/entries_*.json`, `data/user_prefs/` patterns.
+
+**Result:** All 45 tests pass (16 calculation + 29 user management).
+
+**Commit:** `8d27343` — "feat: user management system with per-user data isolation"
+
+---
+
+### Session: 2026-06-04 (continued)
+
+**Task:** Review anchored summary & fix failing test
+
+**User asked:** "What did we do so far?" — requested the current task summary.
+
+**Discovered bug:** `test_delete_only_affects_own_user` failed (1 of 45). Root cause: `clean_users_file` fixture only cleaned `data/users.json`, leaving `data/entries_*.json` and `data/user_prefs/*.json` from prior runs. The entry ID counter (`max existing id + 1`) picked up stale IDs.
+
+**Fix:** `clean_users_file` → `clean_data_files` — now removes all 3 file patterns before/after each test.
+
+**Updated `.gitignore`:** Added `data/users.json`, `data/entries_*.json`, `data/user_prefs/` (was missing).
+
+**Result:** All **45/45 tests pass** (16 calculation + 29 user management). Bot restarted, pushed to GitHub.
+
+---
+
+### Fix: Production data loss — logsheet.db not migrated, test cleanup destroyed owner data
+
+**User reported:** "the db we had earlier was actually 6161189904s data... connec em cuz they gone" — old `data/logsheet.db` (actually JSON, not SQLite) had the owner's 6 entries. They weren't migrated to the new per-user system, and the test `clean_data_files` fixture deleted `entries_6161189904.json`.
+
+**Root cause 1:** `init_db()` only migrated `data/entries.json` → `entries_{owner_id}.json`, but the REAL data was in `data/logsheet.db`. Migration never checked `logsheet.db`.
+
+**Root cause 2:** `clean_data_files` test fixture globbed `data/entries_*.json` and removed ALL matches including the owner's production file.
+
+**Fixes:**
+
+1. **`core/database.py` — logsheet.db migration**: Added block that reads `data/logsheet.db` and writes to `entries_{owner_id}.json` if owner file is missing/empty.
+
+2. **`tests/test_user_mgmt.py` — safe test cleanup**: Fixture now preserves `entries_{OWNER_ID}.json` and `user_prefs/{OWNER_ID}.json` by checking the user ID before deleting.
+
+3. **Immediate recovery**: One-shot migration restored all 6 entries from `logsheet.db` to `entries_6161189904.json` (normalized: removed legacy `step_history`, `messages_to_delete`, `suggested_odo_start`).
+
+**Recovered entries:** Jun 1 (92km, petrol+mobil, 6 dists), Jun 2 (89km, 5 dists), Jun 3 (meeting, 460 transport), Jun 4 (89km, 6 dists), Jun 6 (76km, 5 dists), Jun 7 (56km, 3 dists, edited).
+
+**Verification:** All 45 tests pass, data survives test runs.

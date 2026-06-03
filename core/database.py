@@ -124,6 +124,18 @@ async def init_db():
     if os.path.exists(legacy) and not os.path.exists(owner_path):
         shutil.copy2(legacy, owner_path)
 
+    # Migrate legacy data/logsheet.db → data/entries_{owner_id}.json
+    logsheet = 'data/logsheet.db'
+    if os.path.exists(logsheet) and (not os.path.exists(owner_path) or os.path.getsize(owner_path) <= 4):
+        try:
+            with open(logsheet, 'r', encoding='utf-8') as f:
+                logsheet_data = json.load(f)
+            if logsheet_data:
+                with open(owner_path, 'w', encoding='utf-8') as of:
+                    json.dump(logsheet_data, of, indent=4, ensure_ascii=False)
+        except (json.JSONDecodeError, Exception):
+            pass
+
     # Ensure owner has storage files
     init_user_storage(OWNER_ID)
 
