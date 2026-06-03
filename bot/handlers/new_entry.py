@@ -1,4 +1,4 @@
-from telegram import Update, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ContextTypes, 
     ConversationHandler, 
@@ -71,6 +71,15 @@ async def delete_previous_messages(update: Update, context: ContextTypes.DEFAULT
         except Exception:
             pass
     context.user_data['messages_to_delete'] = []
+
+async def delete_stale_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Delete the stale prompt message from edit chain before creating a new reply message."""
+    stale_id = context.user_data.pop('prompt_msg_id', None)
+    if stale_id:
+        try:
+            await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=stale_id)
+        except Exception:
+            pass
 
 async def add_message_to_delete(update: Update, context: ContextTypes.DEFAULT_TYPE, message_id):
     if 'messages_to_delete' not in context.user_data:
@@ -240,17 +249,21 @@ async def handle_odo_start_confirm(update: Update, context: ContextTypes.DEFAULT
     if query.data == "odo_start_confirm_yes":
         context.user_data['odo_start'] = context.user_data['suggested_odo_start']
         push_history(context, ENTER_DISTANCE)
+        # Track this message ID so handle_distance can delete the prompt later
+        context.user_data['prompt_msg_id'] = query.message.message_id
         await query.edit_message_text(
             S('new_entry.distance_prompt'),
             reply_markup=get_back_keyboard()
         )
         return ENTER_DISTANCE
     else:
+        context.user_data['prompt_msg_id'] = query.message.message_id
         await query.edit_message_text(S('new_entry.odo_start_prompt'), reply_markup=get_back_keyboard())
         return ENTER_ODO_START
 
 async def handle_odo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await add_message_to_delete(update, context, update.message.message_id)
+    await delete_stale_prompt(update, context)
     try:
         odo = int(normalize_number(update.message.text))
         context.user_data['odo_start'] = odo
@@ -268,6 +281,15 @@ async def handle_odo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await add_message_to_delete(update, context, update.message.message_id)
+    
+    # Delete the stale distance prompt message
+    stale_id = context.user_data.pop('prompt_msg_id', None)
+    if stale_id:
+        try:
+            await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=stale_id)
+        except Exception:
+            pass
+    
     try:
         raw_text = normalize_number(update.message.text)
         clean_text = "".join(c for c in raw_text if c in "0123456789+-*/.()")
@@ -309,6 +331,7 @@ async def handle_odo_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return PETROL_QUESTION
     else:
+        context.user_data['prompt_msg_id'] = query.message.message_id
         await query.edit_message_text(S('new_entry.odo_end_prompt'), reply_markup=get_back_keyboard())
         return ENTER_ODO_END
 
@@ -327,6 +350,7 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
 
     if query.data == "petrol_yes":
         push_history(context, ENTER_LITERS)
+        context.user_data['prompt_msg_id'] = query.message.message_id
         await query.edit_message_text(S('new_entry.petrol_liters_prompt'), reply_markup=get_back_keyboard())
         return ENTER_LITERS
     else:
@@ -341,6 +365,7 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
 
 async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await add_message_to_delete(update, context, update.message.message_id)
+    await delete_stale_prompt(update, context)
     try:
         liters = float(normalize_number(update.message.text))
         context.user_data['petrol_liters'] = liters
@@ -373,6 +398,7 @@ async def handle_mobil_question(update: Update, context: ContextTypes.DEFAULT_TY
 
     if query.data == "mobil_yes":
         push_history(context, ENTER_MOBIL_LITERS)
+        context.user_data['prompt_msg_id'] = query.message.message_id
         await query.edit_message_text(S('new_entry.mobil_liters_prompt'), reply_markup=get_back_keyboard())
         return ENTER_MOBIL_LITERS
     else:
@@ -387,6 +413,7 @@ async def handle_mobil_question(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def handle_mobil_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await add_message_to_delete(update, context, update.message.message_id)
+    await delete_stale_prompt(update, context)
     try:
         liters = float(normalize_number(update.message.text))
         context.user_data['mobil_liters'] = liters
@@ -419,6 +446,7 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
 
     if query.data == "manager_yes":
         push_history(context, ENTER_MANAGER)
+        context.user_data['prompt_msg_id'] = query.message.message_id
         await query.edit_message_text(S('new_entry.manager_designation_prompt'), reply_markup=get_back_keyboard())
         return ENTER_MANAGER
     else:
@@ -433,6 +461,7 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
 
 async def handle_manager_designation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await add_message_to_delete(update, context, update.message.message_id)
+    await delete_stale_prompt(update, context)
     context.user_data['others_designation'] = update.message.text
     push_history(context, DA_CONFIRM)
     m = await update.message.reply_text(
@@ -522,6 +551,7 @@ async def handle_venue(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_transport_fee(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await add_message_to_delete(update, context, update.message.message_id)
+    await delete_stale_prompt(update, context)
     try:
         fee = int(normalize_number(update.message.text))
         context.user_data['transport_fee'] = fee
@@ -565,6 +595,7 @@ async def handle_transport_confirm(update: Update, context: ContextTypes.DEFAULT
         return await show_confirmation(update, context)
 
     elif query.data == "transport_no":
+        context.user_data['prompt_msg_id'] = query.message.message_id
         await query.edit_message_text(S('new_entry.transport_prompt'), reply_markup=get_back_keyboard())
         return ENTER_TRANSPORT_FEE
 
@@ -692,10 +723,11 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return CONFIRM_FINAL_ENTRY
         else:
+            menu_kb = InlineKeyboardMarkup([[InlineKeyboardButton(S('common.back_to_menu'), callback_data="main_menu")]])
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=S('new_entry.back_to_menu_prompt'),
-                reply_markup=get_main_menu()
+                reply_markup=menu_kb
             )
             to_keep = ['selected_month', 'selected_year']
             kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
