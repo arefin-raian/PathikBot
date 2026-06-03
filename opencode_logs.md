@@ -500,3 +500,18 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 - `bot/handlers/summary.py` — parse_mode on send_entry_message, send_summary_message, list_entries_handler, summary_handler
 - `bot/handlers/archive.py` — parse_mode on archive action_prompt
 - `bot/handlers/report.py` — parse_mode was already present
+
+### Fix: Stale prompt deletion & back-to-menu button
+
+**Problem:**
+1. The "distance prompt" message ("আজকের মোট দূরত্ব লিখুন") was sent via `edit_message_text` (part of the edit chain), never tracked for deletion, so it remained visible in the chat after saving an entry
+2. The "মূল মেনুতে ফিরে যান" message used `get_main_menu()` (all 8 buttons) instead of a single back-to-menu button
+
+**Fix:**
+- Added `delete_stale_prompt()` helper that deletes the stored `prompt_msg_id` before sending a new `reply_text` message
+- Store `prompt_msg_id = query.message.message_id` at every `edit_message_text` prompt-setup step (odo_start_confirm yes/no, odo_confirm no, petrol_question yes, mobil_question yes, manager_question yes, transport_confirm no)
+- Call `delete_stale_prompt` in every user-typed input handler (handle_distance, handle_odo_start, handle_liters, handle_mobil_liters, handle_manager_designation, handle_transport_fee)
+- Replaced `get_main_menu()` with a single `InlineKeyboardMarkup([[InlineKeyboardButton("🔙 মূল মেনু", callback_data="main_menu")]])` for the back_to_menu_prompt
+
+**Files changed:**
+- `bot/handlers/new_entry.py`
