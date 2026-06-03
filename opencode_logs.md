@@ -660,4 +660,57 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 - Menu callback → back button where appropriate
 
 **Commit:** `cb33b6e` — "Fix /help: no back button for command, BACK_TO_MENU via menu"
-**Commit:** (pending — fix settings + archive command entry)
+**Commit:** `1de24b3` — "Fix /settings and /months: no back_to_menu for command entry; fix /editentry /delentry back handling"
+
+---
+
+## Session: 2026-06-03 (evening)
+
+### Fix 15: Petrol reminder not triggering & Back navigation jumping multiple steps
+
+**User reported two bugs:**
+1. **Petrol reminder didn't show** even though 402 km + 92 km = 494 km > 480 threshold
+2. **Back button in multi-step forms jumped multiple steps** — e.g., pressing Back at petrol liters input went to distance confirmation screen, skipping the petrol question entirely
+
+**Root cause analysis:**
+
+**Issue 1 (petrol reminder):**
+`_refill_status()` in `core/calculations.py:109-147` returned `distance_since: 0, is_due: False` when no entry in the entire database had `petrol_liters > 0`. This happened because either:
+- The user's entries predated the threshold feature (no `petrol_liters` field set)
+- A refill was never recorded using this bot
+
+**Fix:** When no refill entry is found (`last_refill_idx == -1`), sum ALL entries' `total_km` as the distance baseline instead of returning 0. This way the reminder triggers correctly when cumulative distance exceeds the threshold even if no explicit refill was logged.
+
+**Issue 2 (back navigation):**
+All "back" handlers across the entry flow called `pop_history(context)` but **ignored the return value**, hardcoding a specific target state. When the same handler served multiple calling states (e.g., `handle_petrol_question` was called from both `PETROL_QUESTION` and `ENTER_LITERS`), the hardcoded state was often wrong:
+
+| Handler | Called From | Hardcoded Return | Should Return |
+|---------|-----------|-----------------|---------------|
+| `handle_odo_start_confirm` | `ENTER_ODO_START` | `handle_month_selection()` (goes to CHOOSING_TYPE) | `SELECT_DATE` (date selection) |
+| `handle_odo_start_confirm` | `ENTER_DISTANCE` | `handle_month_selection()` (goes to CHOOSING_TYPE) | `ENTER_ODO_START` (odo confirm) |
+| `handle_petrol_question` | `PETROL_QUESTION` (back) | `CONFIRM_ODO_END` ✓ | `CONFIRM_ODO_END` |
+| `handle_petrol_question` | `ENTER_LITERS` (back) | `CONFIRM_ODO_END` ✗ | `PETROL_QUESTION` |
+| `handle_mobil_question` | `MOBIL_QUESTION` (back) | `PETROL_QUESTION` ✗ | `PETROL_QUESTION` ✓ (by luck) |
+| `handle_mobil_question` | `ENTER_MOBIL_LITERS` (back) | `PETROL_QUESTION` ✗ | `MOBIL_QUESTION` |
+| `handle_manager_question` | `MANAGER_QUESTION` (back) | `MOBIL_QUESTION` ✗ | `MOBIL_QUESTION` ✓ (by luck) |
+| `handle_manager_question` | `ENTER_MANAGER` (back) | `MOBIL_QUESTION` ✗ | `MANAGER_QUESTION` |
+| `handle_da_confirm` | `DA_CONFIRM` (back) | `MANAGER_QUESTION` ✗ | `MANAGER_QUESTION` or `ENTER_MANAGER` |
+| `save_entry_callback` | `CONFIRM_ENTRY` (back, regular) | `handle_da_confirm()` → `MANAGER_QUESTION` ✗ | `SELECT_DISTRIBUTORS` or `DA_CONFIRM` |
+| `save_entry_callback` | `CONFIRM_ENTRY` (back, meeting) | `CONFIRM_TRANSPORT_FEE` ✓ | `CONFIRM_TRANSPORT_FEE` |
+
+**Fix applied in ALL back handlers:** Capture `prev = pop_history(context)` and branch based on the actual previous state:
+
+- `handle_odo_start_confirm` back: `prev == SELECT_DATE` → show date selection; `prev == ENTER_ODO_START` → show odo confirm
+- `handle_petrol_question` back: `prev == CONFIRM_ODO_END` → show distance result; `prev == PETROL_QUESTION` → show petrol question with threshold check
+- `handle_mobil_question` back: `prev == PETROL_QUESTION` → show petrol question; `prev == MOBIL_QUESTION` → show mobil question
+- `handle_manager_question` back: `prev == MOBIL_QUESTION` → show mobil question; `prev == MANAGER_QUESTION` → show manager question
+- `handle_da_confirm` back: `prev == MANAGER_QUESTION` → show manager question; `prev == ENTER_MANAGER` → show manager designation prompt
+- `save_entry_callback` back: `prev == SELECT_DISTRIBUTORS` → show distributor selection; `prev == DA_CONFIRM` → show DA confirm; `prev == CONFIRM_TRANSPORT_FEE` → show transport confirm
+
+Each case also rebuilds any threshold reminders that were shown on the original screen (petrol/mobil due messages).
+
+**Files changed:**
+- `core/calculations.py` — `_refill_status`: no-refill fallback uses total distance of all entries
+- `bot/handlers/new_entry.py` — All 6 broken back handlers fixed to use `pop_history()` return value (lines 246-265, 369-393, 452-486, 528-549, 585-596, 800-820)
+
+**Commit:** `1de24b3` — "Fix petrol reminder and back navigation"
