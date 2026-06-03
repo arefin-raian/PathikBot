@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from bot.keyboards import get_main_menu, MONTHS_BN_FULL, to_bn_number
+from bot.keyboards import get_main_menu, get_back_keyboard, MONTHS_BN_FULL, to_bn_number
 from datetime import datetime
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -50,9 +50,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "চলতি মাসের জন্য অফিসিয়াল DOCX লগশীট রিপোর্ট তৈরি করতে এটি ব্যবহার করুন।"
     )
     if update.callback_query:
-        await update.callback_query.edit_message_text(help_text, reply_markup=get_main_menu(), parse_mode='HTML')
+        await update.callback_query.edit_message_text(help_text, reply_markup=get_back_keyboard(), parse_mode='HTML')
     else:
-        await update.message.reply_text(help_text, reply_markup=get_main_menu(), parse_mode='HTML')
+        await update.message.reply_text(help_text, reply_markup=get_back_keyboard(), parse_mode='HTML')
 
 async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle main menu button clicks."""
