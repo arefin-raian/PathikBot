@@ -18,6 +18,7 @@ def get_main_menu():
         [InlineKeyboardButton("➕ নতুন এন্ট্রি", callback_data="new_entry")],
         [InlineKeyboardButton("📋 এন্ট্রি তালিকা", callback_data="list_entries")],
         [InlineKeyboardButton("📊 সারসংক্ষেপ", callback_data="summary")],
+        [InlineKeyboardButton("📁 পুরানো মাস", callback_data="archive_menu")],
         [InlineKeyboardButton("📝 এডিট / 🗑 ডিলিট", callback_data="edit_delete_menu")],
         [InlineKeyboardButton("📄 রিপোর্ট তৈরি করুন", callback_data="generate_report")],
         [InlineKeyboardButton("⚙️ সেটিংস", callback_data="settings")]
