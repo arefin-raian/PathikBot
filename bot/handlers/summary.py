@@ -4,6 +4,7 @@ from core.database import get_entries, get_user_prefs, set_user_prefs
 from core.calculations import calculate_summary
 from bot.keyboards import to_bn_number, BACK_TO_MENU, FILTER_KEYS, get_list_entries_choice_keyboard, get_filter_checkboxes_keyboard
 from bot.strings import S
+from bot.auth import require_auth
 from datetime import datetime
 
 def matches_filter(entry, selected):
@@ -104,6 +105,8 @@ async def show_filter_choice(update, context, query=None):
         await update.message.reply_text(text, reply_markup=get_list_entries_choice_keyboard(saved))
 
 async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update, context): return
+    user_id = update.effective_user.id
     query = update.callback_query
     if query:
         await query.answer()
@@ -113,7 +116,7 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         # 1. Archive month: list_entries_2026_6 — show entries directly
         if len(parts) >= 4 and parts[2].isdigit() and parts[3].isdigit():
             year, month = int(parts[2]), int(parts[3])
-            entries = await get_entries(month, year)
+            entries = await get_entries(user_id, month, year)
             if not entries:
                 await query.edit_message_text(S('summary.no_entries'), reply_markup=BACK_TO_MENU)
                 return
@@ -127,7 +130,7 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
         # 3. All entries
         if data == "list_entries_all":
-            entries = await get_entries()
+            entries = await get_entries(user_id)
             if not entries:
                 await query.edit_message_text(S('summary.no_entries'), reply_markup=BACK_TO_MENU)
                 return
@@ -136,9 +139,9 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
         # 4. Use last saved filter
         if data == "list_entries_last_filter":
-            prefs = await get_user_prefs(update.effective_user.id)
+            prefs = await get_user_prefs(user_id)
             filters = prefs.get('list_filters', {})
-            entries = await get_entries()
+            entries = await get_entries(user_id)
             filtered = [e for e in entries if matches_filter(e, filters)]
             if not filtered:
                 await query.edit_message_text(S('list_entries.no_matches'), reply_markup=BACK_TO_MENU)
@@ -148,7 +151,7 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
         # 5. Show filter checkboxes
         if data == "list_entries_filter":
-            prefs = await get_user_prefs(update.effective_user.id)
+            prefs = await get_user_prefs(user_id)
             saved = prefs.get('list_filters', {})
             context.user_data['list_filter_state'] = dict(saved)
             await query.edit_message_text(S('list_entries.filter_title'), reply_markup=get_filter_checkboxes_keyboard(saved))
@@ -167,10 +170,10 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         # 7. Apply filter
         if data == "list_entries_filter_apply":
             state = context.user_data.get('list_filter_state', {})
-            prefs = await get_user_prefs(update.effective_user.id)
+            prefs = await get_user_prefs(user_id)
             prefs['list_filters'] = state
-            await set_user_prefs(update.effective_user.id, prefs)
-            entries = await get_entries()
+            await set_user_prefs(user_id, prefs)
+            entries = await get_entries(user_id)
             filtered = [e for e in entries if matches_filter(e, state)]
             if not filtered:
                 await query.edit_message_text(S('list_entries.no_matches'), reply_markup=BACK_TO_MENU)
@@ -185,13 +188,15 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     else:
         # Slash command: /listentries
-        entries = await get_entries()
+        entries = await get_entries(user_id)
         if not entries:
             await update.message.reply_text(S('summary.no_entries'))
             return
         await show_filter_choice(update, context)
 
 async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update, context): return
+    user_id = update.effective_user.id
     query = update.callback_query
     year, month = None, None
     if query:
@@ -200,7 +205,7 @@ async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parts = query.data.split("_")
             year, month = int(parts[1]), int(parts[2])
     
-    entries = await get_entries(month, year)
+    entries = await get_entries(user_id, month, year)
     if not entries:
         msg = S('summary.no_entries')
         if query:

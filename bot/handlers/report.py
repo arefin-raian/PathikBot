@@ -6,8 +6,10 @@ from docx_generator.generator import LogsheetGenerator
 from datetime import datetime
 from bot.keyboards import to_bn_number
 from bot.strings import S
+from bot.auth import require_auth
 
 async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update, context): return
     query = update.callback_query
     if query:
         await query.answer()
@@ -22,7 +24,8 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         now = datetime.now()
         month, year = now.month, now.year
     
-    entries = await get_entries(month, year)
+    user_id = update.effective_user.id
+    entries = await get_entries(user_id, month, year)
     if not entries:
         msg = S('report.no_entries', month=to_bn_number(month), year=to_bn_number(year))
         if query:

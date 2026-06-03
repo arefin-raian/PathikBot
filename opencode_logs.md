@@ -125,14 +125,20 @@
 5. **Reply to user in English** — always, even if asked in Bangla.
 6. **User makes typos** — use codebase context to infer intent.
 7. **ALWAYS restart bot after every response** — after every edit/reply, kill any running bot instance, run `run.bat`, check for startup errors, fix them. This is non-negotiable.
+8. **ALWAYS update opencode_logs.md** after every single task — document what was done, why, all scenarios considered, bugs found, fixes applied. This is the permanent memory. Skipping it is a violation.
 
 ### Workflow (must follow)
 1. Receive command/task from user
 2. Analyze codebase / read logs for context
-3. Make edits
-4. **Update opencode_logs.md** with full details
-5. **Test** (run bot, check for errors)
-6. **Commit + push** to GitHub (`git add -A && git commit -m "..." && git push`)
+3. **Before writing any fix:** think through **every possible scenario the user might go through** — edge cases, empty states, boundary conditions, multi-step flows. Write tests that cover ALL these scenarios FIRST.
+4. Run tests → confirm they FAIL (proving the bug exists)
+5. Apply the fix
+6. Run tests → confirm they PASS
+7. **Update opencode_logs.md** with full details
+8. **Run the bot** (verify no startup errors)
+9. **Commit + push** to GitHub
+
+**CRITICAL RULE — NEVER SKIP:** Every fix must be test-driven. First think through all possible user scenarios, write tests covering them, confirm failure, apply fix, confirm pass. If we had done this from the start, the back-button bugs, menu navigation issues, and petrol reminder bug would have been caught before shipping.
 
 ---
 

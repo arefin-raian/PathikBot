@@ -20,6 +20,7 @@ from bot.keyboards import (
     get_distributor_keyboard
 )
 from bot.strings import S
+from bot.auth import require_auth
 from core.database import (
     get_entries, 
     delete_entry, 
@@ -45,16 +46,19 @@ ADDING_DISTRIBUTOR = 9
 SHOWING_SETTINGS = 10
 
 async def edit_delete_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update, context): return ConversationHandler.END
     query = update.callback_query
     await query.answer()
     await query.edit_message_text(S('settings.edit_delete_prompt'), reply_markup=get_edit_delete_keyboard())
 
 async def start_edit_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update, context): return ConversationHandler.END
+    user_id = update.effective_user.id
     query = update.callback_query
     if query:
         await query.answer()
     
-    entries = await get_entries()
+    entries = await get_entries(user_id)
     if not entries:
         msg = S('settings.no_entries')
         if query:
@@ -116,6 +120,7 @@ async def start_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ENTERING_NEW_VALUE
 
 async def handle_edit_distributors(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -134,7 +139,7 @@ async def handle_edit_distributors(update: Update, context: ContextTypes.DEFAULT
     elif query.data == "dist_done":
         names = [dists[i] for i in selected]
         entry_id = context.user_data['editing_id']
-        await update_entry_and_cascade(entry_id, {'distributors_raw': names})
+        await update_entry_and_cascade(user_id, entry_id, {'distributors_raw': names})
         await query.edit_message_text(S('settings.edit_dist_success'))
         return await start_edit_entry(update, context)
     elif query.data == "back":
@@ -145,6 +150,7 @@ async def handle_edit_distributors(update: Update, context: ContextTypes.DEFAULT
         return ConversationHandler.END
 
 async def distributor_mgmt_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update, context): return ConversationHandler.END
     query = update.callback_query
     if query: await query.answer()
     
@@ -192,13 +198,14 @@ async def handle_new_distributor_name(update: Update, context: ContextTypes.DEFA
     return ADDING_DISTRIBUTOR
 
 async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     from bot.handlers.new_entry import normalize_number
     try:
         val = float(normalize_number(update.message.text))
         field = context.user_data['editing_field']
         entry_id = context.user_data['editing_id']
         
-        entry = await get_entry_by_id(entry_id)
+        entry = await get_entry_by_id(user_id, entry_id)
         if not entry:
             await update.message.reply_text(S('settings.entry_not_found'), reply_markup=BACK_TO_MENU)
             return ConversationHandler.END
@@ -227,7 +234,7 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
             temp_entry.get('transport_fee', 0)
         )
         
-        await update_entry_and_cascade(entry_id, updates)
+        await update_entry_and_cascade(user_id, entry_id, updates)
         await update.message.reply_text(S('settings.update_success'))
         return await start_edit_entry(update, context)
         
@@ -236,11 +243,13 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ENTERING_NEW_VALUE
 
 async def start_delete_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update, context): return ConversationHandler.END
+    user_id = update.effective_user.id
     query = update.callback_query
     if query:
         await query.answer()
     
-    entries = await get_entries()
+    entries = await get_entries(user_id)
     if not entries:
         msg = S('settings.no_entries')
         if query:
@@ -272,6 +281,7 @@ async def handle_delete_selection(update: Update, context: ContextTypes.DEFAULT_
     return CONFIRM_DELETE
 
 async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -280,7 +290,7 @@ async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_
     
     if query.data == "confirm_save":
         entry_id = context.user_data['deleting_id']
-        await delete_entry(entry_id)
+        await delete_entry(user_id, entry_id)
         await query.edit_message_text(S('settings.delete_success'))
         return await start_delete_entry(update, context)
     else:
@@ -318,6 +328,7 @@ def get_edit_delete_conv_handler():
     )
 
 async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update, context): return ConversationHandler.END
     query = update.callback_query
     if query: await query.answer()
     
@@ -367,6 +378,7 @@ async def handle_settings_navigation(update: Update, context: ContextTypes.DEFAU
     return SHOWING_SETTINGS
 
 async def start_setting_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_auth(update, context): return ConversationHandler.END
     query = update.callback_query
     await query.answer()
     

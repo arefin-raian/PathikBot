@@ -2,10 +2,12 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from bot.keyboards import get_main_menu, BACK_TO_MENU, MONTHS_BN_FULL, to_bn_number
 from bot.strings import S
+from bot.auth import require_auth
 from datetime import datetime
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /start command."""
+    if not await require_auth(update, context): return
     user = update.effective_user
     now = datetime.now()
     month_name = MONTHS_BN_FULL[now.month]
@@ -21,6 +23,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /help command with detailed Bangla explanations."""
+    if not await require_auth(update, context): return
     help_sections = S('help.sections')
     help_text = (
         f"{S('help.title')}\n\n"
@@ -44,6 +47,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle main menu button clicks."""
+    if not await require_auth(update, context): return
     query = update.callback_query
     await query.answer()
 

@@ -3,6 +3,7 @@ from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, Con
 from core.database import get_entries
 from bot.keyboards import MONTHS_BN_FULL, to_bn_number, BACK_TO_MENU
 from bot.strings import S
+from bot.auth import require_auth
 from datetime import datetime
 
 # States
@@ -10,7 +11,9 @@ SELECTING_ARCHIVE_MONTH = 1
 
 async def months_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /months command."""
-    entries = await get_entries()
+    if not await require_auth(update, context): return ConversationHandler.END
+    user_id = update.effective_user.id
+    entries = await get_entries(user_id)
     if not entries:
         msg = S('archive.no_entries')
         if update.callback_query:

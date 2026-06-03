@@ -26,6 +26,7 @@ from bot.keyboards import (
     to_bn_number
 )
 from bot.strings import S
+from bot.auth import require_auth
 
 # States
 (
@@ -100,11 +101,14 @@ def pop_history(context):
 
 async def start_new_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start the conversation for a new entry."""
+    if not await require_auth(update, context): return ConversationHandler.END
+    context.user_data['_user_id'] = update.effective_user.id
     # Keep month/year for sticky logic but clear everything else
     to_keep = ['selected_month', 'selected_year']
     kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
     context.user_data.clear()
     context.user_data.update(kept_data)
+    context.user_data['_user_id'] = update.effective_user.id
     
     query = update.callback_query
     msg = S('new_entry.type_prompt')
@@ -121,6 +125,7 @@ async def start_new_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHOOSING_TYPE
 
 async def handle_type_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -131,7 +136,7 @@ async def handle_type_selection(update: Update, context: ContextTypes.DEFAULT_TY
         if 'selected_month' in context.user_data:
             month = context.user_data['selected_month']
             year = context.user_data['selected_year']
-            last_day = await get_last_day_in_month(month, year)
+            last_day = await get_last_day_in_month(user_id, month, year)
             await query.edit_message_text(
                 S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
                 reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
@@ -147,7 +152,7 @@ async def handle_type_selection(update: Update, context: ContextTypes.DEFAULT_TY
         if 'selected_month' in context.user_data:
             month = context.user_data['selected_month']
             year = context.user_data['selected_year']
-            last_day = await get_last_day_in_month(month, year)
+            last_day = await get_last_day_in_month(user_id, month, year)
             await query.edit_message_text(
                 S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
                 reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
@@ -162,6 +167,7 @@ async def handle_type_selection(update: Update, context: ContextTypes.DEFAULT_TY
     return CHOOSING_TYPE
 
 async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -180,7 +186,7 @@ async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data['selected_year'] = year
         context.user_data['selected_month'] = month
         
-        last_day = await get_last_day_in_month(month, year)
+        last_day = await get_last_day_in_month(user_id, month, year)
         
         push_history(context, SELECT_DATE)
         await query.edit_message_text(
@@ -193,6 +199,7 @@ async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_T
         return ConversationHandler.END
 
 async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -209,7 +216,7 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
     month = context.user_data['selected_month']
 
     if query.data == "show_all_dates":
-        last_day = await get_last_day_in_month(month, year)
+        last_day = await get_last_day_in_month(user_id, month, year)
         await query.edit_message_text(S('keyboards.date_selection.title_all_dates'), reply_markup=get_date_selection_keyboard(year, month, last_day=last_day, show_all=True))
         return SELECT_DATE
     elif query.data.startswith("select_date_"):
@@ -217,7 +224,7 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data['date'] = f"{year}-{month:02d}-{day:02d}"
         
         if context.user_data['entry_type'] == 'REGULAR':
-            last_odo = await get_last_odo()
+            last_odo = await get_last_odo(user_id)
             context.user_data['suggested_odo_start'] = last_odo
             push_history(context, ENTER_ODO_START)
             await query.edit_message_text(
@@ -240,6 +247,7 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
 
 async def handle_odo_start_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -248,14 +256,14 @@ async def handle_odo_start_confirm(update: Update, context: ContextTypes.DEFAULT
         if prev == SELECT_DATE:
             month = context.user_data['selected_month']
             year = context.user_data['selected_year']
-            last_day = await get_last_day_in_month(month, year)
+            last_day = await get_last_day_in_month(user_id, month, year)
             await query.edit_message_text(
                 S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
                 reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
             )
             return SELECT_DATE
         elif prev == ENTER_ODO_START:
-            last_odo = context.user_data.get('suggested_odo_start', await get_last_odo())
+            last_odo = context.user_data.get('suggested_odo_start', await get_last_odo(user_id))
             await query.edit_message_text(
                 S('new_entry.odo_start_confirm', last_odo=to_bn_number(last_odo)),
                 reply_markup=get_yes_no_keyboard('odo_start_confirm', include_back=True),
@@ -330,6 +338,7 @@ async def handle_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ENTER_DISTANCE
 
 async def handle_odo_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -343,7 +352,7 @@ async def handle_odo_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if query.data == "odo_confirm_yes":
         push_history(context, PETROL_QUESTION)
-        all_entries = await get_entries()
+        all_entries = await get_entries(user_id)
         status = get_petrol_status(all_entries)
         if context.user_data.get('total_km', 0) > 0:
             status['distance_since'] += context.user_data['total_km']
@@ -363,6 +372,7 @@ async def handle_odo_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return ENTER_ODO_END
 
 async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -376,7 +386,7 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
             )
             return CONFIRM_ODO_END
         elif prev == PETROL_QUESTION:
-            all_entries = await get_entries()
+            all_entries = await get_entries(user_id)
             status = get_petrol_status(all_entries)
             if context.user_data.get('total_km', 0) > 0:
                 status['distance_since'] += context.user_data['total_km']
@@ -402,7 +412,7 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data['petrol_cost'] = 0
         push_history(context, MOBIL_QUESTION)
         # Check mobil threshold
-        all_entries = await get_entries()
+        all_entries = await get_entries(user_id)
         status = get_mobil_status(all_entries)
         if context.user_data.get('total_km', 0) > 0:
             status['distance_since'] += context.user_data['total_km']
@@ -418,6 +428,7 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
         return MOBIL_QUESTION
 
 async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     await add_message_to_delete(update, context, update.message.message_id)
     await delete_stale_prompt(update, context)
     try:
@@ -427,7 +438,7 @@ async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         push_history(context, MOBIL_QUESTION)
         # Check mobil threshold for embedded mobil question
-        all_entries = await get_entries()
+        all_entries = await get_entries(user_id)
         status = get_mobil_status(all_entries)
         if context.user_data.get('total_km', 0) > 0:
             status['distance_since'] += context.user_data['total_km']
@@ -448,13 +459,14 @@ async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ENTER_LITERS
 
 async def handle_mobil_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
     if query.data == "back":
         prev = pop_history(context)
         if prev == PETROL_QUESTION:
-            all_entries = await get_entries()
+            all_entries = await get_entries(user_id)
             status = get_petrol_status(all_entries)
             if context.user_data.get('total_km', 0) > 0:
                 status['distance_since'] += context.user_data['total_km']
@@ -469,7 +481,7 @@ async def handle_mobil_question(update: Update, context: ContextTypes.DEFAULT_TY
             )
             return PETROL_QUESTION
         elif prev == MOBIL_QUESTION:
-            all_entries = await get_entries()
+            all_entries = await get_entries(user_id)
             status = get_mobil_status(all_entries)
             if context.user_data.get('total_km', 0) > 0:
                 status['distance_since'] += context.user_data['total_km']
@@ -522,13 +534,14 @@ async def handle_mobil_liters(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ENTER_MOBIL_LITERS
 
 async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
     if query.data == "back":
         prev = pop_history(context)
         if prev == MOBIL_QUESTION:
-            all_entries = await get_entries()
+            all_entries = await get_entries(user_id)
             status = get_mobil_status(all_entries)
             if context.user_data.get('total_km', 0) > 0:
                 status['distance_since'] += context.user_data['total_km']
@@ -641,6 +654,7 @@ async def handle_distributor_selection(update: Update, context: ContextTypes.DEF
         return ConversationHandler.END
 
 async def handle_venue(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     await add_message_to_delete(update, context, update.message.message_id)
     context.user_data['venue'] = update.message.text
     push_history(context, SELECT_MONTH)
@@ -648,7 +662,7 @@ async def handle_venue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if 'selected_month' in context.user_data:
         month = context.user_data['selected_month']
         year = context.user_data['selected_year']
-        last_day = await get_last_day_in_month(month, year)
+        last_day = await get_last_day_in_month(user_id, month, year)
         m = await update.message.reply_text(
             S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
             reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
@@ -661,13 +675,14 @@ async def handle_venue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return SELECT_MONTH
 
 async def handle_transport_fee(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     await add_message_to_delete(update, context, update.message.message_id)
     await delete_stale_prompt(update, context)
     try:
         fee = int(normalize_number(update.message.text))
         context.user_data['transport_fee'] = fee
         
-        last_odo = await get_last_odo()
+        last_odo = await get_last_odo(user_id)
         context.user_data['odo_start'] = last_odo
         context.user_data['odo_end'] = last_odo
         context.user_data['total_km'] = 0
@@ -686,13 +701,14 @@ async def handle_transport_fee(update: Update, context: ContextTypes.DEFAULT_TYP
         return ENTER_TRANSPORT_FEE
 
 async def handle_transport_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
 
     if query.data == "transport_yes":
         fee = context.user_data.get('transport_fee', int(os.getenv('TRANSPORT_FEE', '460')))
         context.user_data['transport_fee'] = fee
-        last_odo = await get_last_odo()
+        last_odo = await get_last_odo(user_id)
         context.user_data['odo_start'] = last_odo
         context.user_data['odo_end'] = last_odo
         context.user_data['total_km'] = 0
@@ -714,7 +730,7 @@ async def handle_transport_confirm(update: Update, context: ContextTypes.DEFAULT
         pop_history(context)
         month = context.user_data['selected_month']
         year = context.user_data['selected_year']
-        last_day = await get_last_day_in_month(month, year)
+        last_day = await get_last_day_in_month(user_id, month, year)
         await query.edit_message_text(
             S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
             reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
@@ -794,6 +810,7 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CONFIRM_ENTRY
 
 async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -824,7 +841,7 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         await delete_previous_messages(update, context, exclude=query.message.message_id)
 
         # Compute carry-forward for petrol/mobil refills
-        all_entries = await get_entries()
+        all_entries = await get_entries(user_id)
         petrol_liters = context.user_data.get('petrol_liters', 0)
         mobil_liters = context.user_data.get('mobil_liters', 0)
         total_km = context.user_data.get('total_km', 0)
@@ -835,7 +852,7 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             overflow = calc_carry_forward(all_entries, total_km, 'mobil_liters', 'mobil_overflow', 1000)
             context.user_data['mobil_overflow'] = overflow
 
-        entry_id = await add_entry(context.user_data.copy())
+        entry_id = await add_entry(user_id, context.user_data.copy())
         
         dt = datetime.strptime(context.user_data['date'], '%Y-%m-%d')
         days_in_month = calendar.monthrange(dt.year, dt.month)[1]
@@ -846,7 +863,7 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         
         from bot.handlers.summary import send_summary_message
-        month_entries = await get_entries(dt.month, dt.year)
+        month_entries = await get_entries(user_id, dt.month, dt.year)
         await send_summary_message(context, update.effective_chat.id, month_entries)
         
         if dt.day >= days_in_month - 2:
