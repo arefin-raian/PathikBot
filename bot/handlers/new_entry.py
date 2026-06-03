@@ -244,8 +244,25 @@ async def handle_odo_start_confirm(update: Update, context: ContextTypes.DEFAULT
     await query.answer()
     
     if query.data == "back":
-        pop_history(context)
-        return await handle_month_selection(update, context)
+        prev = pop_history(context)
+        if prev == SELECT_DATE:
+            month = context.user_data['selected_month']
+            year = context.user_data['selected_year']
+            last_day = await get_last_day_in_month(month, year)
+            await query.edit_message_text(
+                S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
+                reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
+            )
+            return SELECT_DATE
+        elif prev == ENTER_ODO_START:
+            last_odo = context.user_data.get('suggested_odo_start', await get_last_odo())
+            await query.edit_message_text(
+                S('new_entry.odo_start_confirm', last_odo=to_bn_number(last_odo)),
+                reply_markup=get_yes_no_keyboard('odo_start_confirm', include_back=True),
+                parse_mode='HTML'
+            )
+            return ENTER_ODO_START
+        return CHOOSING_TYPE
 
     if query.data == "odo_start_confirm_yes":
         context.user_data['odo_start'] = context.user_data['suggested_odo_start']
@@ -350,13 +367,30 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
     
     if query.data == "back":
-        pop_history(context)
-        await query.edit_message_text(
-            S('new_entry.distance_result', dist=to_bn_number(context.user_data['total_km']), odo_end=to_bn_number(context.user_data['odo_end'])),
-            reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True),
-            parse_mode='HTML'
-        )
-        return CONFIRM_ODO_END
+        prev = pop_history(context)
+        if prev == CONFIRM_ODO_END:
+            await query.edit_message_text(
+                S('new_entry.distance_result', dist=to_bn_number(context.user_data['total_km']), odo_end=to_bn_number(context.user_data['odo_end'])),
+                reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True),
+                parse_mode='HTML'
+            )
+            return CONFIRM_ODO_END
+        elif prev == PETROL_QUESTION:
+            all_entries = await get_entries()
+            status = get_petrol_status(all_entries)
+            if context.user_data.get('total_km', 0) > 0:
+                status['distance_since'] += context.user_data['total_km']
+                status['is_due'] = status['distance_since'] >= status['effective_threshold']
+            text = S('new_entry.petrol_question')
+            if status['is_due']:
+                text += S('thresholds.petrol_due_reminder')
+            await query.edit_message_text(
+                text,
+                reply_markup=get_yes_no_keyboard('petrol', include_back=True),
+                parse_mode='HTML'
+            )
+            return PETROL_QUESTION
+        return CHOOSING_TYPE
 
     if query.data == "petrol_yes":
         push_history(context, ENTER_LITERS)
@@ -418,12 +452,38 @@ async def handle_mobil_question(update: Update, context: ContextTypes.DEFAULT_TY
     await query.answer()
     
     if query.data == "back":
-        pop_history(context)
-        await query.edit_message_text(
-            S('new_entry.petrol_question'),
-            reply_markup=get_yes_no_keyboard('petrol', include_back=True)
-        )
-        return PETROL_QUESTION
+        prev = pop_history(context)
+        if prev == PETROL_QUESTION:
+            all_entries = await get_entries()
+            status = get_petrol_status(all_entries)
+            if context.user_data.get('total_km', 0) > 0:
+                status['distance_since'] += context.user_data['total_km']
+                status['is_due'] = status['distance_since'] >= status['effective_threshold']
+            text = S('new_entry.petrol_question')
+            if status['is_due']:
+                text += S('thresholds.petrol_due_reminder')
+            await query.edit_message_text(
+                text,
+                reply_markup=get_yes_no_keyboard('petrol', include_back=True),
+                parse_mode='HTML'
+            )
+            return PETROL_QUESTION
+        elif prev == MOBIL_QUESTION:
+            all_entries = await get_entries()
+            status = get_mobil_status(all_entries)
+            if context.user_data.get('total_km', 0) > 0:
+                status['distance_since'] += context.user_data['total_km']
+                status['is_due'] = status['distance_since'] >= status['effective_threshold']
+            mobil_text = S('new_entry.mobil_question')
+            if status['is_due']:
+                mobil_text += S('thresholds.mobil_due_reminder')
+            await query.edit_message_text(
+                mobil_text,
+                reply_markup=get_yes_no_keyboard('mobil', include_back=True),
+                parse_mode='HTML'
+            )
+            return MOBIL_QUESTION
+        return CHOOSING_TYPE
 
     if query.data == "mobil_yes":
         push_history(context, ENTER_MOBIL_LITERS)
@@ -466,12 +526,29 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
     
     if query.data == "back":
-        pop_history(context)
-        await query.edit_message_text(
-            S('new_entry.mobil_question'),
-            reply_markup=get_yes_no_keyboard('mobil', include_back=True)
-        )
-        return MOBIL_QUESTION
+        prev = pop_history(context)
+        if prev == MOBIL_QUESTION:
+            all_entries = await get_entries()
+            status = get_mobil_status(all_entries)
+            if context.user_data.get('total_km', 0) > 0:
+                status['distance_since'] += context.user_data['total_km']
+                status['is_due'] = status['distance_since'] >= status['effective_threshold']
+            mobil_text = S('new_entry.mobil_question')
+            if status['is_due']:
+                mobil_text += S('thresholds.mobil_due_reminder')
+            await query.edit_message_text(
+                mobil_text,
+                reply_markup=get_yes_no_keyboard('mobil', include_back=True),
+                parse_mode='HTML'
+            )
+            return MOBIL_QUESTION
+        elif prev == MANAGER_QUESTION:
+            await query.edit_message_text(
+                S('new_entry.manager_question'),
+                reply_markup=get_yes_no_keyboard('manager', include_back=True)
+            )
+            return MANAGER_QUESTION
+        return CHOOSING_TYPE
 
     if query.data == "manager_yes":
         push_history(context, ENTER_MANAGER)
@@ -506,12 +583,17 @@ async def handle_da_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     if query.data == "back":
-        pop_history(context)
-        await query.edit_message_text(
-            S('new_entry.manager_question'),
-            reply_markup=get_yes_no_keyboard('manager', include_back=True)
-        )
-        return MANAGER_QUESTION
+        prev = pop_history(context)
+        if prev == MANAGER_QUESTION:
+            await query.edit_message_text(
+                S('new_entry.manager_question'),
+                reply_markup=get_yes_no_keyboard('manager', include_back=True)
+            )
+            return MANAGER_QUESTION
+        elif prev == ENTER_MANAGER:
+            await query.edit_message_text(S('new_entry.manager_designation_prompt'), reply_markup=get_back_keyboard())
+            return ENTER_MANAGER
+        return CHOOSING_TYPE
 
     if query.data == "da_yes":
         context.user_data['da_amount'] = 200
@@ -716,10 +798,19 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer()
     
     if query.data == "back":
-        pop_history(context)
-        if context.user_data['entry_type'] == 'REGULAR':
-            return await handle_da_confirm(update, context)
-        else:
+        prev = pop_history(context)
+        if prev == SELECT_DISTRIBUTORS:
+            dists = await get_distributors()
+            await query.edit_message_text(S('new_entry.distributor_prompt'), reply_markup=get_distributor_keyboard(dists))
+            return SELECT_DISTRIBUTORS
+        elif prev == DA_CONFIRM:
+            await query.edit_message_text(
+                S('new_entry.da_confirm', da_amount=to_bn_number(200)),
+                reply_markup=get_yes_no_keyboard('da', include_back=True),
+                parse_mode='HTML'
+            )
+            return DA_CONFIRM
+        elif prev == CONFIRM_TRANSPORT_FEE:
             transport_fee = context.user_data.get('transport_fee', int(os.getenv('TRANSPORT_FEE', '460')))
             await query.edit_message_text(
                 S('new_entry.transport_confirm', transport_fee=to_bn_number(transport_fee)),
@@ -727,6 +818,7 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
                 parse_mode='HTML'
             )
             return CONFIRM_TRANSPORT_FEE
+        return CHOOSING_TYPE
 
     if query.data == "confirm_save":
         await delete_previous_messages(update, context, exclude=query.message.message_id)

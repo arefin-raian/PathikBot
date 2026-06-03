@@ -123,11 +123,14 @@ def _refill_status(entries, liters_field, overflow_field, threshold):
             break
 
     if last_refill_idx == -1:
+        # No refill found — use total distance of ALL entries as baseline
+        distance_since = sum(e.get('total_km', 0) for e in sorted_entries)
+        is_due = distance_since >= threshold
         return {
-            'distance_since': 0,
-            'is_due': False,
+            'distance_since': distance_since,
+            'is_due': is_due,
             'effective_threshold': threshold,
-            'effective_remaining': threshold,
+            'effective_remaining': max(0, threshold - distance_since),
             'carry_forward': 0,
         }
 
