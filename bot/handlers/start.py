@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from bot.keyboards import get_main_menu, get_back_keyboard, MONTHS_BN_FULL, to_bn_number
+from bot.keyboards import get_main_menu, BACK_TO_MENU, MONTHS_BN_FULL, to_bn_number
 from bot.strings import S
 from datetime import datetime
 
@@ -35,10 +35,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{help_sections['settings']}\n\n"
         f"{help_sections['generate']}"
     )
+    # Context-aware: direct command → no back button; menu callback → back to main menu
+    reply_markup = BACK_TO_MENU if update.callback_query else None
     if update.callback_query:
-        await update.callback_query.edit_message_text(help_text, reply_markup=get_back_keyboard(), parse_mode='HTML')
+        await update.callback_query.edit_message_text(help_text, reply_markup=reply_markup, parse_mode='HTML')
     else:
-        await update.message.reply_text(help_text, reply_markup=get_back_keyboard(), parse_mode='HTML')
+        await update.message.reply_text(help_text, reply_markup=reply_markup, parse_mode='HTML')
 
 async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle main menu button clicks."""
