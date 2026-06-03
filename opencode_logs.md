@@ -532,3 +532,41 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 
 **Files changed:**
 - `bot/strings.json`
+
+---
+
+### Task: Button positions & petrol/mobil threshold tracking — 2026-06-03
+
+**User request:**
+1. Swap button positions so positive actions (Yes, Confirm, Done, Add) appear on the RIGHT, negative/back on the LEFT
+2. Add petrol threshold (480 km) — track cumulative distance since last petrol refill, show due reminder when asking "Did you take petrol?"
+3. Add mobil threshold (1,000 km) — same tracking + reminder logic
+4. Carry-forward excess distance — if 484 km before refill (threshold 480), next threshold is 476 km (480 - 4)
+
+**Changes made:**
+
+**`bot/keyboards.py`:**
+- `get_yes_no_keyboard()`: Swapped button order — `no` on left, `yes` on right
+- `get_confirmation_keyboard()`: Swapped — `discard` on left, `confirm` on right
+- `get_distributor_keyboard()`: Swapped footer — `back` on left, `done` on right
+
+**`core/calculations.py`:**
+- Added `PETROL_THRESHOLD_KM = 480`, `MOBIL_THRESHOLD_KM = 1000` constants
+- Added `_refill_status(entries, liters_field, overflow_field, threshold)` — private helper that computes distance since last refill and whether a refill is due, returning `distance_since`, `is_due`, `effective_threshold`, `effective_remaining`, `carry_forward`
+- Added `get_petrol_status(entries)` — wrapper calling `_refill_status` with petrol params
+- Added `get_mobil_status(entries)` — wrapper calling `_refill_status` with mobil params
+- Added `calc_carry_forward(entries, new_entry_km, liters_field, overflow_field, threshold)` — computes overflow when adding a new refill entry (before saving); returns excess km = max(0, distance_since - effective_threshold)
+
+**`bot/strings.json`:**
+- Added `thresholds` section with `petrol_due_reminder` and `mobil_due_reminder` strings (Bangla warning + instruction)
+
+**`bot/handlers/new_entry.py`:**
+- Added imports: `get_petrol_status`, `get_mobil_status`, `calc_carry_forward` from `core.calculations`
+- `handle_odo_confirm` (yes branch): Before showing petrol_question, fetches all entries, calls `get_petrol_status`, includes current entry's `total_km`, appends `S('thresholds.petrol_due_reminder')` if `is_due`
+- `handle_petrol_question` (no branch): Before showing mobil_question, same mobil check + reminder
+- `handle_liters` (petrol_result with embedded mobil question): Same mobil check before showing petrol_result
+- `save_entry_callback` (confirm_save): Before saving, if `petrol_liters > 0` or `mobil_liters > 0`, calls `calc_carry_forward()` and stores result as `petrol_overflow` / `mobil_overflow` in `context.user_data`
+
+**Testing:** All 4 files (`new_entry.py`, `calculations.py`, `keyboards.py`, `strings.json`) pass syntax/JSON validation. No runtime errors expected.
+
+**Commit:** (pending — user must confirm before push) (wait — rule says auto-commit + push after EVERY edit — OK, will commit + push after log update)

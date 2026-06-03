@@ -11,7 +11,7 @@ from datetime import datetime
 import calendar
 import os
 from core.database import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors
-from core.calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost
+from core.calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, get_petrol_status, get_mobil_status, calc_carry_forward
 from bot.keyboards import (
     get_entry_type_keyboard, 
     get_yes_no_keyboard, 
@@ -325,9 +325,18 @@ async def handle_odo_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if query.data == "odo_confirm_yes":
         push_history(context, PETROL_QUESTION)
+        all_entries = await get_entries()
+        status = get_petrol_status(all_entries)
+        if context.user_data.get('total_km', 0) > 0:
+            status['distance_since'] += context.user_data['total_km']
+            status['is_due'] = status['distance_since'] >= status['effective_threshold']
+        text = S('new_entry.petrol_question')
+        if status['is_due']:
+            text += S('thresholds.petrol_due_reminder')
         await query.edit_message_text(
-            S('new_entry.petrol_question'),
-            reply_markup=get_yes_no_keyboard('petrol', include_back=True)
+            text,
+            reply_markup=get_yes_no_keyboard('petrol', include_back=True),
+            parse_mode='HTML'
         )
         return PETROL_QUESTION
     else:
@@ -357,9 +366,19 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
         context.user_data['petrol_liters'] = 0
         context.user_data['petrol_cost'] = 0
         push_history(context, MOBIL_QUESTION)
+        # Check mobil threshold
+        all_entries = await get_entries()
+        status = get_mobil_status(all_entries)
+        if context.user_data.get('total_km', 0) > 0:
+            status['distance_since'] += context.user_data['total_km']
+            status['is_due'] = status['distance_since'] >= status['effective_threshold']
+        mobil_text = S('new_entry.mobil_question')
+        if status['is_due']:
+            mobil_text += S('thresholds.mobil_due_reminder')
         await query.edit_message_text(
-            S('new_entry.mobil_question'),
-            reply_markup=get_yes_no_keyboard('mobil', include_back=True)
+            mobil_text,
+            reply_markup=get_yes_no_keyboard('mobil', include_back=True),
+            parse_mode='HTML'
         )
         return MOBIL_QUESTION
 
@@ -372,8 +391,17 @@ async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['petrol_cost'] = calculate_petrol_cost(liters)
         
         push_history(context, MOBIL_QUESTION)
+        # Check mobil threshold for embedded mobil question
+        all_entries = await get_entries()
+        status = get_mobil_status(all_entries)
+        if context.user_data.get('total_km', 0) > 0:
+            status['distance_since'] += context.user_data['total_km']
+            status['is_due'] = status['distance_since'] >= status['effective_threshold']
+        petrol_text = S('new_entry.petrol_result', petrol_cost=to_bn_number(context.user_data['petrol_cost']))
+        if status['is_due']:
+            petrol_text += S('thresholds.mobil_due_reminder')
         m = await update.message.reply_text(
-            S('new_entry.petrol_result', petrol_cost=to_bn_number(context.user_data['petrol_cost'])),
+            petrol_text,
             reply_markup=get_yes_no_keyboard('mobil', include_back=True),
             parse_mode='HTML'
         )
@@ -701,6 +729,19 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if query.data == "confirm_save":
         await delete_previous_messages(update, context, exclude=query.message.message_id)
+
+        # Compute carry-forward for petrol/mobil refills
+        all_entries = await get_entries()
+        petrol_liters = context.user_data.get('petrol_liters', 0)
+        mobil_liters = context.user_data.get('mobil_liters', 0)
+        total_km = context.user_data.get('total_km', 0)
+        if petrol_liters > 0:
+            overflow = calc_carry_forward(all_entries, total_km, 'petrol_liters', 'petrol_overflow', 480)
+            context.user_data['petrol_overflow'] = overflow
+        if mobil_liters > 0:
+            overflow = calc_carry_forward(all_entries, total_km, 'mobil_liters', 'mobil_overflow', 1000)
+            context.user_data['mobil_overflow'] = overflow
+
         entry_id = await add_entry(context.user_data.copy())
         
         dt = datetime.strptime(context.user_data['date'], '%Y-%m-%d')

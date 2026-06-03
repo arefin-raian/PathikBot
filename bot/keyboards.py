@@ -156,9 +156,9 @@ def get_distributor_keyboard(distributors, selected_indices=None):
 
     b = S('keyboards.distributor_selection')
     footer = []
+    footer.append(InlineKeyboardButton(b['back'], callback_data="back"))
     if selected_indices:
         footer.append(InlineKeyboardButton(b['done'], callback_data="dist_done"))
-    footer.append(InlineKeyboardButton(b['back'], callback_data="back"))
     keyboard.append(footer)
 
     return InlineKeyboardMarkup(keyboard)
@@ -167,8 +167,8 @@ def get_yes_no_keyboard(prefix, include_back=False):
     b = S('keyboards.yes_no')
     keyboard = [
         [
-            InlineKeyboardButton(b['yes'], callback_data=f"{prefix}_yes"),
-            InlineKeyboardButton(b['no'], callback_data=f"{prefix}_no")
+            InlineKeyboardButton(b['no'], callback_data=f"{prefix}_no"),
+            InlineKeyboardButton(b['yes'], callback_data=f"{prefix}_yes")
         ]
     ]
     if include_back:
@@ -182,8 +182,8 @@ def get_confirmation_keyboard():
     b = S('keyboards.confirmation')
     keyboard = [
         [
-            InlineKeyboardButton(b['confirm'], callback_data="confirm_save"),
-            InlineKeyboardButton(b['discard'], callback_data="confirm_discard")
+            InlineKeyboardButton(b['discard'], callback_data="confirm_discard"),
+            InlineKeyboardButton(b['confirm'], callback_data="confirm_save")
         ],
         [InlineKeyboardButton(b['back'], callback_data="back")]
     ]

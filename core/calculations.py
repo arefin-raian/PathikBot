@@ -99,3 +99,82 @@ def calculate_summary(entries):
         'total_others': total_others,
         'grand_total': total_amount
     }
+
+
+# ── Petrol / Mobil threshold tracking ─────────────────────
+
+PETROL_THRESHOLD_KM = 480
+MOBIL_THRESHOLD_KM = 1000
+
+def _refill_status(entries, liters_field, overflow_field, threshold):
+    """
+    Compute distance since last refill and whether a refill is due.
+    Returns dict with distance_since, is_due, effective_threshold,
+    effective_remaining, carry_forward.
+    """
+    sorted_entries = sorted(entries, key=lambda e: e['date'])
+    last_refill_idx = -1
+    carry_forward = 0
+
+    for i in range(len(sorted_entries) - 1, -1, -1):
+        if sorted_entries[i].get(liters_field, 0) > 0:
+            last_refill_idx = i
+            carry_forward = sorted_entries[i].get(overflow_field, 0)
+            break
+
+    if last_refill_idx == -1:
+        return {
+            'distance_since': 0,
+            'is_due': False,
+            'effective_threshold': threshold,
+            'effective_remaining': threshold,
+            'carry_forward': 0,
+        }
+
+    distance_since = 0
+    for i in range(last_refill_idx + 1, len(sorted_entries)):
+        distance_since += sorted_entries[i].get('total_km', 0)
+
+    effective_threshold = threshold - carry_forward
+    is_due = distance_since >= effective_threshold
+
+    return {
+        'distance_since': distance_since,
+        'is_due': is_due,
+        'effective_threshold': effective_threshold,
+        'effective_remaining': max(0, effective_threshold - distance_since),
+        'carry_forward': carry_forward,
+    }
+
+
+def get_petrol_status(entries):
+    """Get petrol refill tracking status based on stored entries."""
+    return _refill_status(entries, 'petrol_liters', 'petrol_overflow', PETROL_THRESHOLD_KM)
+
+
+def get_mobil_status(entries):
+    """Get mobil refill tracking status based on stored entries."""
+    return _refill_status(entries, 'mobil_liters', 'mobil_overflow', MOBIL_THRESHOLD_KM)
+
+
+def calc_carry_forward(entries, new_entry_km, liters_field, overflow_field, threshold):
+    """
+    Calculate overflow (excess km) when adding a new entry that includes a refill.
+    Should be called BEFORE the entry is saved (entries = existing data only).
+    """
+    sorted_entries = sorted(entries, key=lambda e: e['date'])
+    last_refill_idx = -1
+    prev_carry = 0
+
+    for i in range(len(sorted_entries) - 1, -1, -1):
+        if sorted_entries[i].get(liters_field, 0) > 0:
+            last_refill_idx = i
+            prev_carry = sorted_entries[i].get(overflow_field, 0)
+            break
+
+    distance_since = new_entry_km
+    for i in range(last_refill_idx + 1, len(sorted_entries)):
+        distance_since += sorted_entries[i].get('total_km', 0)
+
+    effective_threshold = threshold - prev_carry
+    return max(0, distance_since - effective_threshold)
