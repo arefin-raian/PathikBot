@@ -714,3 +714,76 @@ Each case also rebuilds any threshold reminders that were shown on the original 
 - `bot/handlers/new_entry.py` — All 6 broken back handlers fixed to use `pop_history()` return value (lines 246-265, 369-393, 452-486, 528-549, 585-596, 800-820)
 
 **Commit:** `1de24b3` — "Fix petrol reminder and back navigation"
+
+---
+
+## Session: 2026-06-03 (late)
+
+### Feature: List Entries filter system
+
+**User request:** Add a filter choice when listing entries — ask user if they want to see All Entries or Filter by criteria. Provide 4 filter toggles (petrol, mobil, meeting, manager), persist preferences, and behave consistently across command and menu.
+
+**Design:**
+
+```
+User triggers List Entries (command or menu)
+    ↓
+[📋 সব এন্ট্রি]
+[🔄 শেষ ফিল্টার: পেট্রোল, মিটিং]   ← only if saved filter exists
+[🔍 ফিল্টার করুন]
+    ↓  (click ফিল্টার করুন)
+    
+ফিল্টার নির্বাচন করুন (একাধিক নির্বাচন করতে পারেন):
+[⛽ পেট্রোল নেওয়া হয়েছে]    ← toggles on click
+[🛢️ মবিল পরিবর্তন]
+[🏢 মিটিং]
+[👥 কারো সাথে ছিলেন]
+[✅ ফিল্টার প্রয়োগ করুন] [🔙 পিছনে]
+    ↓  (click প্রয়োগ করুন)
+    
+Matching entries displayed + summary with BACK_TO_MENU
+```
+
+**Key design decisions:**
+- Filters use OR logic (union) — entry matches if ANY selected criterion is met
+- Filter state is stored in `context.user_data` DURING toggling (fast, no disk I/O)
+- Filter is persisted to `data/user_prefs.json` ONLY when user clicks Apply
+- On next visit, saved filter is shown as hint text + "Last Filter" quick-apply button
+- Archive-triggered list entries (`list_entries_2026_6`) bypass filter and show entries directly
+- Both `/listentries` command and main menu "📋 এন্ট্রি তালিকা" use the same filter choice flow
+- All entries shown without limit (no more `entries[-10:]` truncation)
+
+**Files changed:**
+
+1. **`core/database.py`** — Added `get_user_prefs(user_id)` and `set_user_prefs(user_id, prefs)`:
+   - Reads/writes `data/user_prefs.json` with `{str(user_id): {...}}` structure
+   - Handles file-not-found and JSON-decode-error gracefully
+   - Async file I/O consistent with existing pattern
+
+2. **`bot/strings.json`** — Added two sections:
+   - `keyboards.list_entries` — 9 keyboard labels (all_entries, last_filter, filter, filter_petrol, filter_mobil, filter_meeting, filter_manager, apply, back)
+   - `list_entries` — 4 prompt strings (choose_option, filter_title, no_matches, last_filter_hint)
+
+3. **`bot/keyboards.py`** — Added 3 items:
+   - `FILTER_KEYS` constant — `['petrol', 'mobil', 'meeting', 'manager']`
+   - `get_list_entries_choice_keyboard(saved_filters)` — All/Last Filter/Filter choice buttons; dynamically shows "Last Filter" button with filter names if saved filters exist
+   - `get_filter_checkboxes_keyboard(selected)` — 4 toggle rows with ✅ prefix for checked state, Apply + Back footer
+
+4. **`bot/handlers/summary.py`** — Major refactor:
+   - Added `matches_filter(entry, selected)` — OR-logic matcher for the 4 filter criteria
+   - Extracted `display_entries(update, context, entries, query)` — shares entry display logic between all paths
+   - Added `show_filter_choice(update, context, query)` — shows choice screen with saved filter hint
+   - Rewrote `list_entries_handler` — now dispatches 8 callback patterns:
+     1. Archive month (`list_entries_2026_6`) → direct entry display
+     2. Main menu (`list_entries`) → show filter choice
+     3. All entries (`list_entries_all`) → show all entries
+     4. Last filter (`list_entries_last_filter`) → quick-apply saved filter
+     5. Filter checkboxes (`list_entries_filter`) → load saved + show toggles
+     6. Toggle (`list_entries_filter_toggle_N`) → toggle in user_data, update message
+     7. Apply (`list_entries_filter_apply`) → persist prefs, show matching entries
+     8. Back (`list_entries_filter_back`) → return to choice screen
+   - Command path (`/listentries`) → shows filter choice (same as menu)
+   - Removed `entries[-10:]` limit — all matching entries shown
+   - No changes to `send_entry_message`, `send_summary_message`, `summary_handler`
+
+**Commit:** `0d39e96` — "Add list entries filter: all/filter choice, petrol/mobil/meeting/manager filters, persistent user prefs"
