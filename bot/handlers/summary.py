@@ -24,7 +24,7 @@ async def send_entry_message(context, chat_id, i, e, first_entry=False, query=No
         if e.get('distributors_raw'):
             text += "<blockquote expandable>"
             for dist in e['distributors_raw']:
-                text += f"পরিবেশক: <i>{dist}</i>\n"
+                text += f"পরিবেশক: {dist}\n"
             text += "</blockquote>"
     else:
         text = f"<blockquote><b>#{to_bn_number(i)} মাসিক মিটিং — </b>{to_bn_number(dt_str)}<b>                 </b></blockquote>\n"
@@ -46,13 +46,13 @@ async def send_entry_message(context, chat_id, i, e, first_entry=False, query=No
 async def send_summary_message(context, chat_id, entries, reply_markup=None):
     summary = calculate_summary(entries)
     text = (
-        f"<b>📊 সার সংক্ষেপ</b>\n\n"
-        f"    মোট ট্যুর: {to_bn_number(summary['total_tour'])}টি\n"
-        f"    মোট কিমি: {to_bn_number(summary['total_km'])} কিমি\n"
-        f"    মোট পেট্রোল: {to_bn_number(summary['total_liters_petrol'])} লি = {to_bn_number(summary['total_petrol_cost'])}/-\n"
-        f"    মোট মবিল: {to_bn_number(summary['total_liters_mobil'])} লি = {to_bn_number(summary['total_mobil_cost'])}/-\n"
-        f"    মোট DA: {to_bn_number(summary['total_da'])}/-\n"
-        f"    যাতায়াত ভাড়া: {to_bn_number(summary['total_others'])}/-\n"
+        f"<blockquote><b>📊 সার সংক্ষেপ                 </b></blockquote>\n"
+        f"    মোট ট্যুর: <b>{to_bn_number(summary['total_tour'])}</b>টি\n"
+        f"    মোট কিমি: <b>{to_bn_number(summary['total_km'])}</b> কিমি\n"
+        f"    মোট পেট্রোল: <b>{to_bn_number(summary['total_liters_petrol'])}</b> লি = <b>{to_bn_number(summary['total_petrol_cost'])}</b>/-\n"
+        f"    মোট মবিল: <b>{to_bn_number(summary['total_liters_mobil'])}</b> লি = <b>{to_bn_number(summary['total_mobil_cost'])}</b>/-\n"
+        f"    মোট DA: <b>{to_bn_number(summary['total_da'])}</b>/-\n"
+        f"    যাতায়াত ভাড়া: <b>{to_bn_number(summary['total_others'])}</b>/-\n"
         f"    <b>সর্বমোট: {to_bn_number(summary['grand_total'])}/-</b>"
     )
     await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
@@ -103,13 +103,13 @@ async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     summary = calculate_summary(entries)
     text = (
-        f"<b>📊 সার সংক্ষেপ</b>\n\n"
-        f"    মোট ট্যুর: {to_bn_number(summary['total_tour'])}টি\n"
-        f"    মোট কিমি: {to_bn_number(summary['total_km'])} কিমি\n"
-        f"    মোট পেট্রোল: {to_bn_number(summary['total_liters_petrol'])} লি = {to_bn_number(summary['total_petrol_cost'])}/-\n"
-        f"    মোট মবিল: {to_bn_number(summary['total_liters_mobil'])} লি = {to_bn_number(summary['total_mobil_cost'])}/-\n"
-        f"    মোট DA: {to_bn_number(summary['total_da'])}/-\n"
-        f"    যাতায়াত ভাড়া: {to_bn_number(summary['total_others'])}/-\n"
+        f"<blockquote><b>📊 সার সংক্ষেপ                 </b></blockquote>\n"
+        f"    মোট ট্যুর: <b>{to_bn_number(summary['total_tour'])}</b>টি\n"
+        f"    মোট কিমি: <b>{to_bn_number(summary['total_km'])}</b> কিমি\n"
+        f"    মোট পেট্রোল: <b>{to_bn_number(summary['total_liters_petrol'])}</b> লি = <b>{to_bn_number(summary['total_petrol_cost'])}</b>/-\n"
+        f"    মোট মবিল: <b>{to_bn_number(summary['total_liters_mobil'])}</b> লি = <b>{to_bn_number(summary['total_mobil_cost'])}</b>/-\n"
+        f"    মোট DA: <b>{to_bn_number(summary['total_da'])}</b>/-\n"
+        f"    যাতায়াত ভাড়া: <b>{to_bn_number(summary['total_others'])}</b>/-\n"
         f"    <b>সর্বমোট: {to_bn_number(summary['grand_total'])}/-</b>"
     )
     if query:

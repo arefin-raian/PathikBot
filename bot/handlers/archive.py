@@ -60,8 +60,8 @@ async def archive_month_selection_handler(update: Update, context: ContextTypes.
             [InlineKeyboardButton("🔙 ফিরে যান", callback_data="months_back")]
         ]
         
-        msg = f"📂 **{MONTHS_BN_FULL[month]} {to_bn_number(year)}**-এর জন্য আপনি কী করতে চান?"
-        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+        msg = f"📂 <b>{MONTHS_BN_FULL[month]} {to_bn_number(year)}</b>-এর জন্য আপনি কী করতে চান?"
+        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
         return SELECTING_ARCHIVE_MONTH
 
     if query.data == "months_back":

@@ -148,12 +148,12 @@ async def distributor_mgmt_handler(update: Update, context: ContextTypes.DEFAULT
     if query: await query.answer()
     
     dists = await get_distributors()
-    msg = "🤝 **পরিবেশক ম্যানেজমেন্ট**\n\nনতুন পরিবেশক যোগ করতে বা পুরানো ডিলিট করতে নিচের অপশন ব্যবহার করুন।"
+    msg = "<b>🤝 পরিবেশক ম্যানেজমেন্ট</b>\n\nনতুন পরিবেশক যোগ করতে বা পুরানো ডিলিট করতে নিচের অপশন ব্যবহার করুন।"
     
     if query:
-        await query.edit_message_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='Markdown')
+        await query.edit_message_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='HTML')
     else:
-        await update.message.reply_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='Markdown')
+        await update.message.reply_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='HTML')
     return MANAGING_DISTRIBUTORS
 
 async def handle_distributor_mgmt_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -326,18 +326,18 @@ async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     transport = os.getenv('TRANSPORT_FEE', '460')
     
     text = (
-        "⚙️ **বর্তমান কনফিগারেশন**\n\n"
-        f"⛽ পেট্রোল মূল্য: {to_bn_number(petrol)} টাকা/লি\n"
-        f"🛢 মবিল মূল্য: {to_bn_number(mobil)} টাকা/লি\n"
-        f"💰 DA রেট: {to_bn_number(da)} টাকা/প্রতি ট্যুর\n"
-        f"🚌 পরিবহন ভাড়া: {to_bn_number(transport)} টাকা/মাসিক মিটিং\n\n"
+        "<b>⚙️ বর্তমান কনফিগারেশন</b>\n\n"
+        f"⛽ পেট্রোল মূল্য: <b>{to_bn_number(petrol)}</b> টাকা/লি\n"
+        f"🛢 মবিল মূল্য: <b>{to_bn_number(mobil)}</b> টাকা/লি\n"
+        f"💰 DA রেট: <b>{to_bn_number(da)}</b> টাকা/প্রতি ট্যুর\n"
+        f"🚌 পরিবহন ভাড়া: <b>{to_bn_number(transport)}</b> টাকা/মাসিক মিটিং\n\n"
         "পরিবর্তন করতে নিচের বাটন ব্যবহার করুন।"
     )
     
     if query:
-        await query.edit_message_text(text, reply_markup=get_settings_keyboard(), parse_mode='Markdown')
+        await query.edit_message_text(text, reply_markup=get_settings_keyboard(), parse_mode='HTML')
     else:
-        await update.message.reply_text(text, reply_markup=get_settings_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(text, reply_markup=get_settings_keyboard(), parse_mode='HTML')
     return SHOWING_SETTINGS
 
 async def handle_settings_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -384,7 +384,7 @@ async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYP
         # Ideally, we should also write back to .env file here
         # but let's keep it simple for now.
     
-    await update.message.reply_text(f"✅ সফলভাবে পরিবর্তিত হয়েছে!", reply_markup=get_main_menu())
+    await update.message.reply_text(f"✅ সফলভাবে পরিবর্তিত হয়েছে: <b>{value}</b>", reply_markup=get_main_menu(), parse_mode='HTML')
     return ConversationHandler.END
 
 def get_settings_conv_handler():

@@ -382,3 +382,43 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 - `main_menu_callback`: shows current month info in the menu header with elaborated text
 
 **Verified:** Bot imports cleanly (no syntax errors), all modules load correctly.
+
+---
+
+### Task: Formatting consistency pass — bold values, blockquote summary title, remove italic — 2026-06-03
+
+**User request:** Ensure all numeric values are bolded everywhere in the bot; remove italic where not necessary; format "সার সংক্ষেপ" title with blockquote + bold + 15 trailing spaces; apply consistent formatting across all handler files.
+
+**Changes made across all handler files:**
+
+**`bot/handlers/summary.py`:**
+- `send_summary_message` / `summary_handler`: Title changed to `<blockquote><b>📊 সার সংক্ষেপ                 </b></blockquote>` with 15 trailing spaces; all values (total_tour, total_km, liters, costs) wrapped in `<b>`
+- `send_entry_message`: Removed `<i>` italic from distributor names (plain text now)
+
+**`bot/handlers/new_entry.py`:**
+- `show_confirmation`: Removed `<i>` italic from distributor names
+- `handle_odo_start_confirm`: Bolded `last_odo` value in "শুরুর ওডোমিটার কি {value} হয়?"
+- `handle_distance`: Bolded `dist` and `odo_end` values; added `parse_mode='HTML'`
+- `handle_petrol_question` back branch: Bolded `total_km` and `odo_end` values
+- `handle_liters`: Bolded `petrol_cost` value
+- `handle_mobil_liters`: Bolded `mobil_cost` value
+- `handle_transport_confirm` / `handle_back_to_confirm_transport` / `save_entry_callback` back: Bolded `transport_fee` value
+- `save_entry_callback` save: Bolded `entry_id` value
+
+**`bot/handlers/settings.py`:**
+- `settings_handler`: Changed from Markdown to HTML; bolded all config values (petrol, mobil, da, transport)
+- `distributor_mgmt_handler`: Changed from Markdown to HTML; bolded title
+- `handle_setting_value`: Added the set value to the success message with bold
+
+**`bot/handlers/archive.py`:**
+- `archive_month_selection_handler`: Changed from Markdown to HTML bold for month/year display
+
+**`bot/handlers/report.py`:**
+- `generate_report_handler`: Bolded month/year in success caption; added `parse_mode='HTML'`
+
+**`.gitignore`:**
+- Added `outputs/~$*` pattern to prevent temp Office files from being committed
+
+**Fixed:** Indentation error in `handle_petrol_question` (extra indentation after back branch comment).
+
+**Verified:** Bot imports cleanly after cache clear.

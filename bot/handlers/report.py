@@ -39,11 +39,11 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         generator.generate_report(entries, month, year, output_path)
         
         with open(output_path, 'rb') as f:
-            msg = f"✅ {to_bn_number(month)}/{to_bn_number(year)} এর জন্য রিপোর্ট তৈরি করা হয়েছে।\n\n⚠️ ফাইলটি সঠিকভাবে দেখতে SutonnyMJ ফন্ট কম্পিউটারে ইনস্টল করতে হবে।"
+            msg = f"✅ <b>{to_bn_number(month)}/{to_bn_number(year)}</b> এর জন্য রিপোর্ট তৈরি করা হয়েছে।\n\n⚠️ ফাইলটি সঠিকভাবে দেখতে SutonnyMJ ফন্ট কম্পিউটারে ইনস্টল করতে হবে।"
             if query:
-                await query.message.reply_document(document=f, filename=filename, caption=msg)
+                await query.message.reply_document(document=f, filename=filename, caption=msg, parse_mode='HTML')
             else:
-                await update.message.reply_document(document=f, filename=filename, caption=msg)
+                await update.message.reply_document(document=f, filename=filename, caption=msg, parse_mode='HTML')
     except Exception as e:
         error_msg = f"রিপোর্ট তৈরিতে সমস্যা হয়েছে: {str(e)}"
         if query:
