@@ -320,3 +320,37 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 - `e866457` — "Fix header format: bold type only, date normal, preserve trailing spaces"
 - `2fe0543` — "Add trailing bold spaces to meeting headers too"
 - `28a331a` — "Add trailing alignment spaces after DA Bill in meeting expandable blockquote"
+
+---
+
+## Session: 2026-06-03 (continued)
+
+### Fix 13: IndexError in generate_logsheet.py total row
+
+**Issue:** User created `generate_logsheet.py` as an alternative DOCX generator using direct lxml manipulation. Running it crashed with `IndexError: list index out of range` at `cells[10]` in `fill_total_row`.
+
+**Root cause:** The template's total rows have only 10 `<w:tc>` elements (cells merged via `gridSpan` and `vMerge`), but `fill_total_row` assumed 12+ cells like data rows. The template XML analysis showed:
+
+- Type-2/3 pages total row: 10 cells
+  - cell[3]: gs=2 → logical cols 3-4 (odo_start/odo_end)
+  - cell[4]: vMerge restart → logical col 5 (total_km) — labeled "‡gvU wK:wg:"
+  - cell[5]: gs=2 → logical cols 6-7 (liters + petrol_cost) — labeled "R‡vjvbx LiP"
+  - cell[6]: vMerge restart → logical col 8 (mobile) — labeled "gwejcwieZ‡b"
+  - cell[7]: vMerge restart → logical col 9 (DA) — labeled "wW Gwej"
+  - cell[8]: vMerge restart → logical col 10 (grand total) — labeled "‡gvU LiP"
+
+**Fix in `generate_logsheet.py:262-293`:**
+- Added `if len(cells) >= 12:` branch preserving original direct mapping
+- Added `else:` branch for the 10-cell merged total row with correct indices:
+  - `cells[4]` → total_km (was `cells[5]`)
+  - `cells[5]` → liters + petrol_cost combined (was `cells[6]` + `cells[7]`)
+  - `cells[6]` → mobile (was `cells[8]`)
+  - `cells[7]` → DA (was `cells[9]`)
+  - `cells[8]` → grand total (was `cells[10]`)
+
+**Verified:** Script runs cleanly, generates 24KB DOCX, all data checks pass (serials, dates, odos, km, units, costs, grand total).
+
+### Fix 14: UnicodeEncodeError in verify()
+**Issue:** Box-drawing characters (`─`) in `verify()` couldn't print to Windows cp1252 terminal.
+
+**Note:** This is a terminal encoding issue, not a code bug. Run with `$env:PYTHONIOENCODING='utf-8'` or use Windows Terminal. User doesn't need to fix this — it's just a display issue in CMD/PowerShell.
