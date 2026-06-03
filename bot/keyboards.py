@@ -14,6 +14,8 @@ BN_DIGITS = {'0':'০', '1':'১', '2':'২', '3':'৩', '4':'৪', '5':'৫', '
 def to_bn_number(number):
     return "".join(BN_DIGITS.get(d, d) for d in str(number))
 
+BACK_TO_MENU = InlineKeyboardMarkup([[InlineKeyboardButton(S('common.back_to_menu'), callback_data="main_menu")]])
+
 def get_main_menu():
     b = S('keyboards.main_menu_buttons')
     keyboard = [
@@ -37,7 +39,7 @@ def get_edit_delete_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def get_entries_selection_keyboard(entries, action_prefix):
+def get_entries_selection_keyboard(entries, action_prefix, show_back=True):
     keyboard = []
     fmt = S('keyboards.entry_selection.label')
     back_btn = S('keyboards.entry_selection.back')
@@ -46,7 +48,8 @@ def get_entries_selection_keyboard(entries, action_prefix):
         label = fmt.format(date=to_bn_number(dt.strftime('%d/%m/%y')), cost=to_bn_number(e['total_cost']))
         keyboard.append([InlineKeyboardButton(label, callback_data=f"{action_prefix}_{e['id']}")])
 
-    keyboard.append([InlineKeyboardButton(back_btn, callback_data="edit_delete_menu")])
+    if show_back:
+        keyboard.append([InlineKeyboardButton(back_btn, callback_data="edit_delete_menu")])
     return InlineKeyboardMarkup(keyboard)
 
 def get_edit_fields_keyboard(entry_id):

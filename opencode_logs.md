@@ -569,4 +569,63 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 
 **Testing:** All 4 files (`new_entry.py`, `calculations.py`, `keyboards.py`, `strings.json`) pass syntax/JSON validation. No runtime errors expected.
 
-**Commit:** (pending — user must confirm before push) (wait — rule says auto-commit + push after EVERY edit — OK, will commit + push after log update)
+**Commit:** `8238f74` — "Swap button positions (positive on right); add petrol/mobil threshold tracking with carry-forward"
+
+---
+
+### Task: Comprehensive navigation fix — replace all get_main_menu() with context-aware navigation — 2026-06-03
+
+**User request:**
+1. After editing entry petrol → "Successfully Updated" showed full 8-button main menu instead of back button (SPECIFIC BUG REPORTED)
+2. Same issue occurs in many places — full main menu shown everywhere instead of proper back navigation
+3. Direct slash commands (e.g. `/listentries`) → no back button needed
+4. Menu navigation → back button should be available
+5. After completing action (edit, delete, update) → return to logical previous screen, NOT main menu
+6. Review ALL navigation flows and fix consistently
+
+**Root cause:** `get_main_menu()` (8-button full menu keyboard) was used as the universal "conversation ended" fallback across all handler files. The full menu was shown after every action — edit entry, delete entry, cancel, save discarded, setting changed, archive cancel, etc.
+
+**Design decisions:**
+- Added `BACK_TO_MENU` constant in `bot/keyboards.py` (single `🔙 মূল মেনু` `InlineKeyboardMarkup`) — replaces `get_main_menu()` everywhere except the actual main menu display
+- Used `query` (callback_query) detection as the context-aware signal — if `query` exists, user came from a menu (show back button); if no `query`, user used a direct command (no back button)
+- For edit/delete flows: after action success, return to entry selection list (CHOOSING_ENTRY_TO_EDIT or CHOOSING_ENTRY_TO_DELETE) so user can continue editing/deleting
+- For settings change: after changing a value, return to settings menu (SHOWING_SETTINGS) instead of ending the conversation
+- For cancel/no-entries/discard: use single `BACK_TO_MENU` button instead of full 8-button menu
+
+**Changes in `bot/keyboards.py`:**
+- Added `BACK_TO_MENU` constant (single back-to-menu button)
+- `get_entries_selection_keyboard()`: Added `show_back=True` parameter — hides the "back to edit/delete menu" button when called from a direct command (`show_back=False`)
+
+**Changes in `bot/handlers/settings.py` — THE SPECIFIC BUG FIX:**
+- Replaced import: `get_main_menu` → `BACK_TO_MENU`
+- `handle_new_value` (line 231): After editing entry field → success message + navigate back to entry selection list (`start_edit_entry`) instead of main menu. **This was the specific bug the user reported.**
+- `confirm_delete_callback` (line 284): After delete success → message + navigate back to entry selection list (`start_delete_entry`) instead of main menu
+- `handle_edit_distributors` (line 138): After distributor edit success → message + navigate back to entry selection list
+- `handle_setting_value` (line 383): After setting changed → message + navigate back to settings menu (`settings_handler` returns SHOWING_SETTINGS) instead of ending conv with main menu
+- `start_edit_entry`/`start_delete_entry`: No-entries → `BACK_TO_MENU` instead of full menu; entry list uses `show_back=bool(query)` for context-aware back button
+- `cancel_conversation` / cancel in dist editor: `BACK_TO_MENU` instead of `get_main_menu()`
+
+**Changes in `bot/handlers/new_entry.py`:**
+- Replaced import: `get_main_menu` → `BACK_TO_MENU`
+- All `common.cancelled_plain` with `get_main_menu()` → `BACK_TO_MENU` (single back-to-menu button)
+- `save_discarded` → `BACK_TO_MENU`
+- `final_entry_done`/`final_entry_not_done` → `BACK_TO_MENU`
+- `cancel` function → `BACK_TO_MENU`
+
+**Changes in `bot/handlers/archive.py`:**
+- Replaced import: `get_main_menu` → `BACK_TO_MENU`
+- `months_command` no-entries → `BACK_TO_MENU`
+- `archive_cancel` → `BACK_TO_MENU`
+
+**Changes in `bot/handlers/summary.py`:**
+- Removed local `BACK_TO_MENU` definition; imported from keyboards
+- Removed unused `get_main_menu`, `InlineKeyboardButton`, `InlineKeyboardMarkup` imports
+- `list_entries_handler` / `summary_handler`: Context-aware back button — if called from command (no query), no back button; if called from menu (query exists), show `BACK_TO_MENU`
+- No-entries case for commands: no back button
+
+**Files not changed** (correct as-is):
+- `bot/handlers/start.py`: Uses `get_main_menu()` to DISPLAY the main menu — correct behavior
+
+**Testing:** All 6 modified files pass syntax check. Logic verified through code review.
+
+**Commits:** (pending — part of same push as button swap + threshold work)

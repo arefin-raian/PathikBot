@@ -234,10 +234,10 @@
         "messages_to_delete": [],
         "total_km": 56,
         "odo_end": 54317,
-        "petrol_liters": 89.0,
-        "petrol_cost": 12522,
-        "mobil_liters": 1.0,
-        "mobil_cost": 560,
+        "petrol_liters": 0.0,
+        "petrol_cost": 0,
+        "mobil_liters": 0.0,
+        "mobil_cost": 0,
         "others_designation": "",
         "da_amount": 200,
         "selected_dist_indices": [
@@ -250,8 +250,9 @@
             "ভাই ভাই ট্রেডার্স (জোরজিগা)",
             "ওম ট্রেডার্স"
         ],
-        "total_cost": 13282,
+        "total_cost": 200,
         "id": 6,
-        "created_at": "2026-06-03T21:20:57.392821"
+        "created_at": "2026-06-03T21:20:57.392821",
+        "updated_at": "2026-06-03T22:32:01.093406"
     }
 ]

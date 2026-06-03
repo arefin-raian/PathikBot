@@ -16,7 +16,7 @@ from bot.keyboards import (
     get_entry_type_keyboard, 
     get_yes_no_keyboard, 
     get_confirmation_keyboard,
-    get_main_menu,
+    BACK_TO_MENU,
     get_month_selection_keyboard,
     get_all_months_keyboard,
     get_date_selection_keyboard,
@@ -157,8 +157,9 @@ async def handle_type_selection(update: Update, context: ContextTypes.DEFAULT_TY
             await query.edit_message_text(S('new_entry.month_prompt'), reply_markup=get_month_selection_keyboard())
             return SELECT_MONTH
     elif query.data == "cancel":
-        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=BACK_TO_MENU)
         return ConversationHandler.END
+    return CHOOSING_TYPE
 
 async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -188,7 +189,7 @@ async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_T
         )
         return SELECT_DATE
     elif query.data == "cancel":
-        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=BACK_TO_MENU)
         return ConversationHandler.END
 
 async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -235,7 +236,7 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
             )
             return CONFIRM_TRANSPORT_FEE
     elif query.data == "cancel":
-        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=BACK_TO_MENU)
         return ConversationHandler.END
 
 async def handle_odo_start_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -554,7 +555,7 @@ async def handle_distributor_selection(update: Update, context: ContextTypes.DEF
         push_history(context, CONFIRM_ENTRY)
         return await show_confirmation(update, context)
     elif query.data == "cancel":
-        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=BACK_TO_MENU)
         return ConversationHandler.END
 
 async def handle_venue(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -777,7 +778,7 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             return ConversationHandler.END
     else:
         await delete_previous_messages(update, context, exclude=query.message.message_id)
-        await query.edit_message_text(S('new_entry.save_discarded'), reply_markup=get_main_menu())
+        await query.edit_message_text(S('new_entry.save_discarded'), reply_markup=BACK_TO_MENU)
         to_keep = ['selected_month', 'selected_year']
         kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
         context.user_data.clear()
@@ -792,13 +793,13 @@ async def handle_final_entry_confirm(update: Update, context: ContextTypes.DEFAU
     
     if query.data == "final_entry_yes":
         context.user_data.clear()
-        await query.edit_message_text(S('new_entry.final_entry_done'), reply_markup=get_main_menu())
+        await query.edit_message_text(S('new_entry.final_entry_done'), reply_markup=BACK_TO_MENU)
     else:
         to_keep = ['selected_month', 'selected_year']
         kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
         context.user_data.clear()
         context.user_data.update(kept_data)
-        await query.edit_message_text(S('new_entry.final_entry_not_done'), reply_markup=get_main_menu())
+        await query.edit_message_text(S('new_entry.final_entry_not_done'), reply_markup=BACK_TO_MENU)
         
     return ConversationHandler.END
 
@@ -808,9 +809,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await delete_previous_messages(update, context, exclude=exclude_id)
     msg = S('new_entry.cancelled')
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())
+        await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
     else:
-        await update.message.reply_text(msg, reply_markup=get_main_menu())
+        await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
     return ConversationHandler.END
 
 def get_new_entry_handler():

@@ -1,7 +1,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, ConversationHandler
 from core.database import get_entries
-from bot.keyboards import MONTHS_BN_FULL, to_bn_number, get_main_menu
+from bot.keyboards import MONTHS_BN_FULL, to_bn_number, BACK_TO_MENU
 from bot.strings import S
 from datetime import datetime
 
@@ -14,9 +14,9 @@ async def months_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not entries:
         msg = S('archive.no_entries')
         if update.callback_query:
-            await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())
+            await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
         else:
-            await update.message.reply_text(msg, reply_markup=get_main_menu())
+            await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
         return ConversationHandler.END
 
     months_data = set()
@@ -87,9 +87,9 @@ async def archive_month_selection_handler(update: Update, context: ContextTypes.
 async def archive_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = S('archive.cancelled')
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())
+        await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
     else:
-        await update.message.reply_text(msg, reply_markup=get_main_menu())
+        await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
     return ConversationHandler.END
 
 def get_archive_handler():

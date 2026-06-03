@@ -10,7 +10,7 @@ from telegram.ext import (
 )
 from bot.keyboards import (
     get_settings_keyboard, 
-    get_main_menu, 
+    BACK_TO_MENU,
     to_bn_number, 
     get_edit_delete_keyboard,
     get_entries_selection_keyboard,
@@ -58,13 +58,13 @@ async def start_edit_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not entries:
         msg = S('settings.no_entries')
         if query:
-            await query.edit_message_text(msg, reply_markup=get_main_menu())
+            await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
         else:
-            await update.message.reply_text(msg, reply_markup=get_main_menu())
+            await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
         return ConversationHandler.END
         
     msg = S('settings.edit_prompt')
-    kb = get_entries_selection_keyboard(entries[-15:], "edit")
+    kb = get_entries_selection_keyboard(entries[-15:], "edit", show_back=bool(query))
     if query:
         await query.edit_message_text(msg, reply_markup=kb)
     else:
@@ -135,13 +135,13 @@ async def handle_edit_distributors(update: Update, context: ContextTypes.DEFAULT
         names = [dists[i] for i in selected]
         entry_id = context.user_data['editing_id']
         await update_entry_and_cascade(entry_id, {'distributors_raw': names})
-        await query.edit_message_text(S('settings.edit_dist_success'), reply_markup=get_main_menu())
-        return ConversationHandler.END
+        await query.edit_message_text(S('settings.edit_dist_success'))
+        return await start_edit_entry(update, context)
     elif query.data == "back":
         await query.edit_message_text(S('settings.edit_field_prompt'), reply_markup=get_edit_fields_keyboard(context.user_data['editing_id']))
         return CHOOSING_FIELD_TO_EDIT
     elif query.data == "cancel":
-        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=BACK_TO_MENU)
         return ConversationHandler.END
 
 async def distributor_mgmt_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -200,7 +200,7 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         entry = await get_entry_by_id(entry_id)
         if not entry:
-            await update.message.reply_text(S('settings.entry_not_found'), reply_markup=get_main_menu())
+            await update.message.reply_text(S('settings.entry_not_found'), reply_markup=BACK_TO_MENU)
             return ConversationHandler.END
             
         updates = {}
@@ -228,8 +228,8 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         await update_entry_and_cascade(entry_id, updates)
-        await update.message.reply_text(S('settings.update_success'), reply_markup=get_main_menu())
-        return ConversationHandler.END
+        await update.message.reply_text(S('settings.update_success'))
+        return await start_edit_entry(update, context)
         
     except ValueError:
         await update.message.reply_text(S('new_entry.error_invalid_number'))
@@ -244,13 +244,13 @@ async def start_delete_entry(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not entries:
         msg = S('settings.no_entries')
         if query:
-            await query.edit_message_text(msg, reply_markup=get_main_menu())
+            await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
         else:
-            await update.message.reply_text(msg, reply_markup=get_main_menu())
+            await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
         return ConversationHandler.END
         
     msg = S('settings.delete_prompt')
-    kb = get_entries_selection_keyboard(entries[-15:], "delete")
+    kb = get_entries_selection_keyboard(entries[-15:], "delete", show_back=bool(query))
     if query:
         await query.edit_message_text(msg, reply_markup=kb)
     else:
@@ -281,18 +281,19 @@ async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_
     if query.data == "confirm_save":
         entry_id = context.user_data['deleting_id']
         await delete_entry(entry_id)
-        await query.edit_message_text(S('settings.delete_success'), reply_markup=get_main_menu())
+        await query.edit_message_text(S('settings.delete_success'))
+        return await start_delete_entry(update, context)
     else:
-        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=get_main_menu())
+        await query.edit_message_text(S('common.cancelled_plain'), reply_markup=BACK_TO_MENU)
         
     return ConversationHandler.END
 
 async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = S('settings.cancelled')
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())
+        await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
     else:
-        await update.message.reply_text(msg, reply_markup=get_main_menu())
+        await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
     return ConversationHandler.END
 
 def get_edit_delete_conv_handler():
@@ -380,8 +381,8 @@ async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYP
     if key:
         os.environ[key] = value
     
-    await update.message.reply_text(S('settings.setting_changed', value=value), reply_markup=get_main_menu(), parse_mode='HTML')
-    return ConversationHandler.END
+    await update.message.reply_text(S('settings.setting_changed', value=value), parse_mode='HTML')
+    return await settings_handler(update, context)
 
 def get_settings_conv_handler():
     return ConversationHandler(

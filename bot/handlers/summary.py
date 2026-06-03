@@ -1,12 +1,10 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import ContextTypes
 from core.database import get_entries
 from core.calculations import calculate_summary
-from bot.keyboards import to_bn_number, get_main_menu
+from bot.keyboards import to_bn_number, BACK_TO_MENU
 from bot.strings import S
 from datetime import datetime
-
-BACK_TO_MENU = InlineKeyboardMarkup([[InlineKeyboardButton(S('common.back_to_menu'), callback_data="main_menu")]])
 
 async def send_entry_message(context, chat_id, i, e, first_entry=False, query=None):
     dt = datetime.strptime(e['date'], '%Y-%m-%d')
@@ -81,7 +79,7 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         if query:
             await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
         else:
-            await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
+            await update.message.reply_text(msg)
         return
 
     display_entries = entries if (month and year) else entries[-10:]
@@ -90,7 +88,9 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     for i, e in enumerate(display_entries, 1):
         await send_entry_message(context, chat_id, i, e, first_entry=(i == 1), query=query)
 
-    await send_summary_message(context, chat_id, display_entries, reply_markup=BACK_TO_MENU)
+    # Context-aware: command → no back button; menu callback → show back button
+    reply_markup = BACK_TO_MENU if query else None
+    await send_summary_message(context, chat_id, display_entries, reply_markup=reply_markup)
 
 async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -107,7 +107,7 @@ async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if query:
             await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
         else:
-            await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
+            await update.message.reply_text(msg)
         return
 
     summary = calculate_summary(entries)
@@ -121,7 +121,8 @@ async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{S('summary.summary_line_transport', transport=to_bn_number(summary['total_others']))}\n"
         f"{S('summary.summary_line_grand_total', grand_total=to_bn_number(summary['grand_total']))}"
     )
+    reply_markup = BACK_TO_MENU if query else None
     if query:
-        await query.edit_message_text(text, reply_markup=BACK_TO_MENU, parse_mode='HTML')
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='HTML')
     else:
-        await update.message.reply_text(text, reply_markup=BACK_TO_MENU, parse_mode='HTML')
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
