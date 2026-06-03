@@ -60,7 +60,7 @@ async def start_edit_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if query:
             await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
         else:
-            await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
+            await update.message.reply_text(msg)
         return ConversationHandler.END
         
     msg = S('settings.edit_prompt')
@@ -246,7 +246,7 @@ async def start_delete_entry(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if query:
             await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
         else:
-            await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
+            await update.message.reply_text(msg)
         return ConversationHandler.END
         
     msg = S('settings.delete_prompt')
@@ -289,6 +289,7 @@ async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_
     return ConversationHandler.END
 
 async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.pop('_settings_visited', None)
     msg = S('settings.cancelled')
     if update.callback_query:
         await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
@@ -320,6 +321,11 @@ async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query: await query.answer()
     
+    # Context-aware: initial command entry → no back_to_menu;
+    # menu callback or re-entry after navigation → show back_to_menu
+    first_cmd_entry = query is None and '_settings_visited' not in context.user_data
+    context.user_data['_settings_visited'] = True
+
     petrol = os.getenv('PETROL_PRICE_PER_LITER', '140.7')
     mobil = os.getenv('MOBIL_PRICE_PER_LITER', '560.0')
     da = os.getenv('DA_AMOUNT', '200')
@@ -334,10 +340,11 @@ async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{S('settings.config_display_action')}"
     )
     
+    reply_markup = get_settings_keyboard(show_back_to_menu=not first_cmd_entry)
     if query:
-        await query.edit_message_text(text, reply_markup=get_settings_keyboard(), parse_mode='HTML')
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='HTML')
     else:
-        await update.message.reply_text(text, reply_markup=get_settings_keyboard(), parse_mode='HTML')
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
     return SHOWING_SETTINGS
 
 async def handle_settings_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -346,6 +353,7 @@ async def handle_settings_navigation(update: Update, context: ContextTypes.DEFAU
         return SHOWING_SETTINGS
 
     if query.data == "main_menu":
+        context.user_data.pop('_settings_visited', None)
         from bot.handlers.start import main_menu_callback
         await main_menu_callback(update, context)
         return ConversationHandler.END

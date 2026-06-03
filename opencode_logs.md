@@ -628,4 +628,36 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 
 **Testing:** All 6 modified files pass syntax check. Logic verified through code review.
 
-**Commits:** (pending — part of same push as button swap + threshold work)
+**Commits:**
+- `8238f74` — "Swap button positions (positive on right); add petrol/mobil threshold tracking with carry-forward"
+- `d3f239f` — "Fix navigation: replace get_main_menu() with context-aware back buttons everywhere"
+
+### Follow-up — Fix remaining back-button bugs (2026-06-03)
+
+**User reported:** `/help` shows broken back button; `/settings` still shows Menu button for command entry.
+
+**Fixes applied:**
+
+**`bot/handlers/start.py`:**
+- `/help` command → no back button (removed `get_back_keyboard()`)
+- Help via menu → `BACK_TO_MENU` (was using `get_back_keyboard()` whose "back" callback was never handled → button did nothing)
+- Import: `get_back_keyboard` → `BACK_TO_MENU`
+
+**`bot/keyboards.py`:**
+- `get_settings_keyboard(show_back_to_menu=True)`: New parameter to conditionally hide back_to_menu button
+
+**`bot/handlers/settings.py`:**
+- `settings_handler`: Track `first_cmd_entry` via `_settings_visited` flag; pass `show_back_to_menu=not first_cmd_entry` to `get_settings_keyboard()`
+- Cleanup `_settings_visited` on conv end (main_menu exit, cancel)
+- `start_edit_entry` / `start_delete_entry` no-entries: Command → no back button; callback → `BACK_TO_MENU`
+
+**`bot/handlers/archive.py`:**
+- `months_command` no-entries: Command → no button; callback → `BACK_TO_MENU`
+- Month list keyboard: back_to_menu button only added for callback entry (`from_callback`)
+
+**Complete audit confirmed:** All 79+ `reply_markup=` usages across all handler files conform to the rule:
+- Direct command → no back/menu button (unless multi-step navigation flow)
+- Menu callback → back button where appropriate
+
+**Commit:** `cb33b6e` — "Fix /help: no back button for command, BACK_TO_MENU via menu"
+**Commit:** (pending — fix settings + archive command entry)

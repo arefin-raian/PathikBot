@@ -16,7 +16,7 @@ async def months_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query:
             await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
         else:
-            await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
+            await update.message.reply_text(msg)
         return ConversationHandler.END
 
     months_data = set()
@@ -31,14 +31,16 @@ async def months_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         label = S('archive.month_label', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year))
         keyboard.append([InlineKeyboardButton(label, callback_data=f"archive_view_{year}_{month}")])
     
-    keyboard.append([InlineKeyboardButton(S('common.back_to_menu'), callback_data="main_menu")])
+    # Context-aware: command → no back button; callback → back to main menu
+    from_callback = update.callback_query is not None
+    if from_callback:
+        keyboard.append([InlineKeyboardButton(S('common.back_to_menu'), callback_data="main_menu")])
     
     msg = S('archive.prompt')
     if update.callback_query:
         await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
-    return SELECTING_ARCHIVE_MONTH
 
 async def archive_month_selection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query

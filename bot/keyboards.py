@@ -192,7 +192,7 @@ def get_confirmation_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def get_settings_keyboard():
+def get_settings_keyboard(show_back_to_menu=True):
     b = S('keyboards.settings')
     keyboard = [
         [InlineKeyboardButton(b['petrol'], callback_data="set_petrol_price")],
@@ -200,8 +200,9 @@ def get_settings_keyboard():
         [InlineKeyboardButton(b['da'], callback_data="set_da_rate")],
         [InlineKeyboardButton(b['transport'], callback_data="set_transport_fee")],
         [InlineKeyboardButton(b['distributors'], callback_data="manage_distributors")],
-        [InlineKeyboardButton(b['back_to_menu'], callback_data="main_menu")]
     ]
+    if show_back_to_menu:
+        keyboard.append([InlineKeyboardButton(b['back_to_menu'], callback_data="main_menu")])
     return InlineKeyboardMarkup(keyboard)
 
 def get_distributor_mgmt_keyboard(distributors):
