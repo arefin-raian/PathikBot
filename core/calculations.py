@@ -135,7 +135,7 @@ def _refill_status(entries, liters_field, overflow_field, threshold):
         }
 
     distance_since = 0
-    for i in range(last_refill_idx + 1, len(sorted_entries)):
+    for i in range(last_refill_idx, len(sorted_entries)):
         distance_since += sorted_entries[i].get('total_km', 0)
 
     effective_threshold = threshold - carry_forward
@@ -176,7 +176,7 @@ def calc_carry_forward(entries, new_entry_km, liters_field, overflow_field, thre
             break
 
     distance_since = new_entry_km
-    for i in range(last_refill_idx + 1, len(sorted_entries)):
+    for i in range(last_refill_idx, len(sorted_entries)):
         distance_since += sorted_entries[i].get('total_km', 0)
 
     effective_threshold = threshold - prev_carry
