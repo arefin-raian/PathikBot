@@ -61,7 +61,7 @@ async def archive_month_selection_handler(update: Update, context: ContextTypes.
         ]
         
         msg = S('archive.action_prompt', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year))
-        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
         return SELECTING_ARCHIVE_MONTH
 
     if query.data == "months_back":

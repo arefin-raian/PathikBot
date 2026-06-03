@@ -159,5 +159,53 @@
         "total_cost": 200,
         "id": 4,
         "created_at": "2026-06-03T20:54:56.794589"
+    },
+    {
+        "step_history": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6,
+            7,
+            9,
+            12,
+            11,
+            14,
+            15
+        ],
+        "entry_type": "REGULAR",
+        "selected_year": 2026,
+        "selected_month": 6,
+        "date": "2026-06-06",
+        "suggested_odo_start": 54185,
+        "odo_start": 54185,
+        "messages_to_delete": [],
+        "total_km": 76,
+        "odo_end": 54261,
+        "petrol_liters": 0,
+        "petrol_cost": 0,
+        "mobil_liters": 0,
+        "mobil_cost": 0,
+        "others_designation": "",
+        "da_amount": 200,
+        "selected_dist_indices": [
+            2,
+            3,
+            10,
+            11,
+            17
+        ],
+        "distributors_raw": [
+            "মা বাবার দোয়া ট্রেডার্স (মুসার মোড়)",
+            "খোকন ট্রেডার্স",
+            "ভাই ভাই ট্রেডার্স (জোরজিগা)",
+            "ভাই ভাই ট্রেডার্স (সুন্দরখাতা)",
+            "লিপন ট্রেডার্স"
+        ],
+        "total_cost": 200,
+        "id": 5,
+        "created_at": "2026-06-03T21:06:24.062681"
     }
 ]

@@ -26,9 +26,9 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
     if not entries:
         msg = S('report.no_entries', month=to_bn_number(month), year=to_bn_number(year))
         if query:
-            await query.edit_message_text(msg)
+            await query.edit_message_text(msg, parse_mode='HTML')
         else:
-            await update.message.reply_text(msg)
+            await update.message.reply_text(msg, parse_mode='HTML')
         return
 
     os.makedirs("output", exist_ok=True)
@@ -42,12 +42,12 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         with open(output_path, 'rb') as f:
             msg = S('report.success', month=to_bn_number(month), year=to_bn_number(year))
             if query:
-                await query.message.reply_document(document=f, filename=filename, caption=msg)
+                await query.message.reply_document(document=f, filename=filename, caption=msg, parse_mode='HTML')
             else:
-                await update.message.reply_document(document=f, filename=filename, caption=msg)
+                await update.message.reply_document(document=f, filename=filename, caption=msg, parse_mode='HTML')
     except Exception as e:
         error_msg = S('report.error', error=str(e))
         if query:
-            await query.edit_message_text(error_msg)
+            await query.edit_message_text(error_msg, parse_mode='HTML')
         else:
-            await update.message.reply_text(error_msg)
+            await update.message.reply_text(error_msg, parse_mode='HTML')

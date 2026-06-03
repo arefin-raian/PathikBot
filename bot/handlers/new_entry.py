@@ -60,10 +60,12 @@ def normalize_number(text: str) -> str:
     en_digits = '0123456789'
     return text.translate(str.maketrans(bn_digits, en_digits))
 
-async def delete_previous_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def delete_previous_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, exclude: int = None):
     """Delete messages to keep the chat clean."""
     msg_ids = context.user_data.get('messages_to_delete', [])
     for msg_id in msg_ids:
+        if msg_id == exclude:
+            continue
         try:
             await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg_id)
         except Exception:
@@ -210,7 +212,8 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
             push_history(context, ENTER_ODO_START)
             await query.edit_message_text(
                 S('new_entry.odo_start_confirm', last_odo=to_bn_number(last_odo)),
-                reply_markup=get_yes_no_keyboard('odo_start_confirm', include_back=True)
+                reply_markup=get_yes_no_keyboard('odo_start_confirm', include_back=True),
+                parse_mode='HTML'
             )
             return ENTER_ODO_START
         else:
@@ -276,7 +279,8 @@ async def handle_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         push_history(context, CONFIRM_ODO_END)
         m = await update.message.reply_text(
             S('new_entry.distance_result', dist=to_bn_number(dist), odo_end=to_bn_number(context.user_data['odo_end'])),
-            reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True)
+            reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True),
+            parse_mode='HTML'
         )
         await add_message_to_delete(update, context, m.message_id)
         return CONFIRM_ODO_END
@@ -316,7 +320,8 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
         pop_history(context)
         await query.edit_message_text(
             S('new_entry.distance_result', dist=to_bn_number(context.user_data['total_km']), odo_end=to_bn_number(context.user_data['odo_end'])),
-            reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True)
+            reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True),
+            parse_mode='HTML'
         )
         return CONFIRM_ODO_END
 
@@ -344,7 +349,8 @@ async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
         push_history(context, MOBIL_QUESTION)
         m = await update.message.reply_text(
             S('new_entry.petrol_result', petrol_cost=to_bn_number(context.user_data['petrol_cost'])),
-            reply_markup=get_yes_no_keyboard('mobil', include_back=True)
+            reply_markup=get_yes_no_keyboard('mobil', include_back=True),
+            parse_mode='HTML'
         )
         await add_message_to_delete(update, context, m.message_id)
         return MOBIL_QUESTION
@@ -389,7 +395,8 @@ async def handle_mobil_liters(update: Update, context: ContextTypes.DEFAULT_TYPE
         push_history(context, MANAGER_QUESTION)
         m = await update.message.reply_text(
             S('new_entry.mobil_result', mobil_cost=to_bn_number(context.user_data['mobil_cost'])),
-            reply_markup=get_yes_no_keyboard('manager', include_back=True)
+            reply_markup=get_yes_no_keyboard('manager', include_back=True),
+            parse_mode='HTML'
         )
         await add_message_to_delete(update, context, m.message_id)
         return MANAGER_QUESTION
@@ -419,7 +426,8 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
         push_history(context, DA_CONFIRM)
         await query.edit_message_text(
             S('new_entry.da_confirm', da_amount=to_bn_number(200)),
-            reply_markup=get_yes_no_keyboard('da', include_back=True)
+            reply_markup=get_yes_no_keyboard('da', include_back=True),
+            parse_mode='HTML'
         )
         return DA_CONFIRM
 
@@ -429,7 +437,8 @@ async def handle_manager_designation(update: Update, context: ContextTypes.DEFAU
     push_history(context, DA_CONFIRM)
     m = await update.message.reply_text(
         S('new_entry.da_confirm', da_amount=to_bn_number(200)),
-        reply_markup=get_yes_no_keyboard('da', include_back=True)
+        reply_markup=get_yes_no_keyboard('da', include_back=True),
+        parse_mode='HTML'
     )
     await add_message_to_delete(update, context, m.message_id)
     return DA_CONFIRM
@@ -465,7 +474,8 @@ async def handle_distributor_selection(update: Update, context: ContextTypes.DEF
         pop_history(context)
         await query.edit_message_text(
             S('new_entry.da_confirm', da_amount=to_bn_number(200)),
-            reply_markup=get_yes_no_keyboard('da', include_back=True)
+            reply_markup=get_yes_no_keyboard('da', include_back=True),
+            parse_mode='HTML'
         )
         return DA_CONFIRM
 
@@ -574,10 +584,12 @@ async def handle_transport_confirm(update: Update, context: ContextTypes.DEFAULT
 async def handle_back_to_confirm_transport(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    context.user_data['transport_fee'] = int(os.getenv('TRANSPORT_FEE', '460'))
+    fee = int(os.getenv('TRANSPORT_FEE', '460'))
+    context.user_data['transport_fee'] = fee
     await query.edit_message_text(
-        S('new_entry.transport_confirm', transport_fee=to_bn_number(context.user_data['transport_fee'])),
-        reply_markup=get_yes_no_keyboard("transport")
+        S('new_entry.transport_confirm', transport_fee=to_bn_number(fee)),
+        reply_markup=get_yes_no_keyboard("transport"),
+        parse_mode='HTML'
     )
     return CONFIRM_TRANSPORT_FEE
 
@@ -633,9 +645,9 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = summary + S('new_entry.confirm_footer')
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=get_confirmation_keyboard())
+        await update.callback_query.edit_message_text(msg, reply_markup=get_confirmation_keyboard(), parse_mode='HTML')
     else:
-        m = await update.message.reply_text(msg, reply_markup=get_confirmation_keyboard())
+        m = await update.message.reply_text(msg, reply_markup=get_confirmation_keyboard(), parse_mode='HTML')
         await add_message_to_delete(update, context, m.message_id)
     return CONFIRM_ENTRY
 
@@ -651,19 +663,21 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             transport_fee = context.user_data.get('transport_fee', int(os.getenv('TRANSPORT_FEE', '460')))
             await query.edit_message_text(
                 S('new_entry.transport_confirm', transport_fee=to_bn_number(transport_fee)),
-                reply_markup=get_yes_no_keyboard("transport")
+                reply_markup=get_yes_no_keyboard("transport"),
+                parse_mode='HTML'
             )
             return CONFIRM_TRANSPORT_FEE
 
     if query.data == "confirm_save":
-        await delete_previous_messages(update, context)
+        await delete_previous_messages(update, context, exclude=query.message.message_id)
         entry_id = await add_entry(context.user_data.copy())
         
         dt = datetime.strptime(context.user_data['date'], '%Y-%m-%d')
         days_in_month = calendar.monthrange(dt.year, dt.month)[1]
         
         await query.edit_message_text(
-            S('new_entry.save_success', entry_id=to_bn_number(entry_id))
+            S('new_entry.save_success', entry_id=to_bn_number(entry_id)),
+            parse_mode='HTML'
         )
         
         from bot.handlers.summary import send_summary_message
@@ -689,7 +703,7 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             context.user_data.update(kept_data)
             return ConversationHandler.END
     else:
-        await delete_previous_messages(update, context)
+        await delete_previous_messages(update, context, exclude=query.message.message_id)
         await query.edit_message_text(S('new_entry.save_discarded'), reply_markup=get_main_menu())
         to_keep = ['selected_month', 'selected_year']
         kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
@@ -701,7 +715,7 @@ async def handle_final_entry_confirm(update: Update, context: ContextTypes.DEFAU
     query = update.callback_query
     await query.answer()
     
-    await delete_previous_messages(update, context)
+    await delete_previous_messages(update, context, exclude=query.message.message_id)
     
     if query.data == "final_entry_yes":
         context.user_data.clear()
@@ -717,7 +731,8 @@ async def handle_final_entry_confirm(update: Update, context: ContextTypes.DEFAU
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel the conversation."""
-    await delete_previous_messages(update, context)
+    exclude_id = update.callback_query.message.message_id if update.callback_query else None
+    await delete_previous_messages(update, context, exclude=exclude_id)
     msg = S('new_entry.cancelled')
     if update.callback_query:
         await update.callback_query.edit_message_text(msg, reply_markup=get_main_menu())

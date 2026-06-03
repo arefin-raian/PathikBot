@@ -48,9 +48,9 @@ async def send_entry_message(context, chat_id, i, e, first_entry=False, query=No
         )
 
     if first_entry and query:
-        await query.edit_message_text(text)
+        await query.edit_message_text(text, parse_mode='HTML')
     else:
-        await context.bot.send_message(chat_id=chat_id, text=text)
+        await context.bot.send_message(chat_id=chat_id, text=text, parse_mode='HTML')
 
 async def send_summary_message(context, chat_id, entries, reply_markup=None):
     summary = calculate_summary(entries)
@@ -64,7 +64,7 @@ async def send_summary_message(context, chat_id, entries, reply_markup=None):
         f"{S('summary.summary_line_transport', transport=to_bn_number(summary['total_others']))}\n"
         f"{S('summary.summary_line_grand_total', grand_total=to_bn_number(summary['grand_total']))}"
     )
-    await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
+    await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
 
 async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -122,6 +122,6 @@ async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{S('summary.summary_line_grand_total', grand_total=to_bn_number(summary['grand_total']))}"
     )
     if query:
-        await query.edit_message_text(text, reply_markup=BACK_TO_MENU)
+        await query.edit_message_text(text, reply_markup=BACK_TO_MENU, parse_mode='HTML')
     else:
-        await update.message.reply_text(text, reply_markup=BACK_TO_MENU)
+        await update.message.reply_text(text, reply_markup=BACK_TO_MENU, parse_mode='HTML')

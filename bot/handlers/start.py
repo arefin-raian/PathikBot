@@ -17,7 +17,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{S('start.bot_info')}\n\n"
         f"{S('start.menu_prompt')}"
     )
-    await update.message.reply_text(welcome_text, reply_markup=get_main_menu())
+    await update.message.reply_text(welcome_text, reply_markup=get_main_menu(), parse_mode='HTML')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /help command with detailed Bangla explanations."""
@@ -36,9 +36,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{help_sections['generate']}"
     )
     if update.callback_query:
-        await update.callback_query.edit_message_text(help_text, reply_markup=get_back_keyboard())
+        await update.callback_query.edit_message_text(help_text, reply_markup=get_back_keyboard(), parse_mode='HTML')
     else:
-        await update.message.reply_text(help_text, reply_markup=get_back_keyboard())
+        await update.message.reply_text(help_text, reply_markup=get_back_keyboard(), parse_mode='HTML')
 
 async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle main menu button clicks."""
@@ -54,4 +54,4 @@ async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f"{S('start.bot_info')}\n\n"
             f"{S('start.menu_prompt')}"
         )
-        await query.edit_message_text(text, reply_markup=get_main_menu())
+        await query.edit_message_text(text, reply_markup=get_main_menu(), parse_mode='HTML')

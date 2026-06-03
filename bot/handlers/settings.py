@@ -152,9 +152,9 @@ async def distributor_mgmt_handler(update: Update, context: ContextTypes.DEFAULT
     msg = S('settings.dist_mgmt_title')
     
     if query:
-        await query.edit_message_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists))
+        await query.edit_message_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='HTML')
     else:
-        await update.message.reply_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists))
+        await update.message.reply_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='HTML')
     return MANAGING_DISTRIBUTORS
 
 async def handle_distributor_mgmt_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -334,9 +334,9 @@ async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     if query:
-        await query.edit_message_text(text, reply_markup=get_settings_keyboard())
+        await query.edit_message_text(text, reply_markup=get_settings_keyboard(), parse_mode='HTML')
     else:
-        await update.message.reply_text(text, reply_markup=get_settings_keyboard())
+        await update.message.reply_text(text, reply_markup=get_settings_keyboard(), parse_mode='HTML')
     return SHOWING_SETTINGS
 
 async def handle_settings_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -380,7 +380,7 @@ async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYP
     if key:
         os.environ[key] = value
     
-    await update.message.reply_text(S('settings.setting_changed', value=value), reply_markup=get_main_menu())
+    await update.message.reply_text(S('settings.setting_changed', value=value), reply_markup=get_main_menu(), parse_mode='HTML')
     return ConversationHandler.END
 
 def get_settings_conv_handler():
