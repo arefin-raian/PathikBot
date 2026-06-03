@@ -515,3 +515,20 @@ PTBUserWarning: If 'per_message=False', 'CallbackQueryHandler' will not be track
 
 **Files changed:**
 - `bot/handlers/new_entry.py`
+
+### Strings: Widen prompt messages for button width
+
+**Problem:** Narrow prompt text (e.g., "⛽ পেট্রোল লিটার লিখুন:") caused Telegram inline keyboard buttons to render squeezed/narrow.
+
+**Fix:** Expanded every short input prompt to ~55-110 chars with examples and natural instructions, keeping single-line format:
+- `odo_start_prompt`, `odo_end_prompt` → added examples
+- `petrol_question`, `mobil_question`, `manager_question` → added "if yes, click button" guidance
+- `petrol_liters_prompt`, `mobil_liters_prompt` → added examples (যেমন: ৫ বা ২.৫)
+- `transport_prompt` → natural question + example
+- `distributor_prompt` → full instructions for multi-select flow
+- `manager_designation_prompt` → example expanded
+- All settings `prompt_*` strings → natural questions + examples
+- `dist_add_prompt` → added example
+
+**Files changed:**
+- `bot/strings.json`
