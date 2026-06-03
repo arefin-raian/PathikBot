@@ -21,7 +21,8 @@ def get_main_menu():
         [InlineKeyboardButton("📁 পুরানো মাস", callback_data="archive_menu")],
         [InlineKeyboardButton("📝 এডিট / 🗑 ডিলিট", callback_data="edit_delete_menu")],
         [InlineKeyboardButton("📄 রিপোর্ট তৈরি করুন", callback_data="generate_report")],
-        [InlineKeyboardButton("⚙️ সেটিংস", callback_data="settings")]
+        [InlineKeyboardButton("⚙️ সেটিংস", callback_data="settings")],
+        [InlineKeyboardButton("❓ সাহায্য", callback_data="help")]
     ]
     return InlineKeyboardMarkup(keyboard)
 

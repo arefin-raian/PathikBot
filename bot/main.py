@@ -69,11 +69,13 @@ def main():
     settings_conv_handler = get_settings_conv_handler()
     edit_delete_conv_handler = get_edit_delete_conv_handler()
     archive_handler = get_archive_handler()
+    help_cb_handler = CallbackQueryHandler(help_command, pattern="^help$")
     cancel_handler = CommandHandler('cancel', lambda u, c: ConversationHandler.END)
     menu_handler = CallbackQueryHandler(main_menu_callback, pattern="^main_menu$")
 
     application.add_handler(start_handler)
     application.add_handler(help_handler)
+    application.add_handler(help_cb_handler)
     application.add_handler(new_entry_handler)
     application.add_handler(report_handler)
     application.add_handler(report_cb_handler)
