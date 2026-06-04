@@ -1046,3 +1046,36 @@ Matching entries displayed + summary with BACK_TO_MENU
 - **Fix:** Removed the `and "wK:wg" in x` condition. Any row with `‡gvU`/`†gvU` + `=` is excluded from data rows.
 
 **Verified:** All 30 template `.docx` files pass `get_total_row_across`. `get_data_rows` excludes all total and header rows. Bijoy converter output correct for all distributor names. Source code checks pass.
+
+---
+
+## Round 3 (2026-06-04)
+
+### Fixes Applied
+
+**Fix 7: Reph swap post-processing broke multi-word reph output**
+- **Root cause:** `unicode_to_bijoy` had a post-processing swap (lines 144-145) that swaps `©X` → `X©`. The `re_arrange_unicode_for_bijoy` function already places the reph (র্) AFTER the consonant group, so the character mapping already produces `X©` order. The swap then wrongly swapped `© ` → ` ©` when the reph word was followed by a space, e.g. `‡gmvm© gv` → `‡gmvm ©gv`.
+- **Fix:** Removed the post-processing reph swap entirely (lines 140-149). Verified all cases: standalone reph word, reph + space + next word, compound consonant + reph, and words without reph all produce correct output.
+
+**Fix 8: Missing `|` separator after distributor names**
+- **Root cause:** Previous fix removed the ` |` separator but the user requires `|` (no space before) at the end of each distributor name.
+- **Fix:** Changed `bijoy_runs.append(convert_to_bijoy(clean))` → `bijoy_runs.append(convert_to_bijoy(clean) + "|")` and `f"{venue_b} |"` → `f"{venue_b}|"` (no space before pipe).
+
+**Fix 9: MONTHLY_MEETING venue and transport on two separate lines**
+- **Root cause:** `_convert_entry` put venue and transport text as two separate items in `distributors_runs`. `set_multi_paragraph_cell` rendered each as a separate paragraph.
+- **Expected format:** `iscyi ‡mjm ‡m›Uvi| hvZvqvZ I Avmv hvIqvi fvov = 460/-` (venue| transport on one line).
+- **Fix:** Combined into a single string: `f"{venue_b}| {transport_b}"` (one paragraph with pipe-separated venue and text).
+
+### "মেসার্স disappears on page 2" — Root Cause
+The user reported distributor names lacked "মেসার্স" on page 2 of the generated logsheet. Investigation showed entries 3-5 (which land on page 2) have raw distributor names WITHOUT "মেসার্স" prefix in the JSON data (e.g. `মা বাবার দোয়া ট্রেডার্স` instead of `মেসার্স মা বাবার দোয়া ট্রেডার্স`). Entries 0-1 (page 1) have the prefix. The code does not strip "মেসার্স" — the data itself lacks it. This is a data entry issue, not a code bug.
+
+### Files Changed
+- `docx_generator/bijoy_converter.py`: Removed post-processing reph swap (lines 140-149). 12→4 lines.
+- `generate_logsheet.py`: Added `|` suffix to distributor names, fixed MONTHLY_MEETING to single-line format. 6 changed lines.
+
+### Commits
+- `1342a80` — Fix reph swap bug & distributor formatting
+
+### Next Steps
+1. Confirm bot is running.
+2. User may want "মেসার্স" auto-prefixed to distributor names that lack it (business logic decision).
