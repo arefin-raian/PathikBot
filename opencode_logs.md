@@ -1197,4 +1197,51 @@ Replaced the entire `docx_generator/bijoy_converter.py` (old buggy implementatio
 - Bot starts cleanly (no syntax errors)
 
 **Commits:**
-- _(pending — this session's work not yet committed)_
+- `db2e62e` — "Refactor: rename 10 generic filenames to purpose-specific names"
+
+---
+
+## Session: 2026-06-04 — DOCX Overwrite + PDF Conversion
+
+### Task: Filename format change, month-based overwrite, DOCX→PDF conversion
+
+**User requirements:**
+1. Regenerating a logsheet for the same month must **overwrite** the previous file (not create duplicates)
+2. Filename format: `Logsheet - {Month}'{YYYY}.docx` (e.g., `Logsheet - June'2026.docx`)
+3. PDF conversion workflow: generate DOCX → send DOCX → "Generating PDF..." message → convert → send PDF
+4. PDF converted directly from DOCX (single source of truth)
+5. Filename format for PDF: `Logsheet - {Month}'{YYYY}.pdf`
+6. Single file per month — old file removed before writing new one
+
+**Changes made:**
+
+**`docx_generator/logsheet_generator.py`:**
+- Added `MONTHS_EN` dict mapping month numbers to English names
+- Changed output path from `f"Logsheet_{month}_{year}.docx"` to `f"Logsheet - {MONTHS_EN[month]}'{year}.docx"`
+- Updated standalone CLI `main()` to use the same format
+
+**`bot/handlers/report.py`:**
+- Rewritten with DOCX send → "Generating PDF..." message → LibreOffice `soffice --headless --convert-to pdf` → PDF send
+- Inner try/except for PDF: catches errors and sends `report.pdf_error` message (DOCX still delivered)
+- Removed unused `sent` variable from `reply_document` calls
+
+**`bot/text_resources.json`:**
+- Added `report.generating_pdf` (`"জেনারেটিং PDF..."`) — status message during conversion
+- Added `report.pdf_error` (`"PDF জেনারেট করতে ব্যর্থ হয়েছে। DOCX ফাইলটি ডাউনলোড করুন।"`) — fallback message
+
+**Infrastructure:**
+- Installed LibreOffice `TheDocumentFoundation.LibreOffice` 26.2.3.2 via winget
+- Verified DOCX→PDF conversion: `soffice.exe --headless --convert-to pdf` handles spaces + single quotes in filenames correctly
+- PDF overwrites automatically (same output filename → same-month overwrite)
+
+**Test results:**
+- Filename format: `Logsheet - June'2026.docx` ✓
+- Overwrite: regenerating same month produces same path with newer mtime ✓
+- PDF conversion: produces `Logsheet - June'2026.pdf` ✓
+- All 45 automated tests pass
+
+**Files changed:**
+- `docx_generator/logsheet_generator.py` — MONTHS_EN dict, filename format, CLI output
+- `bot/handlers/report.py` — PDF conversion flow, clean up unused variable
+- `bot/text_resources.json` — generating_pdf + pdf_error strings
+- `opencode_logs.md` — this log

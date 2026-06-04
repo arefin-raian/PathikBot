@@ -1,4 +1,5 @@
 import os
+import subprocess
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -9,22 +10,24 @@ from bot.inline_keyboards import to_bn_number
 from bot.text_resources import S
 from bot.auth import require_auth
 
+SOFFICE = r"C:\Program Files\LibreOffice\program\soffice.exe"
+
 async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await require_auth(update, context): return
     query = update.callback_query
     if query:
         await query.answer()
-    
+
     month, year = None, None
     if query and query.data and query.data.startswith("generate_"):
         parts = query.data.split("_")
         if len(parts) >= 3 and parts[1].isdigit() and parts[2].isdigit():
             year, month = int(parts[1]), int(parts[2])
-    
+
     if not month or not year:
         now = datetime.now()
         month, year = now.month, now.year
-    
+
     user_id = update.effective_user.id
     entries = await get_entries(user_id, month, year)
     if not entries:
@@ -44,14 +47,52 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             tpl_dir=Path("generated_logsheets"),
             out_dir=Path("outputs"),
         )
-        
-        filename = os.path.basename(output_path)
-        with open(output_path, 'rb') as f:
-            msg = S('report.success', month=to_bn_number(month), year=to_bn_number(year))
-            if query:
-                await query.message.reply_document(document=f, filename=filename, caption=msg, parse_mode='HTML')
-            else:
-                await update.message.reply_document(document=f, filename=filename, caption=msg, parse_mode='HTML')
+
+        docx_path = Path(output_path)
+        pdf_path = docx_path.with_suffix('.pdf')
+
+        msg = S('report.success', month=to_bn_number(month), year=to_bn_number(year))
+        if query:
+            await query.message.reply_document(
+                document=docx_path.open('rb'), filename=docx_path.name,
+                caption=msg, parse_mode='HTML'
+            )
+        else:
+            await update.message.reply_document(
+                document=docx_path.open('rb'), filename=docx_path.name,
+                caption=msg, parse_mode='HTML'
+            )
+
+        progress_msg = S('report.generating_pdf')
+        if query:
+            pdf_status = await query.message.reply_text(progress_msg, parse_mode='HTML')
+        else:
+            pdf_status = await update.message.reply_text(progress_msg, parse_mode='HTML')
+
+        try:
+            result = subprocess.run(
+                [SOFFICE, "--headless", "--convert-to", "pdf",
+                 "--outdir", str(pdf_path.parent), str(docx_path)],
+                capture_output=True, text=True, timeout=120
+            )
+            if result.returncode != 0 or not pdf_path.exists():
+                raise RuntimeError(result.stderr.strip() or f"soffice exited with code {result.returncode}")
+
+            await pdf_status.delete()
+            with pdf_path.open('rb') as f:
+                if query:
+                    await query.message.reply_document(
+                        document=f, filename=pdf_path.name, parse_mode='HTML'
+                    )
+                else:
+                    await update.message.reply_document(
+                        document=f, filename=pdf_path.name, parse_mode='HTML'
+                    )
+        except Exception as pdf_e:
+            await pdf_status.edit_text(
+                S('report.pdf_error', error=str(pdf_e)), parse_mode='HTML'
+            )
+
     except Exception as e:
         error_msg = S('report.error', error=str(e))
         if query:

@@ -41,6 +41,12 @@ BIJOY_MONTHS = {
     9:"†m‡Þ¤^i", 10:"A‡±vei", 11:"b‡f¤^i", 12:"wW‡m¤^i",
 }
 
+MONTHS_EN = {
+    1:"January", 2:"February", 3:"March", 4:"April",
+    5:"May", 6:"June", 7:"July", 8:"August",
+    9:"September", 10:"October", 11:"November", 12:"December",
+}
+
 STD_RPR = (
     f'<w:rPr xmlns:w="{W}">'
     f'<w:rFonts w:ascii="SutonnyMJ" w:hAnsi="SutonnyMJ" w:cs="SutonnyMJ"/>'
@@ -470,7 +476,7 @@ def generate_for_user(
 
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        output_path = out_dir / f"Logsheet_{month}_{year}.docx"
+        output_path = out_dir / f"Logsheet - {MONTHS_EN[month]}'{year}.docx"
 
         if os.path.exists(str(output_path)):
             os.remove(str(output_path))
@@ -557,7 +563,7 @@ def main():
 
     out_dir = script_dir / "outputs"
     out_dir.mkdir(parents=True, exist_ok=True)
-    output_path = str(out_dir / f"Logsheet_{month}_{year}_{len(entries)}entries.docx")
+    output_path = str(out_dir / f"Logsheet - {MONTHS_EN[month]}'{year}.docx")
 
     print(f"\n  Entries : {len(entries)}")
     print(f"  Template: {stem}.docx")
