@@ -3,7 +3,7 @@ from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
 from core.database import get_entries
-from generate_logsheet import generate_for_user
+from docx_generator.generate import generate_for_user
 from datetime import datetime
 from bot.keyboards import to_bn_number
 from bot.strings import S

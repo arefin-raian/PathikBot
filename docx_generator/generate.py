@@ -1,5 +1,5 @@
 """
-generate_logsheet.py — lxml-based DOCX logsheet generator
+docx_generator/generate.py — lxml-based DOCX logsheet generator
 =========================================================
 Populates pre-built templates from generated_logsheets/ with
 real entry data. All Bengali text is converted to Bijoy encoding
@@ -376,10 +376,22 @@ def _convert_entry(entry: dict, serial: int) -> dict:
         result['manager_bijoy'] = "gvwmK wgwUs"
     else:
         raw_names = entry.get('distributors_raw', [])
+        # The bot inconsistently prepends মেসার্স (Messrs) to distributor
+        # names in some entries but omits it in others (typically page 2+).
+        # Normalise: strip any existing variant first, then always prepend,
+        # so every name in the logsheet gets the prefix uniformly.
+        MESSRS_UNICODE = 'মেসার্স'
+        MESSRS_VARIANTS = ('মেসার্স ', 'মেসার্স', 'messrs ', 'messrs')
+        MESSRS_BIJOY = convert_to_bijoy(MESSRS_UNICODE) + ' '
         bijoy_runs = []
         for name in raw_names:
             clean = name.split("(")[0].split("（")[0].split("{")[0].strip()
-            bijoy_runs.append(convert_to_bijoy(clean) + "|")
+            lower = clean.lower()
+            for variant in MESSRS_VARIANTS:
+                if lower.startswith(variant.lower()):
+                    clean = clean[len(variant):].strip()
+                    break
+            bijoy_runs.append(MESSRS_BIJOY + convert_to_bijoy(clean) + "|")
         result['distributors_runs'] = bijoy_runs
 
         mgr = entry.get('others_designation', '')

@@ -43,7 +43,7 @@ A **Telegram bot** for Territory Marketing Officers to track daily field visit e
   - **Type 4** — Summary statistics
 - All Bangla text encoded in **Bijoy** (`SutonnyMJ` font)
 - Uses a customizable DOCX template
-- Standalone `generate_logsheet.py` alternative (lxml-based, no python-docx dependency)
+- Standalone `docx_generator/generate.py` alternative (lxml-based, no python-docx dependency)
 
 ### All Bangla Strings in One Place
 All user-facing text is externalized to `bot/strings.json`. Edit text without touching code.
@@ -117,20 +117,31 @@ PathikBot/
 │   ├── database.py                 # User mgmt, per-user entries CRUD, cascading odos
 │   └── calculations.py             # Cost, summary, threshold tracking
 ├── docx_generator/
-│   ├── generator.py                # LogsheetGenerator (table cloning, data filling)
-│   ├── xml_utils.py                # Cell text formatting (SutonnyMJ font)
-│   └── bijoy_converter.py          # Unicode → Bijoy encoding converter
+│   ├── __init__.py
+│   ├── generate.py                 # Main logsheet generator (lxml, used by bot)
+│   ├── generator.py                # Alternate python-docx generator (legacy)
+│   ├── xml_utils.py                # Cell text formatting helpers
+│   ├── converter.py                # Unicode → Bijoy converter (main impl)
+│   ├── bijoy_converter.py          # Unified interface for conversion
+│   └── util.py                     # Helper utilities for converter
+├── scripts/
+│   ├── generate_templates.py       # Pre-generates all 28 template variants
+│   └── populate_test_data.py       # Populates templates with sample data
 ├── data/
 │   ├── users.json                  # User registry (auto-created)
 │   ├── distributors.json           # Shared distributor list
 │   ├── entries_{user_id}.json      # Per-user entries (auto-created)
 │   └── user_prefs/{user_id}.json   # Per-user preferences (auto-created)
-├── templates/                      # DOCX templates
-├── output/                         # Generated reports
-├── tests/
-│   ├── test_calculations.py        # 16 threshold tracking tests
-│   └── test_user_mgmt.py           # 29 user management & isolation tests
-├── generate_logsheet.py            # Standalone DOCX generator (lxml)
+├── templates/                      # Master DOCX template
+├── generated_logsheets/            # Pre-generated 28 template variants
+├── outputs/                        # Generated reports
+├── bot/
+│   ├── main.py                     # Entry point
+│   ├── auth.py                     # Authentication
+│   ├── keyboards.py                # Inline keyboards
+│   ├── strings.json                # User-facing strings
+│   ├── strings.py                  # String loader
+│   └── handlers/                   # Conversation handlers
 └── .env                            # Configuration
 ```
 
@@ -163,7 +174,7 @@ Edit/Delete flow:
 |-----------|---------|
 | Bot Framework | `python-telegram-bot` (async, v20.x) |
 | Document Generation | `python-docx` + custom XML |
-| Standalone Generator | `lxml` (generate_logsheet.py) |
+| Standalone Generator | `lxml` (docx_generator/generate.py) |
 | Bangla Encoding | Custom Unicode → Bijoy converter |
 | Data Storage | JSON (via `aiofiles`) |
 | Environment | `python-dotenv` |
