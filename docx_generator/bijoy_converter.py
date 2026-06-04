@@ -94,7 +94,7 @@ class BijoyConverter:
                 
                 # Move Reph after the consonant group
                 text = text[:i - 1] + text[i + j + 1:i + j + az + 1] + text[i + 1:i + j + 1] + text[i - 1:i + 1] + text[i + j + az + 1:]
-                i += j + az
+                i += j + az + 1
                 continue
             
             i += 1

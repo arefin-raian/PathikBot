@@ -57,6 +57,20 @@ def make_run(bijoy_text: str):
     )
 
 
+def make_paragraph(bijoy_text: str):
+    para = etree.fromstring(f'<w:p xmlns:w="{W}"/>')
+    para.append(make_run(bijoy_text))
+    return para
+
+
+def set_multi_paragraph_cell(cell, bijoy_texts: list):
+    for para in cell.findall(f"{{{W}}}p"):
+        cell.remove(para)
+    for text in bijoy_texts:
+        if text:
+            cell.append(make_paragraph(text))
+
+
 def set_cell(cell, bijoy_text: str):
     para = cell.find(f"{{{W}}}p")
     for r in para.findall(f"{{{W}}}r"):
@@ -109,12 +123,20 @@ def get_total_row(tbl, skip=2):
     return None
 
 
-def get_total_row_across(data_tbls):
-    for ti in range(len(data_tbls) - 1, -1, -1):
+def get_total_row_across(data_tbls, max_idx=None):
+    if max_idx is None:
+        max_idx = len(data_tbls) - 1
+    for ti in range(max_idx, -1, -1):
         skip = 5 if ti == 0 else 2
         tr = get_total_row(data_tbls[ti], skip)
         if tr is not None:
             return tr
+    if max_idx != len(data_tbls) - 1:
+        for ti in range(len(data_tbls) - 1, max_idx, -1):
+            skip = 5 if ti == 0 else 2
+            tr = get_total_row(data_tbls[ti], skip)
+            if tr is not None:
+                return tr
     return None
 
 
@@ -123,7 +145,7 @@ def get_data_rows(tbl, header_count):
     result = []
     for row in rows[header_count:]:
         x = etree.tostring(row, encoding="unicode")
-        if ("‡gvU" in x or "†gvU" in x) and "=" in x and "wK:wg" in x:
+        if ("‡gvU" in x or "†gvU" in x) and "=" in x:
             continue
         result.append(row)
     return result
@@ -165,7 +187,7 @@ def fill_row(row, entry: dict):
 
     set_cell(cells[0],  f"{entry['serial']:02d}")
     set_cell(cells[1],  entry['date_str'])
-    set_runs(cells[2],  entry['distributors_runs'])
+    set_multi_paragraph_cell(cells[2],  entry['distributors_runs'])
     set_cell(cells[3],  str(entry['odo_start']))
     set_cell(cells[4],  str(entry['odo_end']))
     set_cell(cells[5],  "00" if entry['total_km'] == 0 else str(entry['total_km']))
@@ -202,7 +224,7 @@ def fill_total_row(total_row, entries):
         set_cell(cells[7],  fmt_taka(total_pet))
         set_cell(cells[8],  fmt_taka(total_mob))
         set_cell(cells[9],  fmt_taka(total_da))
-        set_cell(cells[10], f"{grand:,}/")
+        set_cell(cells[10], f"{grand:,}/-")
     else:
         set_runs(cells[4], [str(total_km), " wK:wg:"])
         lparts = []
@@ -212,7 +234,7 @@ def fill_total_row(total_row, entries):
         if lparts:   set_runs(cells[5], lparts)
         set_cell(cells[6], fmt_taka(total_mob))
         set_cell(cells[7], fmt_taka(total_da))
-        set_cell(cells[8], f"{grand:,}/")
+        set_cell(cells[8], f"{grand:,}/-")
 
 
 def fill_summary(summary_tbl, entries):
@@ -318,7 +340,7 @@ def _convert_entry(entry: dict, serial: int) -> dict:
         bijoy_runs = []
         for name in raw_names:
             clean = name.split("(")[0].split("（")[0].split("{")[0].strip()
-            bijoy_runs.append(convert_to_bijoy(clean) + " |")
+            bijoy_runs.append(convert_to_bijoy(clean))
         result['distributors_runs'] = bijoy_runs
 
         mgr = entry.get('others_designation', '')
@@ -380,7 +402,8 @@ def generate_for_user(
                 if i < len(data_rows):
                     fill_row(data_rows[i], entry)
 
-        total_row = get_total_row_across(data_tbls)
+        last_data_page = max((i for i, p in enumerate(pages) if p), default=0)
+        total_row = get_total_row_across(data_tbls, max_idx=last_data_page)
         if total_row is not None:
             fill_total_row(total_row, conv_entries)
 
