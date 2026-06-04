@@ -1423,3 +1423,60 @@ entry_id = await add_entry(user_id, {
 ### Verification
 - All **50 tests** pass (45 original + 5 new fuel consumption tests)
 - Files changed: `core/expense_calculations.py`, `bot/text_resources.json`, `bot/handlers/new_entry.py`, `bot/handlers/settings.py`, `tests/test_calculations.py`
+
+---
+
+## Session: 2026-06-05 — Persistent message store, /clean command, file caption metadata
+
+### User request summary
+1. Persist message IDs across sessions (not just in `context.user_data` which resets on bot restart)
+2. `/clean` command — delete all temp messages, update file captions with date time metadata
+3. `/start` cleanup — auto-clean temp messages on start
+4. File captions show generation date/time
+
+### Files created
+- **`core/message_store.py`** — Persistent JSON-based message ID tracking per user:
+  - `record_message(user_id, chat_id, msg_id, type='temporary')` — tracks any message
+  - `record_file_message(user_id, chat_id, msg_id, file_type, month, year, filename)` — tracks file messages with metadata
+  - `get_all_temporary(user_id)` / `get_all_files(user_id)` — read back
+  - `clear_temporary(user_id)` / `clear_all_except_files(user_id)` — selective cleanup
+  - Stores in `data/message_log/{user_id}.json` with chat_id, msg_id, type, ts
+  - Caps temporary list at 300 entries
+
+### Files modified
+
+**`bot/handlers/new_entry.py`:**
+- Added `from core.message_store import record_message`
+- `add_message_to_delete()` now also calls `record_message()` alongside `messages_to_delete.append()` — so every tracked message is persisted across sessions
+
+**`bot/handlers/report.py`:**
+- Added `from core.message_store import record_file_message`
+- After sending document, calls `record_file_message()` with user_id, chat_id, msg_id, 'docx', month, year, filename
+- Caption now includes: `{success_msg}\n📅 <i>Generated: {to_bn_number(dd-mm-YYYY at HH:MM)}</i>`
+
+**`bot/handlers/start.py`:**
+- Added `_cleanup_on_start(user_id, chat_id, context)` — deletes all tracked temporary messages from message_store, then `clear_all_except_files()`
+- Called at the beginning of `start_command()` before showing welcome message
+
+**`bot/handlers/cleanup.py`** (new):
+- `/clean` command handler: deletes all temporary messages from store, then updates all file message captions with metadata (month/year + generation timestamp), shows `clean.done` message with deleted count
+
+**`bot/main.py`:**
+- Added `from bot.handlers.cleanup import clean_command`
+- Added `clean_handler = CommandHandler('clean', clean_command)`
+- Registered `application.add_handler(clean_handler)`
+
+**`bot/text_resources.json`:**
+- Added `clean.done` — `"🧹 {count} টি পুরনো মেসেজ ডিলিট করা হয়েছে। ফাইল মেসেজগুলো অক্ষত রাখা হয়েছে।"`
+- Added `clean` to `bot_commands` — `"🧹 বটের সব অস্থায়ী মেসেজ মুছে ফেলুন"`
+
+### Verification
+- All **50 tests pass**
+- All imports verified (`core.message_store`, `bot.handlers.cleanup`)
+- No syntax errors
+
+### Key decisions
+- File messages preserved during cleanup, only temporary messages deleted
+- File captions updated with stored metadata (month, year, generation ISO datetime)
+- `message_store` uses `aiofiles` for async JSON I/O consistent with existing pattern
+- `to_bn_number` imported from `bot.inline_keyboards` in cleanup.py (avoids duplication)

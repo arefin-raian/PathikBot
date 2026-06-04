@@ -3,6 +3,7 @@ from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
 from core.file_data_store import get_entries
+from core.message_store import record_file_message
 from docx_generator.logsheet_generator import generate_for_user
 from datetime import datetime
 from bot.inline_keyboards import to_bn_number
@@ -68,17 +69,22 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
 
         await _send_to_storage_channel(context, docx_path, user_id, month, year)
 
-        msg = S('report.success', month=to_bn_number(month), year=to_bn_number(year))
+        now_str = datetime.now().strftime('%d-%m-%Y at %H:%M')
+        caption = (
+            f"{S('report.success', month=to_bn_number(month), year=to_bn_number(year))}"
+            f"\n📅 <i>Generated: {to_bn_number(now_str)}</i>"
+        )
         if query:
-            await query.message.reply_document(
+            sent = await query.message.reply_document(
                 document=docx_path.open('rb'), filename=docx_path.name,
-                caption=msg, parse_mode='HTML'
+                caption=caption, parse_mode='HTML'
             )
         else:
-            await update.message.reply_document(
+            sent = await update.message.reply_document(
                 document=docx_path.open('rb'), filename=docx_path.name,
-                caption=msg, parse_mode='HTML'
+                caption=caption, parse_mode='HTML'
             )
+        await record_file_message(user_id, sent.chat_id, sent.message_id, 'docx', month, year, docx_path.name)
 
     except Exception as e:
         error_msg = S('report.error', error=str(e))

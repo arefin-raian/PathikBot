@@ -10,6 +10,7 @@ from telegram.ext import (
 )
 from datetime import datetime
 from core.file_data_store import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors, get_user_prefs
+from core.message_store import record_message
 from core.expense_calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, get_petrol_status, get_mobil_status, calc_carry_forward, calculate_fuel_since_refill, PETROL_THRESHOLD_KM, MOBIL_THRESHOLD_KM, DEFAULT_PETROL_PRICE, DEFAULT_MOBIL_PRICE
 from bot.inline_keyboards import (
     get_entry_type_keyboard, 
@@ -84,6 +85,7 @@ async def add_message_to_delete(update: Update, context: ContextTypes.DEFAULT_TY
     if 'messages_to_delete' not in context.user_data:
         context.user_data['messages_to_delete'] = []
     context.user_data['messages_to_delete'].append(message_id)
+    await record_message(update.effective_user.id, update.effective_chat.id, message_id, 'temporary')
 
 async def _delete_later(context, chat_id, msg_ids, delay=60):
     """Delete tracked messages after a delay."""

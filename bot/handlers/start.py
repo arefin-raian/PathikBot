@@ -4,10 +4,23 @@ from bot.inline_keyboards import get_main_menu, BACK_TO_MENU, MONTHS_BN_FULL, to
 from bot.text_resources import S
 from bot.auth import require_auth
 from datetime import datetime
+from core.message_store import get_all_temporary, get_all_files, clear_all_except_files, record_file_message
+
+async def _cleanup_on_start(user_id, chat_id, context):
+    temps = await get_all_temporary(user_id)
+    for t in temps:
+        try:
+            await context.bot.delete_message(chat_id=t['chat_id'], message_id=t['msg_id'])
+        except Exception:
+            pass
+    await clear_all_except_files(user_id)
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /start command."""
     if not await require_auth(update, context): return
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    await _cleanup_on_start(user_id, chat_id, context)
     user = update.effective_user
     now = datetime.now()
     month_name = MONTHS_BN_FULL[now.month]
