@@ -1079,3 +1079,30 @@ The user reported distributor names lacked "মেসার্স" on page 2 of 
 ### Next Steps
 1. Confirm bot is running.
 2. User may want "মেসার্স" auto-prefixed to distributor names that lack it (business logic decision).
+
+---
+
+## Round 4 (2026-06-04) — User Fixes
+
+### Major Fix: `fill_row` skipped page 2+ data rows entirely
+- **Root cause:** `fill_row` checked `len(cells) < 12` and returned immediately. Page 2+ tables (4E / 3PET templates) have only **10 cells** (no separate odo_start/odo_end columns). This silently dropped ALL data — distributor names, dates, odometer, costs — on every page after page 1.
+- **Fix:** Added an `elif n >= 10:` branch that maps the 10-cell compact layout correctly (serial → cells[0], date → cells[1], distributors → cells[2], total_km → cells[3], petrol → cells[4]/[5], mobil→[6], da→[7], total→[8], manager→[9]).
+
+### Bijoy Converter Improvements
+- **FIX 1 (NFC normalisation):** Added `unicodedata.normalize("NFC", text)` so composed forms like ো (ে+া), ৌ (ে+ৗ), ড় (ড+়), য় (য+়) are collapsed to their precomposed single-codepoint forms before mapping. The old code had string `.replace()` calls that compared against identical string literals, making them no-ops.
+- **FIX 2 (Reph + pre-kar):** When a reph is followed by a consonant with a pre-kar (e.g. ে), the cluster walk now `j += 1` to include the consonant and `az = 1` to carry the pre-kar, preventing the pre-kar from being stranded between the reph and its base consonant.
+- **FIX 3 (Bare hasanta):** Removed `"্": "&"` from the mapping table. An unmatched hasanta at word-end or in an unrecognised conjunct is now silently suppressed rather than emitting `&` which corrupted the Bijoy output.
+- **FIX 4 (Reph across multi-char conjuncts):** Rewrote the reph position fix to scan for © and move it past the entire multi-character conjunct sequence (not just one character), stopping at the first ASCII letter which represents the base consonant in Bijoy encoding.
+
+### MONTHLY_MEETING Layout
+- Split venue and transport back into **two separate paragraphs** (matching the visual template layout).
+- Convert only the Bengali text portion through `convert_to_bijoy`; append ASCII digits and "/-" as plain strings to avoid the NFC normalisation edge case.
+
+### Summary Table
+- Zero-padded `total_tours` and `net_tours` with `:02d` for consistent formatting.
+
+### Key Takeaway
+The "মেসার্স disappears on page 2" symptom was NOT about মেসার্স specifically — **all data** was missing on page 2+ because `fill_row` unconditionally required 12 cells, which page 2+ templates never have.
+
+### Commits
+- `8aae1b4` — User fix: handle 10-cell page 2+ layout, Bijoy NFC normalize & reph fix
