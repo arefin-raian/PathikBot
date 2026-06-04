@@ -1387,7 +1387,54 @@ Persist data in MongoDB (for Render's ephemeral filesystem) and store generated 
 - `generated_logsheets/*.docx` kept — they are pre-built source templates, not auto-generated
 
 ### Commits
-- (pending — user requested commit + push after this log)
+- `02a5dce` — "feat: MongoDB async backend, Telegram channel storage, test fixes, deployment config"
+- `008133e` — "fix: per-user settings via prefs instead of env vars; remove pricing from .env; test isolation from MONGODB_URL"
 
 ### Bot restart
 - (pending — will be done after commit + push)
+
+---
+
+## Session: 2026-06-04 (continued) — Per-user pricing settings, .env cleanup, test MongoDB isolation
+
+### User complaint
+"Why is petrol and mobil there in the env file? Their value could vary from user to user."
+
+### Root cause
+1. `PETROL_PRICE_PER_LITER`, `MOBIL_PRICE_PER_LITER`, `DA_AMOUNT`, `TRANSPORT_FEE` were in `.env` as constants
+2. `settings_handler` read them via `os.getenv()` — global, not per-user
+3. `handle_setting_value` wrote to `os.environ[key] = value` — not persistent across restarts
+4. `expense_calculations.py` had `DEFAULT_PETROL_PRICE = float(os.getenv(...))` at module level — evaluated once at import, never updated
+
+### Fixes
+
+**`bot/handlers/settings.py`:**
+- Removed `import os`
+- Added `get_user_prefs`, `set_user_prefs` to imports
+- `settings_handler`: reads `petrol_price`, `mobil_price`, `da_amount`, `transport_fee` from `await get_user_prefs(user_id)` with hardcoded defaults (140.7, 560, 200, 460)
+- `start_setting_change`: maps callback data to prefs keys (`petrol_price`, `mobil_price`, `da_amount`, `transport_fee`) instead of env var names
+- `handle_setting_value`: writes to `await set_user_prefs(user_id, {key: value})` instead of `os.environ`
+
+**`bot/handlers/new_entry.py`:**
+- Removed `import os`
+- Replaced all 4 `os.getenv('TRANSPORT_FEE', '460')` calls with hardcoded `460`
+- Added `get_user_prefs` to imports
+
+**`core/expense_calculations.py`:**
+- Removed `import os` and `from dotenv import load_dotenv`
+- `DEFAULT_PETROL_PRICE`, `DEFAULT_MOBIL_PRICE` now plain hardcoded floats (140.7, 560.0)
+
+**`core/file_data_store.py`:**
+- Removed `from dotenv import load_dotenv` and `load_dotenv()` call — env loading is only needed in `main.py`, not at module import time
+
+**`.env` / `.env.example`:**
+- Removed `PETROL_PRICE_PER_LITER`, `MOBIL_PRICE_PER_LITER` lines
+
+**`tests/conftest.py`** (new):
+- Clears `MONGODB_URL` from env before test imports so tests always use file-based backend
+- Without this, tests tried to connect to MongoDB (because `.env` has `MONGODB_URL` set) and failed with SSL handshake errors
+
+### Verification
+- All 45 tests pass
+- Settings now per-user via MongoDB user_prefs (or file-based user_prefs/{user_id}.json)
+- No env vars needed for pricing — defaults hardcoded, overridable per-user via settings UI
