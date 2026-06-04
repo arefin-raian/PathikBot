@@ -55,12 +55,12 @@ def save_users(users: dict):
     _save_users_raw(users)
 
 
-def is_registered(user_id: int) -> bool:
+async def is_registered(user_id: int) -> bool:
     users = _load_users_raw()
     return str(user_id) in users
 
 
-def add_user(user_id: int, role: str = 'user') -> bool:
+async def add_user(user_id: int, role: str = 'user') -> bool:
     users = _load_users_raw()
     key = str(user_id)
     if key in users:
@@ -70,11 +70,11 @@ def add_user(user_id: int, role: str = 'user') -> bool:
         'added_at': datetime.now().isoformat()
     }
     _save_users_raw(users)
-    init_user_storage(user_id)
+    await init_user_storage(user_id)
     return True
 
 
-def remove_user(user_id: int) -> bool:
+async def remove_user(user_id: int) -> bool:
     users = _load_users_raw()
     key = str(user_id)
     if key not in users:
@@ -84,11 +84,11 @@ def remove_user(user_id: int) -> bool:
     return True
 
 
-def get_all_users() -> dict:
+async def get_all_users() -> dict:
     return _load_users_raw()
 
 
-def init_user_storage(user_id: int):
+async def init_user_storage(user_id: int):
     """Ensure a user's data files exist."""
     _ensure_data_dir()
     prefs_dir = os.path.dirname(_user_prefs_path(user_id))
@@ -106,7 +106,7 @@ def init_user_storage(user_id: int):
             json.dump({}, f)
 
 
-def is_owner(user_id: int) -> bool:
+async def is_owner(user_id: int) -> bool:
     return user_id == OWNER_ID
 
 
@@ -115,8 +115,8 @@ async def init_db():
     _ensure_data_dir()
 
     # Auto-register owner
-    if not is_registered(OWNER_ID):
-        add_user(OWNER_ID, role='owner')
+    if not await is_registered(OWNER_ID):
+        await add_user(OWNER_ID, role='owner')
 
     # Migrate legacy data/entries.json → data/entries_{owner_id}.json
     legacy = 'data/entries.json'
@@ -137,7 +137,7 @@ async def init_db():
             pass
 
     # Ensure owner has storage files
-    init_user_storage(OWNER_ID)
+    await init_user_storage(OWNER_ID)
 
     # Migrate legacy user_prefs.json → data/user_prefs/{owner_id}.json
     legacy_prefs = 'data/user_prefs.json'
@@ -353,3 +353,33 @@ async def set_user_prefs(user_id: int, prefs: dict):
     path = _user_prefs_path(user_id)
     async with aiofiles.open(path, mode='w', encoding='utf-8') as f:
         await f.write(json.dumps(prefs, ensure_ascii=False, indent=2))
+
+
+# ── Logsheet file tracking (no-op fallback for file backend) ──
+
+async def save_logsheet_file_id(user_id: int, month: int, year: int, file_id: str, file_name: str):
+    pass
+
+
+async def get_logsheet_file_id(user_id: int, month: int, year: int):
+    return None
+
+
+async def delete_logsheet_file_id(user_id: int, month: int, year: int):
+    pass
+
+
+# ── Dispatch to MongoDB when configured ─────────────────────
+if os.getenv("MONGODB_URL"):
+    from core.mongo_db import (  # noqa: F811
+        is_registered, is_owner, add_user, remove_user,
+        get_all_users, init_user_storage, init_db,
+        add_entry, get_entries, get_entry_by_id,
+        update_entry, delete_entry, update_entry_and_cascade,
+        get_last_day_in_month, get_last_odo,
+        get_user_prefs, set_user_prefs,
+        get_distributors, save_distributors,
+        add_distributor, remove_distributor,
+        save_logsheet_file_id, get_logsheet_file_id,
+        delete_logsheet_file_id,
+    )

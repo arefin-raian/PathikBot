@@ -60,25 +60,26 @@ def run_async(coro):
 # ── User Management Tests ────────────────────────────────
 
 
+@pytest.mark.asyncio
 class TestAddUser:
 
-    def test_add_new_user(self):
-        assert add_user(12345) is True
+    async def test_add_new_user(self):
+        assert await add_user(12345) is True
         users = load_users()
         assert '12345' in users
         assert users['12345']['role'] == 'user'
         assert 'added_at' in users['12345']
 
-    def test_add_duplicate_user(self):
-        assert add_user(12345) is True
-        assert add_user(12345) is False
+    async def test_add_duplicate_user(self):
+        assert await add_user(12345) is True
+        assert await add_user(12345) is False
 
-    def test_add_user_with_custom_role(self):
-        add_user(99999, role='manager')
+    async def test_add_user_with_custom_role(self):
+        await add_user(99999, role='manager')
         assert load_users()['99999']['role'] == 'manager'
 
-    def test_add_user_creates_storage_files(self):
-        add_user(77777)
+    async def test_add_user_creates_storage_files(self):
+        await add_user(77777)
         ep = f'data/entries_77777.json'
         pp = f'data/user_prefs/77777.json'
         assert os.path.exists(ep)
@@ -89,51 +90,54 @@ class TestAddUser:
             assert json.load(f) == {}
 
 
+@pytest.mark.asyncio
 class TestRemoveUser:
 
-    def test_remove_existing_user(self):
-        add_user(12345)
-        assert remove_user(12345) is True
-        assert not is_registered(12345)
+    async def test_remove_existing_user(self):
+        await add_user(12345)
+        assert await remove_user(12345) is True
+        assert not await is_registered(12345)
 
-    def test_remove_nonexistent_user(self):
-        assert remove_user(99999) is False
+    async def test_remove_nonexistent_user(self):
+        assert await remove_user(99999) is False
 
-    def test_remove_doesnt_affect_others(self):
-        add_user(111)
-        add_user(222)
-        remove_user(111)
+    async def test_remove_doesnt_affect_others(self):
+        await add_user(111)
+        await add_user(222)
+        await remove_user(111)
         users = load_users()
         assert '111' not in users
         assert '222' in users
 
 
+@pytest.mark.asyncio
 class TestIsRegistered:
 
-    def test_unregistered_user(self):
-        assert is_registered(99999) is False
+    async def test_unregistered_user(self):
+        assert await is_registered(99999) is False
 
-    def test_registered_user(self):
-        add_user(12345)
-        assert is_registered(12345) is True
+    async def test_registered_user(self):
+        await add_user(12345)
+        assert await is_registered(12345) is True
 
-    def test_owner_check(self):
-        assert is_owner(OWNER_ID) is True
-        assert is_owner(12345) is False
+    async def test_owner_check(self):
+        assert await is_owner(OWNER_ID) is True
+        assert await is_owner(12345) is False
 
 
+@pytest.mark.asyncio
 class TestListUsers:
 
-    def test_list_all_users(self):
-        add_user(111)
-        add_user(222)
-        users = get_all_users()
+    async def test_list_all_users(self):
+        await add_user(111)
+        await add_user(222)
+        users = await get_all_users()
         assert '111' in users
         assert '222' in users
         assert len(users) == 2
 
-    def test_empty_user_list(self):
-        assert get_all_users() == {}
+    async def test_empty_user_list(self):
+        assert await get_all_users() == {}
 
 
 # ── Data Isolation Tests ─────────────────────────────────
@@ -143,8 +147,8 @@ class TestDataIsolation:
 
     async def test_users_have_separate_entries(self):
         user_a, user_b = 1001, 1002
-        add_user(user_a)
-        add_user(user_b)
+        await add_user(user_a)
+        await add_user(user_b)
 
         entry_a = {'date': '2026-06-01', 'total_km': 50, 'odo_start': 0, 'odo_end': 50, 'entry_type': 'REGULAR'}
         entry_b = {'date': '2026-06-02', 'total_km': 100, 'odo_start': 50, 'odo_end': 150, 'entry_type': 'REGULAR'}
@@ -162,8 +166,8 @@ class TestDataIsolation:
 
     async def test_delete_only_affects_own_user(self):
         user_a, user_b = 1001, 1002
-        add_user(user_a)
-        add_user(user_b)
+        await add_user(user_a)
+        await add_user(user_b)
 
         entry_a = {'date': '2026-06-01', 'total_km': 50, 'odo_start': 0, 'odo_end': 50, 'entry_type': 'REGULAR'}
         entry_b = {'date': '2026-06-02', 'total_km': 100, 'odo_start': 50, 'odo_end': 150, 'entry_type': 'REGULAR'}
@@ -178,8 +182,8 @@ class TestDataIsolation:
 
     async def test_get_last_odo_isolation(self):
         user_a, user_b = 1001, 1002
-        add_user(user_a)
-        add_user(user_b)
+        await add_user(user_a)
+        await add_user(user_b)
 
         await add_entry(user_a, {'date': '2026-06-01', 'total_km': 50, 'odo_start': 0, 'odo_end': 50, 'entry_type': 'REGULAR'})
         await add_entry(user_b, {'date': '2026-06-02', 'total_km': 200, 'odo_start': 100, 'odo_end': 300, 'entry_type': 'REGULAR'})
@@ -189,8 +193,8 @@ class TestDataIsolation:
 
     async def test_user_prefs_isolation(self):
         user_a, user_b = 1001, 1002
-        add_user(user_a)
-        add_user(user_b)
+        await add_user(user_a)
+        await add_user(user_b)
 
         await set_user_prefs(user_a, {'theme': 'dark'})
         await set_user_prefs(user_b, {'theme': 'light'})
@@ -200,8 +204,8 @@ class TestDataIsolation:
 
     async def test_get_last_day_in_month_isolation(self):
         user_a, user_b = 1001, 1002
-        add_user(user_a)
-        add_user(user_b)
+        await add_user(user_a)
+        await add_user(user_b)
 
         await add_entry(user_a, {'date': '2026-06-05', 'total_km': 50, 'odo_start': 0, 'odo_end': 50, 'entry_type': 'REGULAR'})
         await add_entry(user_b, {'date': '2026-06-20', 'total_km': 100, 'odo_start': 50, 'odo_end': 150, 'entry_type': 'REGULAR'})
@@ -211,8 +215,8 @@ class TestDataIsolation:
 
     async def test_update_entry_and_cascade_isolation(self):
         user_a, user_b = 1001, 1002
-        add_user(user_a)
-        add_user(user_b)
+        await add_user(user_a)
+        await add_user(user_b)
 
         id_a = await add_entry(user_a, {'date': '2026-06-01', 'total_km': 50, 'odo_start': 0, 'odo_end': 50, 'entry_type': 'REGULAR'})
         await add_entry(user_b, {'date': '2026-06-02', 'total_km': 100, 'odo_start': 50, 'odo_end': 150, 'entry_type': 'REGULAR'})
@@ -228,52 +232,54 @@ class TestDataIsolation:
 
 # ── Edge Cases ────────────────────────────────────────────
 
+@pytest.mark.asyncio
 class TestEdgeCases:
 
-    def test_no_entries_for_new_user(self):
-        add_user(99999)
-        result = run_async(get_entries(99999))
+    async def test_no_entries_for_new_user(self):
+        await add_user(99999)
+        result = await get_entries(99999)
         assert result == []
 
-    def test_get_last_odo_no_entries(self):
-        result = run_async(get_last_odo(99999))
+    async def test_get_last_odo_no_entries(self):
+        result = await get_last_odo(99999)
         assert result == 0
 
-    def test_get_last_day_in_month_no_entries(self):
-        result = run_async(get_last_day_in_month(99999, 6, 2026))
+    async def test_get_last_day_in_month_no_entries(self):
+        result = await get_last_day_in_month(99999, 6, 2026)
         assert result is None
 
-    def test_init_user_storage_creates_files(self):
-        init_user_storage(55555)
+    async def test_init_user_storage_creates_files(self):
+        await init_user_storage(55555)
         assert os.path.exists(f'data/entries_55555.json')
         assert os.path.exists(f'data/user_prefs/55555.json')
 
-    def test_users_file_not_exists(self):
+    async def test_users_file_not_exists(self):
         assert load_users() == {}
 
-    def test_corrupted_users_file(self):
+    async def test_corrupted_users_file(self):
         with open('data/users.json', 'w') as f:
             f.write('{corrupted')
         assert load_users() == {}
 
-    def test_owner_auto_registered_on_init_db(self):
-        run_async(init_db())
-        assert is_registered(OWNER_ID)
+    async def test_owner_auto_registered_on_init_db(self):
+        await init_db()
+        assert await is_registered(OWNER_ID)
 
-    def test_is_registered_empty_file(self):
-        assert is_registered(99999) is False
+    async def test_is_registered_empty_file(self):
+        assert await is_registered(99999) is False
 
 
 # ── Auth Module Tests ────────────────────────────────────
 
+@pytest.mark.asyncio
 class TestRequireAuth:
 
-    def test_is_owner_returns_true(self):
-        assert is_owner(OWNER_ID) is True
+    async def test_is_owner_returns_true(self):
+        assert await is_owner(OWNER_ID) is True
 
-    def test_is_owner_returns_false(self):
-        assert is_owner(54321) is False
+    async def test_is_owner_returns_false(self):
+        assert await is_owner(54321) is False
 
-    def test_registered_user_is_recognized(self):
-        add_user(77777)
-        assert is_registered(77777) is True
+    async def test_registered_user_is_recognized(self):
+        await add_user(77777)
+        assert await is_registered(77777) is True

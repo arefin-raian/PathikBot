@@ -1335,3 +1335,59 @@ entry_id = await add_entry(user_id, {
 - Legacy files cleaned up
 - Commits: `c4ff1c1`, `4ccef60`
 - Pushed to GitHub
+
+---
+
+## Session: 2026-06-04 — MongoDB async backend, Telegram channel storage, test fixes, deployment config
+
+### User request
+Persist data in MongoDB (for Render's ephemeral filesystem) and store generated DOCX files in a Telegram channel.
+
+### Changes made
+
+**1. MongoDB async backend (`core/mongo_db.py` — new file):**
+- `get_db()` — returns lazily initialized `AsyncIOMotorDatabase` singleton via `MONGODB_URL` / `MONGODB_DB_NAME` env vars
+- 5 collections: `users`, `entries`, `user_prefs`, `distributors`, `logsheets`
+- Full CRUD: add_user, remove_user, get_all_users, is_registered, is_owner, init_db, init_user_storage
+- Entry functions: add_entry, get_entries, get_entry_by_id, update_entry, delete_entry, update_entry_and_cascade, get_last_odo, get_last_day_in_month
+- Distributor functions: get_distributors, save_distributors, add_distributor, remove_distributor
+- Prefs functions: get_user_prefs, set_user_prefs
+- Logsheet file tracking: save_logsheet_file_id, get_logsheet_file_id, delete_logsheet_file_id
+- `_migrate_legacy_if_needed()` — one-time migration from JSON files → MongoDB
+- `ensure_indexes()` — unique compound indexes on entries/user_id+id, logsheets/user_id+month+year
+
+**2. Dispatch in `core/file_data_store.py`:**
+- `if os.getenv("MONGODB_URL"):` block at module end overrides namespace with MongoDB imports — no import changes needed in handler code
+- Added no-op fallbacks for `save_logsheet_file_id` / `get_logsheet_file_id` / `delete_logsheet_file_id` for file-based backend
+
+**3. Async conversion of 6 functions:**
+- `is_registered`, `add_user`, `remove_user`, `get_all_users`, `init_user_storage`, `is_owner` — changed from `def` to `async def`
+- Updated callers: `bot/auth.py` (await on both is_owner + is_registered), `bot/handlers/admin.py` (5 await additions)
+
+**4. Test fixes (`tests/test_user_mgmt.py`):**
+- Added `@pytest.mark.asyncio` to 7 test classes
+- Changed `def test_` → `async def test_` on all 29 methods
+- Added `await` before `add_user()`, `remove_user()`, `is_registered()`, `is_owner()`, `get_all_users()`, `init_user_storage()`, `init_db()`
+- `load_users()` remains sync (unchanged in source)
+- `TestEdgeCases`: replaced `run_async(get_entries(...))` with direct `await get_entries(...)`
+- **All 45 tests pass**
+
+**5. Telegram channel file storage (`bot/handlers/report.py`):**
+- Added `_send_to_storage_channel()` — sends generated DOCX to `STORAGE_CHANNEL_ID` (env var), captures `file_id`, saves via `save_logsheet_file_id()`
+- Called after `generate_for_user()` but before user delivery
+- Gracefully skips if `STORAGE_CHANNEL_ID` not set
+
+**6. Deployment config:**
+- `.env` — added `MONGODB_URL`, `MONGODB_DB_NAME`, `STORAGE_CHANNEL_ID` vars (empty by default)
+- `.env.example` — created with placeholder values for all env vars
+- `.gitignore` — added `bot_start_*.txt` pattern
+
+### Cleanup
+- Removed `bot_start_err.txt`, `bot_start_out.txt`, `templates/Logsheet_Example.docx`
+- `generated_logsheets/*.docx` kept — they are pre-built source templates, not auto-generated
+
+### Commits
+- (pending — user requested commit + push after this log)
+
+### Bot restart
+- (pending — will be done after commit + push)

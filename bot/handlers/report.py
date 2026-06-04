@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -7,6 +8,25 @@ from datetime import datetime
 from bot.inline_keyboards import to_bn_number
 from bot.text_resources import S
 from bot.auth import require_auth
+
+STORAGE_CHANNEL = os.getenv("STORAGE_CHANNEL_ID")
+
+async def _send_to_storage_channel(context: ContextTypes.DEFAULT_TYPE, docx_path: Path, user_id: int, month: int, year: int):
+    """Send the generated file to the storage channel and save file_id in MongoDB."""
+    if not STORAGE_CHANNEL:
+        return
+    try:
+        msg = await context.bot.send_document(
+            chat_id=STORAGE_CHANNEL,
+            document=docx_path.open("rb"),
+            filename=docx_path.name,
+        )
+        file_id = msg.document.file_id
+        from core.file_data_store import save_logsheet_file_id
+        await save_logsheet_file_id(user_id, month, year, file_id, docx_path.name)
+    except Exception:
+        pass
+
 
 async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await require_auth(update, context): return
@@ -45,6 +65,8 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         )
 
         docx_path = Path(output_path)
+
+        await _send_to_storage_channel(context, docx_path, user_id, month, year)
 
         msg = S('report.success', month=to_bn_number(month), year=to_bn_number(year))
         if query:

@@ -35,6 +35,7 @@ data/user_prefs/
 
 # Logs
 *.log
+bot_start_*.txt
 
 # Reference repos (unused)
 ref_repos/

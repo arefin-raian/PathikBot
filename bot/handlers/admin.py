@@ -30,7 +30,8 @@ async def handle_adduser_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(S('admin.adduser_invalid_id'))
         return ADDUSER_AWAIT_ID
 
-    if str(target_id) in get_all_users():
+    users = await get_all_users()
+    if str(target_id) in users:
         await update.message.reply_text(S('admin.adduser_exists', user_id=target_id))
         return ConversationHandler.END
 
@@ -52,7 +53,7 @@ async def confirm_adduser(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "admin_confirm_add":
         target_id = context.user_data.pop('add_target_id', None)
-        if target_id and add_user(target_id):
+        if target_id and await add_user(target_id):
             await query.edit_message_text(
                 S('admin.adduser_success', user_id=target_id), parse_mode='HTML'
             )
@@ -67,7 +68,7 @@ async def start_removeuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await owner_only(update, context):
         return ConversationHandler.END
 
-    users = get_all_users()
+    users = await get_all_users()
     non_owner = {k: v for k, v in users.items() if int(k) != OWNER_ID}
     if not non_owner:
         await update.effective_message.reply_text(S('admin.removeuser_no_users'))
@@ -114,7 +115,7 @@ async def confirm_removeuser(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if query.data == "admin_confirm_remove":
         target_id = context.user_data.pop('remove_target_id', None)
-        if target_id and remove_user(target_id):
+        if target_id and await remove_user(target_id):
             await query.edit_message_text(
                 S('admin.removeuser_success', user_id=target_id), parse_mode='HTML'
             )
@@ -134,7 +135,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def listusers_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await owner_only(update, context):
         return
-    users = get_all_users()
+    users = await get_all_users()
     if not users:
         await update.effective_message.reply_text(S('admin.users_empty'))
         return

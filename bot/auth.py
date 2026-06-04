@@ -10,7 +10,7 @@ async def require_auth(update, context) -> bool:
     if user is None:
         return False
     uid = user.id
-    if is_owner(uid) or is_registered(uid):
+    if await is_owner(uid) or await is_registered(uid):
         return True
     message = update.effective_message
     if message:
