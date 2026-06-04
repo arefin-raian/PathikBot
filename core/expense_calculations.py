@@ -161,6 +161,9 @@ def calc_carry_forward(entries, new_entry_km, liters_field, overflow_field, thre
     Should be called BEFORE the entry is saved (entries = existing data only).
     """
     sorted_entries = sorted(entries, key=lambda e: e['date'])
+    if not sorted_entries:
+        return 0
+
     last_refill_idx = -1
     prev_carry = 0
 
@@ -171,7 +174,8 @@ def calc_carry_forward(entries, new_entry_km, liters_field, overflow_field, thre
             break
 
     distance_since = new_entry_km
-    for i in range(last_refill_idx, len(sorted_entries)):
+    start_idx = max(0, last_refill_idx)
+    for i in range(start_idx, len(sorted_entries)):
         distance_since += sorted_entries[i].get('total_km', 0)
 
     effective_threshold = threshold - prev_carry
