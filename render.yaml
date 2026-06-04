@@ -1,9 +1,10 @@
 services:
-  - type: worker
+  - type: web
     name: pathikbot
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: python -m bot.main
+    healthCheckPath: /
     envVars:
       - key: BOT_TOKEN
         sync: false

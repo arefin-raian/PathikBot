@@ -1,6 +1,8 @@
 import os
 import logging
 import warnings
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
 from telegram.warnings import PTBUserWarning
@@ -25,6 +27,25 @@ from core.file_data_store import init_db
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
+
+class HealthHandler(BaseHTTPRequestHandler):
+    """Minimal health-check endpoint for Render port binding."""
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def log_message(self, format, *args):
+        return  # silence HTTP log spam
+
+
+def _start_health_server():
+    """Bind to $PORT so Render doesn't kill the process."""
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    logging.info("Health server listening on port %d", port)
+    server.serve_forever()
+
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -33,7 +54,10 @@ logging.basicConfig(
 
 async def post_init(application):
     """Run after the bot has been initialized."""
-    await init_db()
+    try:
+        await init_db()
+    except Exception as e:
+        logging.error("init_db failed (continuing with file backend): %s", e)
     await application.bot.set_my_commands(bot_commands())
 
 def main():
@@ -80,7 +104,11 @@ def main():
     application.add_handler(menu_handler)
     application.add_handler(listusers_handler_cmd)
 
-    print("Bot is starting...")
+    # Start health HTTP server for Render port binding
+    hs = threading.Thread(target=_start_health_server, daemon=True)
+    hs.start()
+
+    logging.info("Bot is starting...")
     application.run_polling()
 
 if __name__ == '__main__':
