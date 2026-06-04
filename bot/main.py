@@ -22,7 +22,6 @@ from bot.handlers.summary import list_entries_handler, summary_handler
 from bot.handlers.settings import settings_handler, get_settings_conv_handler, get_edit_delete_conv_handler
 from bot.handlers.archive import get_archive_handler
 from bot.handlers.admin import get_admin_conv_handler, listusers_handler
-from bot.handlers.cleanup import clean_command
 from bot.text_resources import bot_commands
 from core.file_data_store import init_db
 
@@ -95,7 +94,6 @@ def main():
     menu_handler = CallbackQueryHandler(main_menu_callback, pattern="^main_menu$")
     admin_conv_handler = get_admin_conv_handler()
     listusers_handler_cmd = CommandHandler('users', listusers_handler)
-    clean_handler = CommandHandler('clean', clean_command)
 
     application.add_handler(start_handler)
     application.add_handler(help_handler)
@@ -114,7 +112,6 @@ def main():
     application.add_handler(cancel_handler)
     application.add_handler(menu_handler)
     application.add_handler(listusers_handler_cmd)
-    application.add_handler(clean_handler)
 
     # Start health HTTP server for Render port binding
     hs = threading.Thread(target=_start_health_server, daemon=True)

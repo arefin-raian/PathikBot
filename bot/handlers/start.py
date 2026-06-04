@@ -4,39 +4,13 @@ from bot.inline_keyboards import get_main_menu, BACK_TO_MENU, MONTHS_BN_FULL, to
 from bot.text_resources import S
 from bot.auth import require_auth
 from datetime import datetime
-from core.message_store import get_all_temporary, get_all_files, clear_all_except_files, record_message, record_file_message
-
-async def _cleanup_on_start(user_id, chat_id, context, current_msg_id):
-    files = await get_all_files(user_id)
-    protected_ids = {f['msg_id'] for f in files}
-
-    # Delete tracked temporary messages
-    temps = await get_all_temporary(user_id)
-    for t in temps:
-        if t['msg_id'] in protected_ids:
-            continue
-        try:
-            await context.bot.delete_message(chat_id=t['chat_id'], message_id=t['msg_id'])
-        except Exception:
-            pass
-    await clear_all_except_files(user_id)
-
-    # Brute-force scan for untracked bot messages (up to 200 back)
-    scan_start = max(current_msg_id - 200, 1)
-    for mid in range(current_msg_id - 1, scan_start - 1, -1):
-        if mid in protected_ids:
-            continue
-        try:
-            await context.bot.delete_message(chat_id=chat_id, message_id=mid)
-        except Exception:
-            pass
+from core.message_store import get_all_temporary, get_all_files, clear_all_except_files, record_message
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /start command."""
     if not await require_auth(update, context): return
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    await _cleanup_on_start(user_id, chat_id, context, update.message.message_id)
     user = update.effective_user
     now = datetime.now()
     month_name = MONTHS_BN_FULL[now.month]
@@ -50,6 +24,23 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     msg = await update.message.reply_text(welcome_text, reply_markup=get_main_menu(), parse_mode='HTML')
     await record_message(user_id, msg.chat_id, msg.message_id, 'temporary')
+
+    # Delete all previous bot messages (tracked temps + files).
+    # The welcome menu and the /start command itself are kept.
+    # Note: in private chats, Telegram does not allow bots to delete
+    # user messages, so the /start command text stays visible.
+    files = await get_all_files(user_id)
+    protected_ids = {f['msg_id'] for f in files}
+    protected_ids.add(msg.message_id)
+    temps = await get_all_temporary(user_id)
+    for t in temps:
+        if t['msg_id'] in protected_ids:
+            continue
+        try:
+            await context.bot.delete_message(chat_id=t['chat_id'], message_id=t['msg_id'])
+        except Exception:
+            pass
+    await clear_all_except_files(user_id)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /help command with detailed Bangla explanations."""
