@@ -1,4 +1,3 @@
-import asyncio
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -46,7 +45,6 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         )
 
         docx_path = Path(output_path)
-        pdf_path = docx_path.with_suffix('.pdf')
 
         msg = S('report.success', month=to_bn_number(month), year=to_bn_number(year))
         if query:
@@ -58,33 +56,6 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             await update.message.reply_document(
                 document=docx_path.open('rb'), filename=docx_path.name,
                 caption=msg, parse_mode='HTML'
-            )
-
-        progress_msg = S('report.generating_pdf')
-        if query:
-            pdf_status = await query.message.reply_text(progress_msg, parse_mode='HTML')
-        else:
-            pdf_status = await update.message.reply_text(progress_msg, parse_mode='HTML')
-
-        try:
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(
-                None, _convert_to_pdf, str(docx_path), str(pdf_path)
-            )
-
-            await pdf_status.delete()
-            with pdf_path.open('rb') as f:
-                if query:
-                    await query.message.reply_document(
-                        document=f, filename=pdf_path.name, parse_mode='HTML'
-                    )
-                else:
-                    await update.message.reply_document(
-                        document=f, filename=pdf_path.name, parse_mode='HTML'
-                    )
-        except Exception as pdf_e:
-            await pdf_status.edit_text(
-                S('report.pdf_error', error=str(pdf_e)), parse_mode='HTML'
             )
 
     except Exception as e:
