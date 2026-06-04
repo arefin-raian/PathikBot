@@ -59,8 +59,6 @@ def main():
     help_cb_handler = CallbackQueryHandler(help_command, pattern="^help$")
     cancel_handler = CommandHandler('cancel', lambda u, c: ConversationHandler.END)
     menu_handler = CallbackQueryHandler(main_menu_callback, pattern="^main_menu$")
-    adduser_handler_cmd = CommandHandler('adduser', adduser_handler)
-    removeuser_handler_cmd = CommandHandler('removeuser', removeuser_handler)
     admin_conv_handler = get_admin_conv_handler()
     listusers_handler_cmd = CommandHandler('users', listusers_handler)
 
