@@ -1,3 +1,4 @@
+import asyncio
 from telegram import Update, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ContextTypes, 
@@ -8,9 +9,8 @@ from telegram.ext import (
     filters
 )
 from datetime import datetime
-import calendar
 from core.file_data_store import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors, get_user_prefs
-from core.expense_calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, get_petrol_status, get_mobil_status, calc_carry_forward, DEFAULT_PETROL_PRICE, DEFAULT_MOBIL_PRICE
+from core.expense_calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, get_petrol_status, get_mobil_status, calc_carry_forward, calculate_fuel_since_refill, PETROL_THRESHOLD_KM, MOBIL_THRESHOLD_KM, DEFAULT_PETROL_PRICE, DEFAULT_MOBIL_PRICE
 from bot.inline_keyboards import (
     get_entry_type_keyboard, 
     get_yes_no_keyboard, 
@@ -46,8 +46,8 @@ from bot.auth import require_auth
     CONFIRM_ENTRY,
     ENTER_VENUE,
     ENTER_TRANSPORT_FEE,
-    CONFIRM_FINAL_ENTRY,
-    CONFIRM_TRANSPORT_FEE
+    CONFIRM_TRANSPORT_FEE,
+    CONFIRM_LAST_TOUR
 ) = range(19)
 
 # Add a history for back button
@@ -84,6 +84,21 @@ async def add_message_to_delete(update: Update, context: ContextTypes.DEFAULT_TY
     if 'messages_to_delete' not in context.user_data:
         context.user_data['messages_to_delete'] = []
     context.user_data['messages_to_delete'].append(message_id)
+
+async def _delete_later(context, chat_id, msg_ids, delay=60):
+    """Delete tracked messages after a delay."""
+    await asyncio.sleep(delay)
+    for mid in msg_ids:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=mid)
+        except Exception:
+            pass
+
+def schedule_message_cleanup(context, chat_id, delay=60):
+    """Schedule deletion of tracked non-essential messages after delay seconds."""
+    msg_ids = context.user_data.get('messages_to_delete', [])
+    if msg_ids:
+        context.application.create_task(_delete_later(context, chat_id, msg_ids[:], delay))
 
 def push_history(context, state):
     if HISTORY not in context.user_data:
@@ -831,7 +846,6 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         })
         
         dt = datetime.strptime(context.user_data['date'], '%Y-%m-%d')
-        days_in_month = calendar.monthrange(dt.year, dt.month)[1]
         
         await query.edit_message_text(
             S('new_entry.save_success', entry_id=to_bn_number(entry_id)),
@@ -842,14 +856,18 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         month_entries = await get_entries(user_id, dt.month, dt.year)
         await send_summary_message(context, update.effective_chat.id, month_entries)
         
-        if dt.day >= days_in_month - 2:
+        # Count REGULAR tour entries for the month (excluding meetings)
+        tour_count = sum(1 for e in month_entries if e.get('entry_type') == 'REGULAR')
+        
+        if tour_count >= 16:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text=S('new_entry.final_entry_prompt'),
-                reply_markup=get_yes_no_keyboard('final_entry')
+                text=S('new_entry.last_tour_prompt'),
+                reply_markup=get_yes_no_keyboard('last_tour')
             )
-            return CONFIRM_FINAL_ENTRY
+            return CONFIRM_LAST_TOUR
         else:
+            schedule_message_cleanup(context, update.effective_chat.id)
             menu_kb = InlineKeyboardMarkup([[InlineKeyboardButton(S('common.back_to_menu'), callback_data="main_menu")]])
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
@@ -863,6 +881,7 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             return ConversationHandler.END
     else:
         await delete_previous_messages(update, context, exclude=query.message.message_id)
+        schedule_message_cleanup(context, update.effective_chat.id)
         await query.edit_message_text(S('new_entry.save_discarded'), reply_markup=BACK_TO_MENU)
         to_keep = ['selected_month', 'selected_year']
         kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
@@ -870,28 +889,66 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data.update(kept_data)
         return ConversationHandler.END
 
-async def handle_final_entry_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_last_tour_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
     await delete_previous_messages(update, context, exclude=query.message.message_id)
+    dt = datetime.strptime(context.user_data['date'], '%Y-%m-%d')
     
-    if query.data == "final_entry_yes":
-        context.user_data.clear()
-        await query.edit_message_text(S('new_entry.final_entry_done'), reply_markup=BACK_TO_MENU)
-    else:
-        to_keep = ['selected_month', 'selected_year']
-        kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
-        context.user_data.clear()
-        context.user_data.update(kept_data)
-        await query.edit_message_text(S('new_entry.final_entry_not_done'), reply_markup=BACK_TO_MENU)
+    if query.data == "last_tour_yes":
+        month_entries = await get_entries(user_id, dt.month, dt.year)
+        entry_id = max(e['id'] for e in month_entries)
         
+        petrol_info = calculate_fuel_since_refill(month_entries, 'petrol_liters', PETROL_THRESHOLD_KM)
+        mobil_info = calculate_fuel_since_refill(month_entries, 'mobil_liters', MOBIL_THRESHOLD_KM)
+        
+        from core.file_data_store import update_entry
+        await update_entry(user_id, entry_id, {
+            'is_last_tour': True,
+            'final_petrol_consumed': petrol_info['liters_consumed'],
+            'final_mobil_consumed': mobil_info['liters_consumed']
+        })
+        
+        consumption_text = ""
+        if petrol_info['liters_consumed'] > 0:
+            consumption_text += S('thresholds.final_petrol_consumed',
+                liters=to_bn_number(petrol_info['liters_consumed']),
+                km=to_bn_number(petrol_info['distance_since_refill']))
+        if mobil_info['liters_consumed'] > 0:
+            consumption_text += S('thresholds.final_mobil_consumed',
+                liters=to_bn_number(mobil_info['liters_consumed']),
+                km=to_bn_number(mobil_info['distance_since_refill']))
+        
+        msg = S('new_entry.last_tour_done') + consumption_text
+        await query.edit_message_text(msg, parse_mode='HTML')
+        schedule_message_cleanup(context, update.effective_chat.id)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=S('new_entry.back_to_menu_prompt'),
+            reply_markup=BACK_TO_MENU
+        )
+    else:
+        await query.edit_message_text(S('new_entry.last_tour_skipped'))
+        schedule_message_cleanup(context, update.effective_chat.id)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=S('new_entry.back_to_menu_prompt'),
+            reply_markup=BACK_TO_MENU
+        )
+        
+    to_keep = ['selected_month', 'selected_year']
+    kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
+    context.user_data.clear()
+    context.user_data.update(kept_data)
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel the conversation."""
     exclude_id = update.callback_query.message.message_id if update.callback_query else None
     await delete_previous_messages(update, context, exclude=exclude_id)
+    schedule_message_cleanup(context, update.effective_chat.id)
     msg = S('new_entry.cancelled')
     if update.callback_query:
         await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
@@ -937,7 +994,7 @@ def get_new_entry_handler():
             SELECT_DISTRIBUTORS: [CallbackQueryHandler(handle_distributor_selection, pattern="^toggle_dist_|^dist_done|^cancel$|^back$")],
             CONFIRM_TRANSPORT_FEE: [CallbackQueryHandler(handle_transport_confirm, pattern="^transport_|^back$")],
             CONFIRM_ENTRY: [CallbackQueryHandler(save_entry_callback, pattern="^confirm_|^back$")],
-            CONFIRM_FINAL_ENTRY: [CallbackQueryHandler(handle_final_entry_confirm, pattern="^final_entry_")],
+            CONFIRM_LAST_TOUR: [CallbackQueryHandler(handle_last_tour_confirm, pattern="^last_tour_")],
             ENTER_VENUE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_venue),
                 CallbackQueryHandler(handle_type_selection, pattern="^back$")

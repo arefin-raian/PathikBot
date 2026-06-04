@@ -180,3 +180,43 @@ def calc_carry_forward(entries, new_entry_km, liters_field, overflow_field, thre
 
     effective_threshold = threshold - prev_carry
     return max(0, distance_since - effective_threshold)
+
+
+def calculate_fuel_since_refill(entries, liters_field, threshold_km):
+    """
+    Calculate fuel consumed from the last refill entry to the final entry.
+    Used when an entry is marked as the last tour of the month.
+
+    Returns:
+        distance_since_refill: total km from last refill to end
+        liters_consumed: proportional liters consumed based on efficiency
+        last_refill_liters: liters of the last refill found
+    """
+    sorted_entries = sorted(entries, key=lambda e: e['date'])
+    if not sorted_entries:
+        return {'distance_since_refill': 0, 'liters_consumed': 0, 'last_refill_liters': 0}
+
+    last_refill_idx = -1
+    last_refill_liters = 0
+    for i in range(len(sorted_entries) - 1, -1, -1):
+        liters = sorted_entries[i].get(liters_field, 0)
+        if liters > 0:
+            last_refill_idx = i
+            last_refill_liters = liters
+            break
+
+    if last_refill_idx == -1 or last_refill_liters == 0:
+        return {'distance_since_refill': 0, 'liters_consumed': 0, 'last_refill_liters': 0}
+
+    distance = 0
+    for i in range(last_refill_idx, len(sorted_entries)):
+        distance += sorted_entries[i].get('total_km', 0)
+
+    efficiency = threshold_km / last_refill_liters
+    liters_consumed = round(distance / efficiency, 2) if efficiency > 0 else 0
+
+    return {
+        'distance_since_refill': distance,
+        'liters_consumed': liters_consumed,
+        'last_refill_liters': last_refill_liters
+    }

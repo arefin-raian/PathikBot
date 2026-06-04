@@ -1331,252 +1331,95 @@ entry_id = await add_entry(user_id, {
 
 ### Verification
 - All 45 tests pass
-- Bot starts cleanly (no import errors, no warnings)
-- Legacy files cleaned up
-- Commits: `c4ff1c1`, `4ccef60`
-- Pushed to GitHub
+- Bot starts cleanly
 
 ---
 
-## Session: 2026-06-04 — MongoDB async backend, Telegram channel storage, test fixes, deployment config
+## Session: 2026-06-05 — Major feature: Last tour logic, petrol/mobil recalc on edit, app-like message cleanup
 
-### User request
-Persist data in MongoDB (for Render's ephemeral filesystem) and store generated DOCX files in a Telegram channel.
-
-### Changes made
-
-**1. MongoDB async backend (`core/mongo_db.py` — new file):**
-- `get_db()` — returns lazily initialized `AsyncIOMotorDatabase` singleton via `MONGODB_URL` / `MONGODB_DB_NAME` env vars
-- 5 collections: `users`, `entries`, `user_prefs`, `distributors`, `logsheets`
-- Full CRUD: add_user, remove_user, get_all_users, is_registered, is_owner, init_db, init_user_storage
-- Entry functions: add_entry, get_entries, get_entry_by_id, update_entry, delete_entry, update_entry_and_cascade, get_last_odo, get_last_day_in_month
-- Distributor functions: get_distributors, save_distributors, add_distributor, remove_distributor
-- Prefs functions: get_user_prefs, set_user_prefs
-- Logsheet file tracking: save_logsheet_file_id, get_logsheet_file_id, delete_logsheet_file_id
-- `_migrate_legacy_if_needed()` — one-time migration from JSON files → MongoDB
-- `ensure_indexes()` — unique compound indexes on entries/user_id+id, logsheets/user_id+month+year
-
-**2. Dispatch in `core/file_data_store.py`:**
-- `if os.getenv("MONGODB_URL"):` block at module end overrides namespace with MongoDB imports — no import changes needed in handler code
-- Added no-op fallbacks for `save_logsheet_file_id` / `get_logsheet_file_id` / `delete_logsheet_file_id` for file-based backend
-
-**3. Async conversion of 6 functions:**
-- `is_registered`, `add_user`, `remove_user`, `get_all_users`, `init_user_storage`, `is_owner` — changed from `def` to `async def`
-- Updated callers: `bot/auth.py` (await on both is_owner + is_registered), `bot/handlers/admin.py` (5 await additions)
-
-**4. Test fixes (`tests/test_user_mgmt.py`):**
-- Added `@pytest.mark.asyncio` to 7 test classes
-- Changed `def test_` → `async def test_` on all 29 methods
-- Added `await` before `add_user()`, `remove_user()`, `is_registered()`, `is_owner()`, `get_all_users()`, `init_user_storage()`, `init_db()`
-- `load_users()` remains sync (unchanged in source)
-- `TestEdgeCases`: replaced `run_async(get_entries(...))` with direct `await get_entries(...)`
-- **All 45 tests pass**
-
-**5. Telegram channel file storage (`bot/handlers/report.py`):**
-- Added `_send_to_storage_channel()` — sends generated DOCX to `STORAGE_CHANNEL_ID` (env var), captures `file_id`, saves via `save_logsheet_file_id()`
-- Called after `generate_for_user()` but before user delivery
-- Gracefully skips if `STORAGE_CHANNEL_ID` not set
-
-**6. Deployment config:**
-- `.env` — added `MONGODB_URL`, `MONGODB_DB_NAME`, `STORAGE_CHANNEL_ID` vars (empty by default)
-- `.env.example` — created with placeholder values for all env vars
-- `.gitignore` — added `bot_start_*.txt` pattern
-
-### Cleanup
-- Removed `bot_start_err.txt`, `bot_start_out.txt`, `templates/Logsheet_Example.docx`
-- `generated_logsheets/*.docx` kept — they are pre-built source templates, not auto-generated
-
-### Commits
-- `02a5dce` — "feat: MongoDB async backend, Telegram channel storage, test fixes, deployment config"
-- `008133e` — "fix: per-user settings via prefs instead of env vars; remove pricing from .env; test isolation from MONGODB_URL"
-
-### Bot restart
-- (pending — will be done after commit + push)
-
----
-
-## Session: 2026-06-04 (continued) — Per-user pricing settings, .env cleanup, test MongoDB isolation
-
-### User complaint
-"Why is petrol and mobil there in the env file? Their value could vary from user to user."
-
-### Root cause
-1. `PETROL_PRICE_PER_LITER`, `MOBIL_PRICE_PER_LITER`, `DA_AMOUNT`, `TRANSPORT_FEE` were in `.env` as constants
-2. `settings_handler` read them via `os.getenv()` — global, not per-user
-3. `handle_setting_value` wrote to `os.environ[key] = value` — not persistent across restarts
-4. `expense_calculations.py` had `DEFAULT_PETROL_PRICE = float(os.getenv(...))` at module level — evaluated once at import, never updated
-
-### Fixes
-
-**`bot/handlers/settings.py`:**
-- Removed `import os`
-- Added `get_user_prefs`, `set_user_prefs` to imports
-- `settings_handler`: reads `petrol_price`, `mobil_price`, `da_amount`, `transport_fee` from `await get_user_prefs(user_id)` with hardcoded defaults (140.7, 560, 200, 460)
-- `start_setting_change`: maps callback data to prefs keys (`petrol_price`, `mobil_price`, `da_amount`, `transport_fee`) instead of env var names
-- `handle_setting_value`: writes to `await set_user_prefs(user_id, {key: value})` instead of `os.environ`
-
-**`bot/handlers/new_entry.py`:**
-- Removed `import os`
-- Replaced all 4 `os.getenv('TRANSPORT_FEE', '460')` calls with hardcoded `460`
-- Added `get_user_prefs` to imports
-
-**`core/expense_calculations.py`:**
-- Removed `import os` and `from dotenv import load_dotenv`
-- `DEFAULT_PETROL_PRICE`, `DEFAULT_MOBIL_PRICE` now plain hardcoded floats (140.7, 560.0)
-
-**`core/file_data_store.py`:**
-- Removed `from dotenv import load_dotenv` and `load_dotenv()` call — env loading is only needed in `main.py`, not at module import time
-
-**`.env` / `.env.example`:**
-- Removed `PETROL_PRICE_PER_LITER`, `MOBIL_PRICE_PER_LITER` lines
-
-**`tests/conftest.py`** (new):
-- Clears `MONGODB_URL` from env before test imports so tests always use file-based backend
-- Without this, tests tried to connect to MongoDB (because `.env` has `MONGODB_URL` set) and failed with SSL handshake errors
-
-### Verification
-- All 45 tests pass
-- Settings now per-user via MongoDB user_prefs (or file-based user_prefs/{user_id}.json)
-- No env vars needed for pricing — defaults hardcoded, overridable per-user via settings UI
-
----
-
-## Session: 2026-06-05 — Fix: calc_carry_forward crash on empty entries
-
-### Bug
-When a new user (or any user with zero prior entries) clicks "Yes, save" for their very first entry, `calc_carry_forward` crashed with `IndexError: list index out of range` at line 175 of `expense_calculations.py`.
-
-### Root cause
-`all_entries = await get_entries(user_id)` returns `[]` for new users. `calc_carry_forward([], total_km, ...)`:
-- `sorted_entries = []` (empty)
-- `last_refill_idx = -1` (no refill found)
-- `for i in range(-1, 0):` → iterates with `i = -1`
-- `sorted_entries[-1]` → `IndexError` on empty list
-
-This also explained why non-owner users appeared "stuck" — they'd click confirm_save, the crash silently swallowed the error, and the entry never saved.
-
-### Fix
-- Added `if not sorted_entries: return 0` at the start of the function
-- Changed loop start to `max(0, last_refill_idx)` to avoid `range(-1, ...)` when no refill found
-
-### Files changed
-- `core/expense_calculations.py` — early return + safe start index
-
-### Commit
-- `69fc158` — "fix: calc_carry_forward crash when entries list empty (new users)"
-
----
-
-## Session: 2026-06-05 — Fix: Custom petrol/mobil/DA prices ignored in cost calculations
-
-### Bug
-When a user changed petrol price to 650 in settings, new entries still used the default 560 for mobil cost (and 140.7 for petrol). DA amount was also hardcoded to 200 regardless of user prefs.
-
-### Root cause
-- `calculate_petrol_cost()` and `calculate_mobil_cost()` used `DEFAULT_PETROL_PRICE` (140.7) / `DEFAULT_MOBIL_PRICE` (560.0) when `price_per_liter=None`
-- All callers (`handle_liters`, `handle_mobil_liters`, `show_confirmation`, `handle_new_value` in settings.py) passed no price argument
-- `calculate_total_entry_cost()` didn't propagate prices to child functions
-- DA amount was hardcoded as `200` in `handle_da_confirm` instead of reading from user prefs
-
-### Fixes
-- `calculate_total_entry_cost()` now accepts `petrol_price` and `mobil_price` parameters and passes them through
-- `handle_liters`, `handle_mobil_liters`, `show_confirmation` read user prefs and pass prices
-- `handle_new_value` in settings.py reads user prefs and passes prices
-- Added `DEFAULT_PETROL_PRICE`, `DEFAULT_MOBIL_PRICE` to imports
-
-### Files changed
-- `core/expense_calculations.py` — updated function signatures
-- `bot/handlers/new_entry.py` — read prefs at all cost calculation points
-- `bot/handlers/settings.py` — same for edit entry flow
-
-### Commit
-- `00b9bd2` — "fix: use user-specific petrol/mobil/DA amounts from prefs in cost calculations"
-
----
-
-## Session: 2026-06-05 — Fix: Context-specific yes/no labels and natural menu names
-
-### User complaint
-1. All yes/no questions used identical "✅ হ্যাঁ, হয়েছে" / "❌ না, হয়নি" buttons regardless of context — felt unnatural
-2. Menu names like "সব এন্ট্রি দেখুন", "এডিট বা ডিলিট", "কনফিগারেশন ও সেটিংস" could be simpler
-
-### Fixes
-**Yes/No buttons — context-specific labels per question:**
-
-| Question | Old | New |
-|---|---|---|
-| ওডোমিটার শুরু? | হ্যাঁ, হয়েছে / না, হয়নি | হ্যাঁ, শুরু করব / না, নিজে লিখব |
-| দূরত্ব সঠিক? | হ্যাঁ, হয়েছে / না, হয়নি | হ্যাঁ, সঠিক আছে / না, পুনরায় লিখব |
-| ম্যানেজার ছিলেন? | হ্যাঁ, হয়েছে / না, হয়নি | হ্যাঁ, ছিলেন / না, ছিলেন না |
-| DA/পরিবহন ঠিক আছে? | হ্যাঁ, হয়েছে / না, হয়নি | হ্যাঁ, ঠিক আছে / না, পরিবর্তন চাই |
-| আর কোনো এন্ট্রি নেই? | হ্যাঁ, হয়েছে / না, হয়নি | হ্যাঁ, আর নেই / না, আরও দেব |
-
-**Confirmation buttons:**
-- Delete: was "হ্যাঁ, সংরক্ষণ করুন" → "✅ হ্যাঁ, ডিলিট করুন"
-
-**Menu names:**
-- "📋 সব এন্ট্রি দেখুন" → "📋 এন্ট্রি দেখুন"
-- "📝 এন্ট্রি এডিট বা ডিলিট" → "📝 এন্ট্রি সংশোধন"
-- "⚙️ কনফিগারেশন ও সেটিংস" → "⚙️ সেটিংস"
-- "❓ সাহায্য ও নির্দেশিকা" → "❓ সাহায্য"
-- "মুল মেনু" → "মূল মেনু" (fixed spelling, 7 occurrences)
-
-### Files changed
-- `bot/text_resources.json` — restructured yes_no section as per-context dicts; updated menu names; fixed "মুল"→"মূল"
-- `bot/inline_keyboards.py` — `get_yes_no_keyboard()` now looks up labels by prefix; `get_confirmation_keyboard()` accepts context param
-- `bot/handlers/settings.py` — passes `context='delete'` for delete confirmation
-
-### Commit
-- `a0e61d3` — "fix: context-specific yes/no labels and natural menu names"
-
----
-
-## Session: 2026-06-05 — UX improvements: DA step removed, price update on old entries, natural threshold text
+### User request summary
+1. **Replace old "last 3 working days" final entry logic** with new 16-entry threshold logic
+2. **Last tour fuel consumption calculation** — proportional petrol/mobil used since last refill
+3. **Recalc prompt on distance edit** — when km/odo_start/odo_end changes, ask about recalculating petrol/mobil
+4. **Auto message cleanup** — app-like experience, non-essential messages auto-deleted after 60s
 
 ### Changes applied
 
-#### 1. Threshold text — "পেট্রোল দিন" → natural wording
-- "পেট্রোল দেওয়ার সময় হয়েছে!" → "পেট্রোল নেওয়ার সময় হয়েছে!"
-- "দয়া করে পেট্রোল দিন এবং হিসাব আপডেট করুন" → "অনুগ্রহ করে পেট্রোল নিয়ে এন্ট্রিটি আপডেট করুন"
-- Same for mobil variants
-- "পেট্রোল দিন" (give petrol) sounded unnatural; "পেট্রোল নিন" (take petrol / refill) is the natural Bangla expression
+#### 1. Remove old `CONFIRM_FINAL_ENTRY` logic (complete removal)
+- `CONFIRM_FINAL_ENTRY` (state 17) → replaced with `CONFIRM_LAST_TOUR` (same index, range(19) unchanged)
+- `handle_final_entry_confirm` → rewritten as `handle_last_tour_confirm`
+- Removed `calendar` import (no longer needed)
+- Removed `days_in_month` / `dt.day >= days_in_month - 2` check from `save_entry_callback`
 
-#### 2. DA confirmation step removed entirely
-**Why:** The user said DA amount should always use the default/setting value without asking "কি এই Amount-ই ঠিক আছে?" every time. Users who need to change DA can do it from settings.
+#### 2. New 16+ entry last tour logic
+**File: `bot/handlers/new_entry.py` — `save_entry_callback`:**
+- After saving, count REGULAR tour entries for the month
+- If `tour_count >= 16`: ask "এ মাসে আপনি সর্বনিম্ন ১৫টি ট্যুর সম্পন্ন করেছেন। এটি কি এই মাসের শেষ ট্যুর / শেষ কার্যদিবস ছিল?"
+- If Yes → mark `is_last_tour: true`, calculate petrol/mobil consumption
+- If No → normal flow
 
-**What was removed:**
-- `DA_CONFIRM` state constant from the state tuple
-- `handle_da_confirm()` function (entirely)
-- `DA_CONFIRM` state from conversation handler
-- `da_confirm` text from `text_resources.json`
-- `da` yes/no context from `text_resources.json`
-- DA back-buttons in `handle_distributor_selection` and `save_entry_callback`
+**File: `bot/handlers/new_entry.py` — `handle_last_tour_confirm`:**
+- `last_tour_yes`: Finds the just-saved entry by highest ID, calls `calculate_fuel_since_refill()` for both petrol and mobil, stores `final_petrol_consumed` and `final_mobil_consumed` on the entry via `update_entry()`, shows consumption text
+- `last_tour_no`: Shows "আরও এন্ট্রি যোগ করতে পারবেন"
 
-**New flow:**
-- `handle_manager_question` (no): Sets `da_amount` from user prefs, goes directly to `SELECT_DISTRIBUTORS`
-- `handle_manager_designation`: Sets `da_amount` from user prefs, goes directly to `SELECT_DISTRIBUTORS`
-- `handle_distributor_selection` back → `MANAGER_QUESTION` or `ENTER_MANAGER` (instead of DA_CONFIRM)
-- `save_entry_callback` back: DA_CONFIRM case removed (SELECT_DISTRIBUTORS takes over)
+#### 3. `calculate_fuel_since_refill()` function
+**File: `core/expense_calculations.py`:**
+- Scans entries backwards to find last refill with `liters_field > 0`
+- Sums `total_km` from that refill entry to the final entry
+- Computes efficiency: `threshold_km / last_refill_liters` (km per liter)
+- Computes consumption: `distance / efficiency`, rounded to 2 decimal places
+- Returns `{distance_since_refill, liters_consumed, last_refill_liters}`
 
-#### 3. Settings: petrol/mobil price change asks about updating existing entries
-**New flow:** After entering new petrol/mobil price, bot shows:
-> "নতুন দাম সংরক্ষণ করা হয়েছে। আপনি কি চলতি মাসের পুরনো এন্ট্রিগুলোর দামও আপডেট করতে চান?"
-> [✅ হ্যাঁ, আপডেট করুন] [❌ না, রেখে দিন]
+**Tests added (5 scenarios):**
+- Empty entries → 0s
+- No refill found → 0s
+- User scenario (10L at tour 20, 390km distance → 8.12L consumed)
+- Refill at last entry (own km only → 0.52L)
+- Mobil variant (2L mobil, 1000km distance, 1000 threshold → 2.0L)
 
-- If Yes: Iterates current month's entries, recalculates petrol_cost/mobil_cost and total_cost for each entry that has the relevant field > 0, saves via `update_entry_and_cascade`
-- If No: Returns to settings menu directly
+#### 4. Recalc prompt on distance edit
+**File: `bot/handlers/settings.py`:**
+- Added `CONFIRM_RECALC = 12` state
+- `handle_new_value`: After successful edit of `km`/`start`/`end` fields, shows "এই পরিবর্তনের কারণে পেট্রোল ও মবিল হিসাব প্রভাবিত হতে পারে। আপনি কি এগুলো স্বয়ংক্রিয়ভাবে পুনরায় হিসাব ও সমন্বয় করতে চান?" with yes/no buttons, returns `CONFIRM_RECALC`
+- `handle_recalc_confirm`: On "Yes", iterates all entries, recalculates:
+  - `petrol_overflow` / `mobil_overflow` for each entry with refill data (via `calc_carry_forward`)
+  - `final_petrol_consumed` / `final_mobil_consumed` for entries marked as `is_last_tour` (via `calculate_fuel_since_refill`)
+- On "No": Shows "কোনো পরিবর্তন করা হয়নি"
+- Added `update_entry`, `calc_carry_forward` to imports
+- Added `CONFIRM_RECALC` state to `get_edit_delete_conv_handler()` states
 
-**New state:** `CONFIRM_UPDATE_OLD = 11` in settings conv handler
+#### 5. Auto message cleanup (app-like experience)
+**File: `bot/handlers/new_entry.py`:**
+- Added `import asyncio`
+- Added `_delete_later(chat_id, msg_ids, delay=60)` — async function that sleeps 60s then deletes tracked messages
+- Added `schedule_message_cleanup(context, chat_id, delay=60)` — creates background task via `context.application.create_task()`
+- Called at every `context.user_data.clear()` point:
+  - `save_entry_callback` save success (both paths)
+  - `save_entry_callback` save discarded
+  - `handle_last_tour_confirm` both yes/no paths
+  - `cancel` function
 
-### Files changed
-- `bot/text_resources.json` — threshold text, removed da_confirm, added update_old text
-- `bot/handlers/new_entry.py` — removed DA_CONFIRM state, handle_da_confirm, updated 4 handlers
-- `bot/handlers/settings.py` — added CONFIRM_UPDATE_OLD state + handler, updated conv handler
-- `bot/inline_keyboards.py` — no changes needed
+**File: `bot/handlers/settings.py`:**
+- Imported `schedule_message_cleanup` from `bot.handlers.new_entry`
+- Added call to `schedule_message_cleanup` in `cancel_conversation`
 
-### Commits
-- (included in this session's commit)
+### Text resources updated
+- `new_entry.last_tour_prompt` — "এ মাসে আপনি সর্বনিম্ন ১৫টি ট্যুর সম্পন্ন করেছেন..."
+- `new_entry.last_tour_done` — "বেশ, এই মাসের শেষ ট্যুর হিসেবে চিহ্নিত করা হয়েছে..."
+- `new_entry.last_tour_skipped` — "আরও এন্ট্রি যোগ করতে পারবেন।"
+- `thresholds.final_petrol_consumed` — "শেষ পেট্রোল নেওয়ার পর থেকে ব্যবহৃত পেট্রোল: {liters} লিটার..."
+- `thresholds.final_mobil_consumed` — same for mobil
+- `settings.recalc_prompt` — "এই পরিবর্তনের কারণে পেট্রোল ও মবিল হিসাব প্রভাবিত হতে পারে..."
+- `settings.recalc_done` — "পেট্রোল ও মবিলের হিসাব পুনরায় সমন্বয় করা হয়েছে। ✅"
+- `settings.recalc_skipped` — "কোনো পরিবর্তন করা হয়নি। পেট্রোল ও মবিলের হিসাব পূর্ববর্তী অবস্থাতেই থাকবে।"
+- `yes_no.last_tour` — {yes: "✅ হ্যাঁ, শেষ ট্যুর", no: "❌ না, আরও হবে"}
+- `yes_no.recalc` — {yes: "✅ হ্যাঁ, পুনরায় গণনা করুন", no: "❌ না, রেখে দিন"}
+
+### Removed old strings
+- `new_entry.final_entry_prompt` → replaced by `last_tour_prompt`
+- `new_entry.final_entry_done` → replaced by `last_tour_done`
+- `new_entry.final_entry_not_done` → replaced by `last_tour_skipped`
 
 ### Verification
-- All 45 tests pass
-- Bot starts cleanly
+- All **50 tests** pass (45 original + 5 new fuel consumption tests)
+- Files changed: `core/expense_calculations.py`, `bot/text_resources.json`, `bot/handlers/new_entry.py`, `bot/handlers/settings.py`, `tests/test_calculations.py`

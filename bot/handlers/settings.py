@@ -21,9 +21,11 @@ from bot.inline_keyboards import (
 )
 from bot.text_resources import S
 from bot.auth import require_auth
+from bot.handlers.new_entry import schedule_message_cleanup
 from core.file_data_store import (
     get_entries, 
     delete_entry, 
+    update_entry,
     update_entry_and_cascade, 
     get_entry_by_id,
     get_distributors,
@@ -32,7 +34,7 @@ from core.file_data_store import (
     get_user_prefs,
     set_user_prefs,
 )
-from core.expense_calculations import calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, DEFAULT_PETROL_PRICE, DEFAULT_MOBIL_PRICE
+from core.expense_calculations import calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, calculate_fuel_since_refill, calc_carry_forward, PETROL_THRESHOLD_KM, MOBIL_THRESHOLD_KM, DEFAULT_PETROL_PRICE, DEFAULT_MOBIL_PRICE
 from datetime import datetime
 
 # States for settings and edit/delete
@@ -47,6 +49,7 @@ MANAGING_DISTRIBUTORS = 8
 ADDING_DISTRIBUTOR = 9
 SHOWING_SETTINGS = 10
 CONFIRM_UPDATE_OLD = 11
+CONFIRM_RECALC = 12
 
 async def edit_delete_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await require_auth(update, context): return ConversationHandler.END
@@ -243,12 +246,72 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         await update_entry_and_cascade(user_id, entry_id, updates)
+        
+        # If distance-affecting field, ask about recalc
+        distance_fields = {'km', 'start', 'end'}
+        if field in distance_fields:
+            context.user_data['_recalc_entry_id'] = entry_id
+            await update.message.reply_text(
+                S('settings.recalc_prompt'),
+                reply_markup=get_yes_no_keyboard('recalc')
+            )
+            return CONFIRM_RECALC
+        
         await update.message.reply_text(S('settings.update_success'))
         return await start_edit_entry(update, context)
         
     except ValueError:
         await update.message.reply_text(S('new_entry.error_invalid_number'))
         return ENTERING_NEW_VALUE
+
+
+async def handle_recalc_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data == "recalc_no":
+        await query.edit_message_text(S('settings.recalc_skipped'))
+        return await start_edit_entry(update, context)
+    
+    if query.data == "recalc_yes":
+        entry_id = context.user_data.get('_recalc_entry_id')
+        affected_entries = await get_entries(user_id)
+        if not affected_entries:
+            await query.edit_message_text(S('settings.recalc_done'))
+            return await start_edit_entry(update, context)
+        
+        sorted_entries = sorted(affected_entries, key=lambda e: e['date'])
+        
+        # Recalculate carry_forward for all entries after the edited one
+        for i, e in enumerate(sorted_entries):
+            if e.get('petrol_liters', 0) > 0:
+                prev = sorted_entries[:i]
+                new_overflow = calc_carry_forward(
+                    prev, e.get('total_km', 0), 'petrol_liters', 'petrol_overflow', PETROL_THRESHOLD_KM
+                )
+                await update_entry(user_id, e['id'], {'petrol_overflow': new_overflow})
+            
+            if e.get('mobil_liters', 0) > 0:
+                prev = sorted_entries[:i]
+                new_overflow = calc_carry_forward(
+                    prev, e.get('total_km', 0), 'mobil_liters', 'mobil_overflow', MOBIL_THRESHOLD_KM
+                )
+                await update_entry(user_id, e['id'], {'mobil_overflow': new_overflow})
+            
+            if e.get('is_last_tour'):
+                cur_and_prev = sorted_entries[:i+1]
+                petrol_info = calculate_fuel_since_refill(cur_and_prev, 'petrol_liters', PETROL_THRESHOLD_KM)
+                mobil_info = calculate_fuel_since_refill(cur_and_prev, 'mobil_liters', MOBIL_THRESHOLD_KM)
+                await update_entry(user_id, e['id'], {
+                    'final_petrol_consumed': petrol_info['liters_consumed'],
+                    'final_mobil_consumed': mobil_info['liters_consumed']
+                })
+        
+        await query.edit_message_text(S('settings.recalc_done'))
+        return await start_edit_entry(update, context)
+    
+    return await start_edit_entry(update, context)
 
 async def start_delete_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await require_auth(update, context): return ConversationHandler.END
@@ -308,6 +371,7 @@ async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_
 
 async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop('_settings_visited', None)
+    schedule_message_cleanup(context, update.effective_chat.id)
     msg = S('settings.cancelled')
     if update.callback_query:
         await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
@@ -331,6 +395,7 @@ def get_edit_delete_conv_handler():
             EDITING_DISTRIBUTORS: [CallbackQueryHandler(handle_edit_distributors, pattern="^toggle_dist_|^dist_done|^cancel$")],
             CHOOSING_ENTRY_TO_DELETE: [CallbackQueryHandler(handle_delete_selection, pattern="^delete_|^edit_delete_menu$")],
             CONFIRM_DELETE: [CallbackQueryHandler(confirm_delete_callback, pattern="^confirm_|^back$")],
+            CONFIRM_RECALC: [CallbackQueryHandler(handle_recalc_confirm, pattern="^recalc_")],
         },
         fallbacks=[CommandHandler("cancel", cancel_conversation)],
     )

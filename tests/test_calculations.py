@@ -5,7 +5,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from core.expense_calculations import (
-    _refill_status, calc_carry_forward,
+    _refill_status, calc_carry_forward, calculate_fuel_since_refill,
     get_petrol_status, get_mobil_status,
     PETROL_THRESHOLD_KM, MOBIL_THRESHOLD_KM
 )
@@ -192,3 +192,66 @@ class TestRefillStatus:
         result = _refill_status([], 'petrol_liters', 'petrol_overflow', PETROL_THRESHOLD_KM)
         expected_keys = {'distance_since', 'is_due', 'effective_threshold', 'effective_remaining', 'carry_forward'}
         assert set(result.keys()) == expected_keys, f"Missing keys: {expected_keys - set(result.keys())}"
+
+
+class TestCalculateFuelSinceRefill:
+
+    def test_empty_entries(self):
+        result = calculate_fuel_since_refill([], 'petrol_liters', PETROL_THRESHOLD_KM)
+        assert result['distance_since_refill'] == 0
+        assert result['liters_consumed'] == 0
+        assert result['last_refill_liters'] == 0
+
+    def test_no_refill_found(self):
+        entries = [
+            {'date': '2026-06-01', 'total_km': 50, 'petrol_liters': 0},
+            {'date': '2026-06-02', 'total_km': 100, 'petrol_liters': 0},
+        ]
+        result = calculate_fuel_since_refill(entries, 'petrol_liters', PETROL_THRESHOLD_KM)
+        assert result['distance_since_refill'] == 0
+        assert result['liters_consumed'] == 0
+
+    def test_user_scenario(self):
+        """Tour 20: 10L petrol. Tours 20-24 total distance <480km."""
+        entries = [
+            {'date': '2026-06-20', 'total_km': 50, 'petrol_liters': 10},
+            {'date': '2026-06-21', 'total_km': 100, 'petrol_liters': 0},
+            {'date': '2026-06-22', 'total_km': 80, 'petrol_liters': 0},
+            {'date': '2026-06-23', 'total_km': 90, 'petrol_liters': 0},
+            {'date': '2026-06-24', 'total_km': 70, 'petrol_liters': 0},
+        ]
+        result = calculate_fuel_since_refill(entries, 'petrol_liters', PETROL_THRESHOLD_KM)
+        # distance = 50+100+80+90+70 = 390
+        # efficiency = 480/10 = 48 km/L
+        # liters_consumed = 390/48 = 8.12 (rounded to 2 dp)
+        assert result['distance_since_refill'] == 390
+        assert result['liters_consumed'] == 8.12
+        assert result['last_refill_liters'] == 10
+
+    def test_refill_at_last_entry(self):
+        """Refill IS the last tour."""
+        entries = [
+            {'date': '2026-06-01', 'total_km': 100, 'petrol_liters': 0},
+            {'date': '2026-06-02', 'total_km': 50, 'petrol_liters': 5},
+        ]
+        result = calculate_fuel_since_refill(entries, 'petrol_liters', PETROL_THRESHOLD_KM)
+        # distance = 50 (only the refill entry's own km)
+        # efficiency = 480/5 = 96 km/L
+        # liters_consumed = 50/96 = 0.52
+        assert result['distance_since_refill'] == 50
+        assert result['liters_consumed'] == 0.52
+        assert result['last_refill_liters'] == 5
+
+    def test_mobil_since_refill(self):
+        entries = [
+            {'date': '2026-06-01', 'total_km': 300, 'mobil_liters': 2},
+            {'date': '2026-06-02', 'total_km': 500, 'mobil_liters': 0},
+            {'date': '2026-06-03', 'total_km': 200, 'mobil_liters': 0},
+        ]
+        result = calculate_fuel_since_refill(entries, 'mobil_liters', MOBIL_THRESHOLD_KM)
+        # distance = 300+500+200 = 1000
+        # efficiency = 1000/2 = 500 km/L
+        # liters_consumed = 1000/500 = 2.0
+        assert result['distance_since_refill'] == 1000
+        assert result['liters_consumed'] == 2.0
+        assert result['last_refill_liters'] == 2
