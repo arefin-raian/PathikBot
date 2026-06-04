@@ -1,7 +1,7 @@
 """Async MongoDB storage backend for PathikBot."""
 import os
 import json
-from urllib.parse import quote
+from urllib.parse import quote_plus
 from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
@@ -16,7 +16,7 @@ if MONGO_URL and '@' in MONGO_URL:
             scheme_part = prefix.split('//', 1)
             if ':' in scheme_part[1]:
                 user, pw = scheme_part[1].split(':', 1)
-                scheme_part[1] = f"{user}:{quote(pw, safe='*')}"
+                scheme_part[1] = f"{user}:{quote_plus(pw)}"
             prefix = '//'.join(scheme_part)
         MONGO_URL = f"{prefix}@{rest}"
     except Exception:
@@ -31,7 +31,11 @@ async def get_db() -> AsyncIOMotorDatabase:
     if not MONGO_URL:
         return None
     if _db is None:
-        _client = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=5000)
+        _client = AsyncIOMotorClient(
+            MONGO_URL,
+            serverSelectionTimeoutMS=5000,
+            tlsAllowInvalidCertificates=True,
+        )
         _db = _client[MONGO_DB]
     if not _connected:
         try:
