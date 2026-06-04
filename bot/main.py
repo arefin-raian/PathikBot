@@ -18,8 +18,8 @@ from bot.handlers.summary import list_entries_handler, summary_handler
 from bot.handlers.settings import settings_handler, get_settings_conv_handler, get_edit_delete_conv_handler
 from bot.handlers.archive import get_archive_handler
 from bot.handlers.admin import adduser_handler, removeuser_handler, listusers_handler
-from bot.strings import bot_commands
-from core.database import init_db
+from bot.text_resources import bot_commands
+from core.file_data_store import init_db
 
 # Load environment variables
 load_dotenv()

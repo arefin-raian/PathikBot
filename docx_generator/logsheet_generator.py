@@ -1,18 +1,18 @@
 """
-docx_generator/generate.py — lxml-based DOCX logsheet generator
-=========================================================
+docx_generator/logsheet_generator.py — lxml-based DOCX logsheet generator
+==============================================================
 Populates pre-built templates from generated_logsheets/ with
 real entry data. All Bengali text is converted to Bijoy encoding
 (SutonnyMJ font). Zero python-docx dependency.
 
 Usage from bot:
-    from generate_logsheet import generate_for_user
+    from docx_generator.logsheet_generator import generate_for_user
     out_path = generate_for_user(user_id, entries, month, year,
                                  tpl_dir=Path("generated_logsheets"),
                                  out_dir=Path("outputs"))
 
 Standalone CLI:
-    python generate_logsheet.py
+    python -m docx_generator.logsheet_generator
 """
 
 import json

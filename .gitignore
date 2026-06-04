@@ -25,7 +25,7 @@ Thumbs.db
 .DS_Store
 
 # Output files
-output/*.docx
+outputs/*.docx
 
 # User data files
 data/user_prefs.json

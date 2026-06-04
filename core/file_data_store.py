@@ -149,7 +149,7 @@ async def init_db():
                 all_prefs = json.loads(content) if content.strip() else {}
             owner_prefs = all_prefs.get(str(OWNER_ID), {})
             if owner_prefs:
-                from bot.strings import S
+                from bot.text_resources import S
                 with open(owner_prefs_path, 'w', encoding='utf-8') as f:
                     json.dump(owner_prefs, f, ensure_ascii=False, indent=2)
         except (FileNotFoundError, json.JSONDecodeError):

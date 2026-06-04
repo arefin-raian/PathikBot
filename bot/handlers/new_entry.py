@@ -10,9 +10,9 @@ from telegram.ext import (
 from datetime import datetime
 import calendar
 import os
-from core.database import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors
-from core.calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, get_petrol_status, get_mobil_status, calc_carry_forward
-from bot.keyboards import (
+from core.file_data_store import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors
+from core.expense_calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, get_petrol_status, get_mobil_status, calc_carry_forward
+from bot.inline_keyboards import (
     get_entry_type_keyboard, 
     get_yes_no_keyboard, 
     get_confirmation_keyboard,
@@ -25,7 +25,7 @@ from bot.keyboards import (
     MONTHS_BN_FULL,
     to_bn_number
 )
-from bot.strings import S
+from bot.text_resources import S
 from bot.auth import require_auth
 
 # States

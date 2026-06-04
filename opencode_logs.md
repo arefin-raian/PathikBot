@@ -989,12 +989,36 @@ Matching entries displayed + summary with BACK_TO_MENU
 
 ---
 
-### Fix: Three bugs in generate_logsheet.py output (2026-06-04)
+### Repository Refactoring (2026-06-04)
 
-**User reported 3 issues:**
-1. Distributor names included addresses (e.g., `মেসার্স মা বাবার দোয়া ট্রেডার্স (নাউতারা)`)
-2. Missing spaces: `১০লিটার`, `মাসিকমিটিং`, `সেন্টার|যাতায়াত`, `ভাড়া=৪৬০/-`
-3. Total row on Type 4 page populated header row instead of actual total row
+**Goal:** Clean up folder structure, rename files for clarity, delete unnecessary files, update all references.
+
+**Changes:**
+- `generate_logsheet.py` → `docx_generator/generate.py` (git detected rename automatically)
+- `generate_logsheets.py` → `scripts/generate_templates.py`
+- `populate_logsheet.py` → `scripts/populate_test_data.py`
+- Updated import in `bot/handlers/report.py`: `from docx_generator.generate import generate_for_user`
+- Fixed template paths in `scripts/generate_templates.py` and `scripts/populate_test_data.py` to resolve from project root using `Path(__file__).resolve().parent.parent`
+- Deleted `commands.txt`, `implementation_prompt.md`, root `Logsheet_Template.docx` (duplicate of `templates/Logsheet_Template.docx`)
+- Cleaned `.pytest_cache/` and `__pycache__/` directories
+- Updated `README.md` file tree to reflect new structure
+- Retained `docx_generator/generator.py` and `docx_generator/xml_utils.py` (dead code, kept for safety)
+
+**Result:** Clean, well-organized project layout:
+
+```
+PathikBot/
+├── bot/                # Telegram bot
+├── core/               # Business logic
+├── data/               # Data files
+├── docx_generator/     # DOCX generation modules
+├── scripts/            # Standalone utility scripts
+├── templates/          # Master DOCX template
+├── generated_logsheets/# Pre-generated template variants
+└── outputs/            # Generated reports
+```
+
+### Fix: Three bugs in generate_logsheet.py output (2026-06-04)
 
 **Fixes applied in `generate_logsheet.py`:**
 
@@ -1133,3 +1157,44 @@ Replaced the entire `docx_generator/bijoy_converter.py` (old buggy implementatio
 
 ### Commits
 - `654e2fc` — Replace bijoy_converter with external library converter
+
+---
+
+## Session: 2026-06-04 — File Rename Refactoring (10 files)
+
+### Task: Rename all generic/ambiguous filenames to purpose-specific names
+
+**User request:** "rename files so that if someone new looks at my project they instantly know what each file does."
+
+**Files renamed (10):**
+
+| # | Old Name | New Name | Rationale |
+|---|----------|----------|-----------|
+| 1 | `bot/strings.py` | `bot/text_resources.py` | "strings" is a programming term, not a purpose description |
+| 2 | `bot/strings.json` | `bot/text_resources.json` | Same as above |
+| 3 | `bot/keyboards.py` | `bot/inline_keyboards.py` | Specifies Telegram inline keyboards vs other keyboard types |
+| 4 | `core/calculations.py` | `core/expense_calculations.py` | "calculations" too generic for expense-specific math |
+| 5 | `core/database.py` | `core/file_data_store.py` | Not a SQL database — JSON file storage; name was misleading |
+| 6 | `docx_generator/char_map_applier.py` | `docx_generator/character_map_utils.py` | Awkward name; functions as a utility module |
+| 7 | `docx_generator/bijoy_mapping_engine.py` | `docx_generator/bijoy_conversion_rules.py` | Contains conversion maps/rules, not a running engine |
+| 8 | `docx_generator/xml_cell_formatter.py` | `docx_generator/docx_xml_helpers.py` | Does more than cell formatting (clone tables, page breaks) |
+| 9 | `scripts/generate_templates.py` | `scripts/template_variant_generator.py` | "generate" too generic |
+| 10 | `scripts/populate_test_data.py` | `scripts/test_data_generator.py` | "populate" vague; purpose is generating test data |
+
+**Fixes applied:**
+- Updated ALL import statements across 14 `.py` files referencing old names
+- Updated internal references (`text_resources.py` → `text_resources.json`; `bijoy_conversion_rules.py` → `character_map_utils`)
+- Updated `README.md` file tree, descriptions, and tech stack
+- Updated `.gitignore`: `output/*.docx` → `outputs/*.docx`
+- Deleted all 10 old files and all `__pycache__` directories
+- Restored `tests/` from git (was deleted in working tree)
+- Fixed stale test imports: `test_calculations.py` (`core.calculations` → `core.expense_calculations`), `test_user_mgmt.py` (`core.database` → `core.file_data_store`)
+
+**Verification:**
+- All 45 tests pass
+- All 8 renamed modules import correctly
+- All handler files import correctly
+- Bot starts cleanly (no syntax errors)
+
+**Commits:**
+- _(pending — this session's work not yet committed)_

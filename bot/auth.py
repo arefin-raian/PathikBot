@@ -1,5 +1,5 @@
-from core.database import is_registered, is_owner, OWNER_ID
-from bot.strings import S
+from core.file_data_store import is_registered, is_owner, OWNER_ID
+from bot.text_resources import S
 
 
 async def require_auth(update, context) -> bool:

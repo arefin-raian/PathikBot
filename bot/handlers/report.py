@@ -2,11 +2,11 @@ import os
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
-from core.database import get_entries
-from docx_generator.generate import generate_for_user
+from core.file_data_store import get_entries
+from docx_generator.logsheet_generator import generate_for_user
 from datetime import datetime
-from bot.keyboards import to_bn_number
-from bot.strings import S
+from bot.inline_keyboards import to_bn_number
+from bot.text_resources import S
 from bot.auth import require_auth
 
 async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):

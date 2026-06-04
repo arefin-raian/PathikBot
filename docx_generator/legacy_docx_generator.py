@@ -3,9 +3,9 @@ from docx import Document
 from datetime import datetime, date
 import calendar
 from dotenv import load_dotenv
-from core.calculations import calculate_summary
+from core.expense_calculations import calculate_summary
 from docx_generator.bijoy_converter import convert_to_bijoy
-from docx_generator.xml_utils import set_cell_text
+from docx_generator.docx_xml_helpers import set_cell_text
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 import copy

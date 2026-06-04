@@ -8,7 +8,7 @@ from telegram.ext import (
     CallbackQueryHandler, 
     filters
 )
-from bot.keyboards import (
+from bot.inline_keyboards import (
     get_settings_keyboard, 
     BACK_TO_MENU,
     to_bn_number, 
@@ -19,9 +19,9 @@ from bot.keyboards import (
     get_distributor_mgmt_keyboard,
     get_distributor_keyboard
 )
-from bot.strings import S
+from bot.text_resources import S
 from bot.auth import require_auth
-from core.database import (
+from core.file_data_store import (
     get_entries, 
     delete_entry, 
     update_entry_and_cascade, 
@@ -30,7 +30,7 @@ from core.database import (
     add_distributor,
     remove_distributor
 )
-from core.calculations import calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost
+from core.expense_calculations import calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost
 from datetime import datetime
 
 # States for settings and edit/delete
@@ -111,7 +111,7 @@ async def start_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     
     if field == "dist":
-        from bot.keyboards import get_distributor_keyboard
+        from bot.inline_keyboards import get_distributor_keyboard
         context.user_data['selected_dist_indices'] = []
         await query.edit_message_text(S('settings.edit_field_dist_prompt'), reply_markup=get_distributor_keyboard())
         return EDITING_DISTRIBUTORS

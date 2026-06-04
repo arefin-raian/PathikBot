@@ -9,7 +9,7 @@ from unittest.mock import patch, mock_open, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from core.database import (
+from core.file_data_store import (
     OWNER_ID, load_users, save_users, is_registered,
     add_user, remove_user, get_all_users, init_user_storage,
     is_owner, init_db, _read_entries, _write_entries,

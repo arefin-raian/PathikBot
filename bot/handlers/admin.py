@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from bot.strings import S
-from core.database import OWNER_ID, add_user, remove_user, get_all_users
+from bot.text_resources import S
+from core.file_data_store import OWNER_ID, add_user, remove_user, get_all_users
 
 
 async def owner_only(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:

@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from bot.keyboards import get_main_menu, BACK_TO_MENU, MONTHS_BN_FULL, to_bn_number
-from bot.strings import S
+from bot.inline_keyboards import get_main_menu, BACK_TO_MENU, MONTHS_BN_FULL, to_bn_number
+from bot.text_resources import S
 from bot.auth import require_auth
 from datetime import datetime
 

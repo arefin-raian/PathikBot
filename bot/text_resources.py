@@ -5,7 +5,7 @@ _strings = None
 
 def _load():
     global _strings
-    path = os.path.join(os.path.dirname(__file__), 'strings.json')
+    path = os.path.join(os.path.dirname(__file__), 'text_resources.json')
     with open(path, 'r', encoding='utf-8') as f:
         _strings = json.load(f)
 
@@ -22,7 +22,7 @@ def S(key, **kwargs):
     return val
 
 def bot_commands():
-    """Return list of BotCommand tuples from strings.json."""
+    """Return list of BotCommand tuples from text_resources.json."""
     if _strings is None:
         _load()
     cmds = []

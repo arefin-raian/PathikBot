@@ -1,7 +1,7 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 import calendar
 from datetime import datetime
-from bot.strings import S
+from bot.text_resources import S
 
 MONTHS_BN_FULL = {
     1: "জানুয়ারি", 2: "ফেব্রুয়ারি", 3: "মার্চ", 4: "এপ্রিল",

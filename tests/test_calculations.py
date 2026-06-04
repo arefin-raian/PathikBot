@@ -4,7 +4,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from core.calculations import (
+from core.expense_calculations import (
     _refill_status, calc_carry_forward,
     get_petrol_status, get_mobil_status,
     PETROL_THRESHOLD_KM, MOBIL_THRESHOLD_KM
