@@ -1245,3 +1245,32 @@ Replaced the entire `docx_generator/bijoy_converter.py` (old buggy implementatio
 - `bot/handlers/report.py` — PDF conversion flow, clean up unused variable
 - `bot/text_resources.json` — generating_pdf + pdf_error strings
 - `opencode_logs.md` — this log
+
+---
+
+## Session: 2026-06-04 — LibreOffice → docx2pdf (MS Word) for PDF conversion
+
+### Problem
+1. **Speed**: LibreOffice took 30-60s first launch, 3-5s subsequent conversions
+2. **Layout**: LibreOffice's DOCX renderer doesn't match Word — header rows split across pages, layout not preserved
+
+### Fix
+Replaced `subprocess.run([soffice.exe, --headless, --convert-to, pdf, ...])` with `docx2pdf.convert()` (which wraps `win32com.client` / MS Word automation):
+- **Speed**: 1st conversion 4.5s (Word startup), subsequent 1.5s (Word cached)
+- **Layout**: Pixel-perfect — Word's own rendering engine produces identical output to the DOCX
+- No visible Word window (runs headless via win32com)
+
+**`bot/handlers/report.py`:**
+- Removed `subprocess` import and `SOFFICE` constant
+- Added `asyncio` import (for `run_in_executor`)
+- `_convert_to_pdf(docx_path, pdf_path)` — sync function with `from docx2pdf import convert`
+- Calls via `loop.run_in_executor(None, _convert_to_pdf, ...)` to avoid blocking the event loop
+- Added at module level (not async, runs in thread pool)
+
+**Test results:**
+- Conversion speed: 4.5s → 1.5s (second call)
+- Layout: Word-native rendering, identical to DOCX
+- All 45 tests pass
+
+**Files changed:**
+- `bot/handlers/report.py` — LibreOffice → docx2pdf conversion

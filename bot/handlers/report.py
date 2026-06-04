@@ -1,5 +1,4 @@
-import os
-import subprocess
+import asyncio
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -9,8 +8,6 @@ from datetime import datetime
 from bot.inline_keyboards import to_bn_number
 from bot.text_resources import S
 from bot.auth import require_auth
-
-SOFFICE = r"C:\Program Files\LibreOffice\program\soffice.exe"
 
 async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await require_auth(update, context): return
@@ -70,13 +67,10 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             pdf_status = await update.message.reply_text(progress_msg, parse_mode='HTML')
 
         try:
-            result = subprocess.run(
-                [SOFFICE, "--headless", "--convert-to", "pdf",
-                 "--outdir", str(pdf_path.parent), str(docx_path)],
-                capture_output=True, text=True, timeout=120
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                None, _convert_to_pdf, str(docx_path), str(pdf_path)
             )
-            if result.returncode != 0 or not pdf_path.exists():
-                raise RuntimeError(result.stderr.strip() or f"soffice exited with code {result.returncode}")
 
             await pdf_status.delete()
             with pdf_path.open('rb') as f:
@@ -99,3 +93,8 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             await query.edit_message_text(error_msg, parse_mode='HTML')
         else:
             await update.message.reply_text(error_msg, parse_mode='HTML')
+
+
+def _convert_to_pdf(docx_path: str, pdf_path: str) -> None:
+    from docx2pdf import convert
+    convert(docx_path, pdf_path)
