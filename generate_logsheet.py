@@ -330,9 +330,9 @@ def _convert_entry(entry: dict, serial: int) -> dict:
     if entry['entry_type'] == 'MONTHLY_MEETING':
         venue_b = convert_to_bijoy(entry.get('venue', ''))
         fee = int(entry.get('transport_fee', 0))
+        transport_b = convert_to_bijoy(f"যাতায়াত ও আসা যাওয়ার ভাড়া = {fee}/-")
         result['distributors_runs'] = [
-            f"{venue_b} |",
-            convert_to_bijoy(f"যাতায়াত ও আসা যাওয়ার ভাড়া = {fee}/-    "),
+            f"{venue_b}| {transport_b}",
         ]
         result['manager_bijoy'] = "gvwmK wgwUs"
     else:
@@ -340,7 +340,7 @@ def _convert_entry(entry: dict, serial: int) -> dict:
         bijoy_runs = []
         for name in raw_names:
             clean = name.split("(")[0].split("（")[0].split("{")[0].strip()
-            bijoy_runs.append(convert_to_bijoy(clean))
+            bijoy_runs.append(convert_to_bijoy(clean) + "|")
         result['distributors_runs'] = bijoy_runs
 
         mgr = entry.get('others_designation', '')

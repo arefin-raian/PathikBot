@@ -136,17 +136,7 @@ class BijoyConverter:
         # Post-processing fixes
         result = result.replace("q‡", "‡q")
         result = result.replace("o‡", "‡o")
-        
-        # Reph position fix (Reph should come after the character it sits on in ASCII)
-        chars = list(result)
-        i = 0
-        while i < len(chars) - 1:
-            if chars[i] == '©': # Reph
-                chars[i], chars[i+1] = chars[i+1], chars[i]
-                i += 2
-            else:
-                i += 1
-        return "".join(chars)
+        return result
 
 # Helper function for external use
 def convert_to_bijoy(text):
