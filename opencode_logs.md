@@ -986,3 +986,35 @@ Matching entries displayed + summary with BACK_TO_MENU
 - Some templates (e.g., `3HE_3PET4_0EST.docx`) already retain namespace declarations after lxml serialization because they have elements using those prefixes
 - `_fix_namespace_header` originally always injected all 4 namespaces, causing "Attribute xmlns:wp14 redefined" validation error on such templates
 - Fixed by checking each namespace declaration string against the serialized byte content — only injects missing ones
+
+---
+
+### Fix: Three bugs in generate_logsheet.py output (2026-06-04)
+
+**User reported 3 issues:**
+1. Distributor names included addresses (e.g., `মেসার্স মা বাবার দোয়া ট্রেডার্স (নাউতারা)`)
+2. Missing spaces: `১০লিটার`, `মাসিকমিটিং`, `সেন্টার|যাতায়াত`, `ভাড়া=৪৬০/-`
+3. Total row on Type 4 page populated header row instead of actual total row
+
+**Fixes applied in `generate_logsheet.py`:**
+
+**Fix 1: Distributor name stripping**
+- `_convert_entry()`: Before Bijoy conversion, split on `(` to remove parenthesized addresses
+- `clean = name.split("(")[0].strip()` — strips everything from `(` onward
+- Added space before pipe separator: `" |"` instead of `"|"`
+
+**Fix 2: Missing spaces**
+- Petrol liters: `["wjUvi"]` → `[" wjUvi"]` (leading space)
+- Meeting type cell 11: `set_runs(cells[11], ["gvwmK", "wgwUs"])` → `set_cell(cells[11], "gvwmK wgwUs")` (single run with space between words)
+- Meeting venue pipe: `f"{venue_b}|"` → `f"{venue_b} |"` (space before pipe)
+- Meeting transport: `আসাযাওয়ার ভাড়া={fee}` → `আসা যাওয়ার ভাড়া = {fee}` (space after আসা, spaces around `=`)
+- Total row km/liters: `["wK:wg:"]` → `[" wK:wg:"]`, `["wjUvi"]` → `[" wjUvi"]`
+
+**Fix 3: Total row detection — searched wrong table/matched header instead**
+- **Root cause:** `get_total_row(data_tbls[-1])` only searched the LAST data table. The 3HE_3PET4_0EST template has 3 data tables (Tbl0, Tbl1, Tbl2) for 6 entries. Tbl2 has only a header row + dummy rows — NO total row at all. Tbl1 Row 5 has the actual total row (`‡gvU=`). The detection required `gvU` + `=` + `wK:wg` — but Tbl2's header row XML contained all three (`.` was present in XML attributes like `w:gridSpan="2"`), so `get_total_row(data_tbls[-1])` returned Tbl2 Row 0 (header) instead of finding none.
+- **Fix:**
+  1. `get_total_row(tbl, skip=2)` — added `skip` parameter to bypass header rows; removed `wK:wg` requirement
+  2. `get_total_row_across(data_tbls)` — new function iterating ALL data tables in reverse, finds first table with a valid total row
+  3. `generate_for_user()` calls `get_total_row_across(data_tbls)` instead of `get_total_row(data_tbls[-1])`
+
+**Verified:** Generated DOCX passes `validate_docx()`. Total row correctly shows `‡gvU=402 wK:wg:10 wjUvi1,407/-560/-1,000/-3,427/`. Distributor names clean without addresses. All spacing fixes confirmed.

@@ -100,11 +100,21 @@ def is_summary_table(tbl):
     return "†gvU Uz¨i msL¨v:" in etree.tostring(tbl, encoding="unicode")
 
 
-def get_total_row(tbl):
-    for row in tbl.findall(f"{{{W}}}tr"):
+def get_total_row(tbl, skip=2):
+    rows = tbl.findall(f"{{{W}}}tr")
+    for row in rows[skip:]:
         x = etree.tostring(row, encoding="unicode")
-        if ("‡gvU" in x or "†gvU" in x) and "=" in x and "wK:wg" in x:
+        if ("‡gvU" in x or "†gvU" in x) and "=" in x:
             return row
+    return None
+
+
+def get_total_row_across(data_tbls):
+    for ti in range(len(data_tbls) - 1, -1, -1):
+        skip = 5 if ti == 0 else 2
+        tr = get_total_row(data_tbls[ti], skip)
+        if tr is not None:
+            return tr
     return None
 
 
@@ -161,7 +171,7 @@ def fill_row(row, entry: dict):
     set_cell(cells[5],  "00" if entry['total_km'] == 0 else str(entry['total_km']))
 
     if entry.get('petrol_liters', 0) > 0:
-        set_runs(cells[6], [str(int(entry['petrol_liters'])), "wjUvi"])
+        set_runs(cells[6], [str(int(entry['petrol_liters'])), " wjUvi"])
         set_cell(cells[7], fmt_taka(entry['petrol_cost']))
 
     set_cell(cells[8],  fmt_taka(entry.get('mobil_cost', 0)))
@@ -171,7 +181,7 @@ def fill_row(row, entry: dict):
     mb = entry.get('manager_bijoy')
     if mb:
         if entry['entry_type'] == 'MONTHLY_MEETING':
-            set_runs(cells[11], ["gvwmK", "wgwUs"])
+            set_cell(cells[11], "gvwmK wgwUs")
         else:
             set_cell(cells[11], mb)
 
@@ -187,16 +197,16 @@ def fill_total_row(total_row, entries):
     grand     = total_pet + total_mob + total_da + total_oth
 
     if len(cells) >= 12:
-        set_runs(cells[5],  [str(total_km), "wK:wg:"])
-        set_runs(cells[6],  [str(int(total_l)), "wjUvi"])
+        set_runs(cells[5],  [str(total_km), " wK:wg:"])
+        set_runs(cells[6],  [str(int(total_l)), " wjUvi"])
         set_cell(cells[7],  fmt_taka(total_pet))
         set_cell(cells[8],  fmt_taka(total_mob))
         set_cell(cells[9],  fmt_taka(total_da))
         set_cell(cells[10], f"{grand:,}/")
     else:
-        set_runs(cells[4], [str(total_km), "wK:wg:"])
+        set_runs(cells[4], [str(total_km), " wK:wg:"])
         lparts = []
-        if total_l:  lparts += [str(int(total_l)), "wjUvi"]
+        if total_l:  lparts += [str(int(total_l)), " wjUvi"]
         ps = fmt_taka(total_pet)
         if ps:       lparts.append(ps)
         if lparts:   set_runs(cells[5], lparts)
@@ -299,15 +309,16 @@ def _convert_entry(entry: dict, serial: int) -> dict:
         venue_b = convert_to_bijoy(entry.get('venue', ''))
         fee = int(entry.get('transport_fee', 0))
         result['distributors_runs'] = [
-            f"{venue_b}|",
-            convert_to_bijoy(f"যাতায়াত ও আসাযাওয়ার ভাড়া={fee}/-"),
+            f"{venue_b} |",
+            convert_to_bijoy(f"যাতায়াত ও আসা যাওয়ার ভাড়া = {fee}/-    "),
         ]
         result['manager_bijoy'] = "gvwmK wgwUs"
     else:
         raw_names = entry.get('distributors_raw', [])
         bijoy_runs = []
         for name in raw_names:
-            bijoy_runs.append(convert_to_bijoy(name) + "|")
+            clean = name.split("(")[0].split("（")[0].split("{")[0].strip()
+            bijoy_runs.append(convert_to_bijoy(clean) + " |")
         result['distributors_runs'] = bijoy_runs
 
         mgr = entry.get('others_designation', '')
@@ -369,7 +380,7 @@ def generate_for_user(
                 if i < len(data_rows):
                     fill_row(data_rows[i], entry)
 
-        total_row = get_total_row(data_tbls[-1])
+        total_row = get_total_row_across(data_tbls)
         if total_row is not None:
             fill_total_row(total_row, conv_entries)
 
