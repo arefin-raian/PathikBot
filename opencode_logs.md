@@ -1018,3 +1018,31 @@ Matching entries displayed + summary with BACK_TO_MENU
   3. `generate_for_user()` calls `get_total_row_across(data_tbls)` instead of `get_total_row(data_tbls[-1])`
 
 **Verified:** Generated DOCX passes `validate_docx()`. Total row correctly shows `‡gvU=402 wK:wg:10 wjUvi1,407/-560/-1,000/-3,427/`. Distributor names clean without addresses. All spacing fixes confirmed.
+
+## 2026-06-04 — Round 2 fixes: Bijoy reph layout, line breaks, spacing, /- formatting, total row detection, data row leak
+
+**Fix 1: Bijoy `re_arrange_unicode_for_bijoy` — reph double-detection bug**
+- **Root cause:** After moving a reph (র্ → ©), the `i` pointer was set to `i += j + az` which skips past the consonant group but NOT the reph itself. The halant of the just-moved reph would be re-detected as a new reph, causing the same reph to be shuffle-moved 3–4 times. This corrupted later words (e.g., `মেসার্স` → `‡gmvm` missing ©; `ট্রেডার্স` → `‡UªWvm©©` double ©; `এন্টারপ্রাইজ` → `G‡UvicªvBR` with wrong character).
+- **Fix:** Changed to `i += j + az + 1` to skip past the entire reph (2 chars) + consonant group in one jump.
+
+**Fix 2: Distributor names on one line joined by `|` instead of each on own line**
+- **Root cause:** `set_runs()` puts multiple `<w:r>` elements inside one `<w:p>`; they render as one line. `_convert_entry` appended `" |"` to each name.
+- **Fix:** Added `make_paragraph()` + `set_multi_paragraph_cell()` — creates one `<w:p>` per distributor. Removed `|` separator from `_convert_entry`.
+
+**Fix 3: Separator spacing — space before `|` but not after**
+- **Root cause:** `f"{venue_b} |"` has `" |"` (space before pipe). When joined as runs, the pipe had leading space but no trailing space.
+- **Fix:** Mooted by Fix 2 — no `|` needed when each name is on its own line. MONTHLY_MEETING venue still keeps trailing `|` as decorative, now on its own paragraph.
+
+**Fix 4: Total row grand value missing `/-` suffix**
+- **Root cause:** `fill_total_row` used `f"{grand:,}/"` instead of `f"{grand:,}/-"`. Individual values used `fmt_taka()` which correctly has `/`, but total cells hard-coded the format.
+- **Fix:** Changed both branches (≥12 and <12 cells) to `f"{grand:,}/-"`.
+
+**Fix 5: Total row detection — found total row on empty page instead of last data page**
+- **Root cause:** `get_total_row_across` searched the very last data table first. For PET=4 templates, the last data table is an empty page that still has a total row. The correct total row was on the preceding data page.
+- **Fix:** Added `max_idx` parameter. `generate_for_user` computes the last page with data entries (`last_data_page`) and limits the search to that index. Falls back to full search if no match.
+
+**Fix 6: `get_data_rows` included total row as data row**
+- **Root cause:** The total row exclusion condition required `("‡gvU" in x or "†gvU" in x) and "=" in x and "wK:wg" in x`. Total rows have `‡gvU=` but NOT `wK:wg` (km label), so they leaked into `data_rows`. When PET=4 and all 4 data rows were filled, the last entry was written to the total row, corrupting it.
+- **Fix:** Removed the `and "wK:wg" in x` condition. Any row with `‡gvU`/`†gvU` + `=` is excluded from data rows.
+
+**Verified:** All 30 template `.docx` files pass `get_total_row_across`. `get_data_rows` excludes all total and header rows. Bijoy converter output correct for all distributor names. Source code checks pass.
