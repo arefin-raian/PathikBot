@@ -21,6 +21,7 @@ from bot.inline_keyboards import (
 )
 from bot.text_resources import S
 from bot.auth import require_auth
+from core.message_store import record_message
 from bot.handlers.new_entry import schedule_message_cleanup
 from core.audit_logger import log_event
 from core.file_data_store import (
@@ -54,9 +55,11 @@ CONFIRM_RECALC = 12
 
 async def edit_delete_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await require_auth(update, context): return ConversationHandler.END
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     await query.edit_message_text(S('settings.edit_delete_prompt'), reply_markup=get_edit_delete_keyboard())
+    await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
 
 async def start_edit_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await require_auth(update, context): return ConversationHandler.END
@@ -67,22 +70,27 @@ async def start_edit_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     entries = await get_entries(user_id)
     if not entries:
-        msg = S('settings.no_entries')
+        no_entries_text = S('settings.no_entries')
         if query:
-            await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
+            await query.edit_message_text(no_entries_text, reply_markup=BACK_TO_MENU)
+            await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         else:
-            await update.message.reply_text(msg)
+            sent_msg = await update.message.reply_text(no_entries_text)
+            await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
         return ConversationHandler.END
         
-    msg = S('settings.edit_prompt')
+    edit_prompt_msg = S('settings.edit_prompt')
     kb = get_entries_selection_keyboard(entries[-15:], "edit", show_back=bool(query))
     if query:
-        await query.edit_message_text(msg, reply_markup=kb)
+        await query.edit_message_text(edit_prompt_msg, reply_markup=kb)
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
     else:
-        await update.message.reply_text(msg, reply_markup=kb)
+        sent_msg = await update.message.reply_text(edit_prompt_msg, reply_markup=kb)
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
     return CHOOSING_ENTRY_TO_EDIT
 
 async def handle_edit_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -94,9 +102,11 @@ async def handle_edit_selection(update: Update, context: ContextTypes.DEFAULT_TY
         entry_id = int(query.data.split("_")[1])
         context.user_data['editing_id'] = entry_id
         await query.edit_message_text(S('settings.edit_field_prompt'), reply_markup=get_edit_fields_keyboard(entry_id))
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return CHOOSING_FIELD_TO_EDIT
 
 async def start_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -121,9 +131,11 @@ async def start_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from bot.inline_keyboards import get_distributor_keyboard
         context.user_data['selected_dist_indices'] = []
         await query.edit_message_text(S('settings.edit_field_dist_prompt'), reply_markup=get_distributor_keyboard())
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return EDITING_DISTRIBUTORS
     
     await query.edit_message_text(prompts[field])
+    await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
     return ENTERING_NEW_VALUE
 
 async def handle_edit_distributors(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -142,35 +154,43 @@ async def handle_edit_distributors(update: Update, context: ContextTypes.DEFAULT
             selected.append(idx)
         context.user_data['selected_dist_indices'] = selected
         await query.edit_message_reply_markup(reply_markup=get_distributor_keyboard(dists, selected))
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return EDITING_DISTRIBUTORS
     elif query.data == "dist_done":
         names = [dists[i] for i in selected]
         entry_id = context.user_data['editing_id']
         await update_entry_and_cascade(user_id, entry_id, {'distributors_raw': names})
         await query.edit_message_text(S('settings.edit_dist_success'))
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return await start_edit_entry(update, context)
     elif query.data == "back":
         await query.edit_message_text(S('settings.edit_field_prompt'), reply_markup=get_edit_fields_keyboard(context.user_data['editing_id']))
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return CHOOSING_FIELD_TO_EDIT
     elif query.data == "cancel":
         await query.edit_message_text(S('common.cancelled_plain'), reply_markup=BACK_TO_MENU)
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return ConversationHandler.END
 
 async def distributor_mgmt_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await require_auth(update, context): return ConversationHandler.END
+    user_id = update.effective_user.id
     query = update.callback_query
     if query: await query.answer()
     
     dists = await get_distributors()
-    msg = S('settings.dist_mgmt_title')
+    dist_mgmt_text = S('settings.dist_mgmt_title')
     
     if query:
-        await query.edit_message_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='HTML')
+        await query.edit_message_text(dist_mgmt_text, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='HTML')
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
     else:
-        await update.message.reply_text(msg, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='HTML')
+        sent_msg = await update.message.reply_text(dist_mgmt_text, reply_markup=get_distributor_mgmt_keyboard(dists), parse_mode='HTML')
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
     return MANAGING_DISTRIBUTORS
 
 async def handle_distributor_mgmt_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -179,6 +199,7 @@ async def handle_distributor_mgmt_callback(update: Update, context: ContextTypes
         
     if query.data == "add_distributor":
         await query.edit_message_text(S('settings.dist_add_prompt'))
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return ADDING_DISTRIBUTOR
         
     if query.data.startswith("remove_dist_"):
@@ -186,21 +207,25 @@ async def handle_distributor_mgmt_callback(update: Update, context: ContextTypes
         dists = await get_distributors()
         if idx < 0 or idx >= len(dists):
             await query.edit_message_text(S('settings.dist_not_found'), reply_markup=get_distributor_mgmt_keyboard(dists))
+            await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
             return MANAGING_DISTRIBUTORS
         name = dists[idx]
         await remove_distributor(name)
         dists = await get_distributors()
         await query.edit_message_text(S('settings.dist_removed', name=name), reply_markup=get_distributor_mgmt_keyboard(dists))
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return MANAGING_DISTRIBUTORS
         
     return MANAGING_DISTRIBUTORS
 
 async def handle_new_distributor_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     name = update.message.text.strip()
     if name:
         await add_distributor(name)
         dists = await get_distributors()
-        await update.message.reply_text(S('settings.dist_added', name=name), reply_markup=get_distributor_mgmt_keyboard(dists))
+        sent_msg = await update.message.reply_text(S('settings.dist_added', name=name), reply_markup=get_distributor_mgmt_keyboard(dists))
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
         return MANAGING_DISTRIBUTORS
     return ADDING_DISTRIBUTOR
 
@@ -214,7 +239,8 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         entry = await get_entry_by_id(user_id, entry_id)
         if not entry:
-            await update.message.reply_text(S('settings.entry_not_found'), reply_markup=BACK_TO_MENU)
+            sent_msg = await update.message.reply_text(S('settings.entry_not_found'), reply_markup=BACK_TO_MENU)
+            await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
             return ConversationHandler.END
             
         prefs = await get_user_prefs(user_id)
@@ -263,17 +289,20 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         distance_fields = {'km', 'start', 'end'}
         if field in distance_fields:
             context.user_data['_recalc_entry_id'] = entry_id
-            await update.message.reply_text(
+            sent_msg = await update.message.reply_text(
                 S('settings.recalc_prompt'),
                 reply_markup=get_yes_no_keyboard('recalc')
             )
+            await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
             return CONFIRM_RECALC
         
-        await update.message.reply_text(S('settings.update_success'))
+        sent_msg = await update.message.reply_text(S('settings.update_success'))
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
         return await start_edit_entry(update, context)
         
     except ValueError:
-        await update.message.reply_text(S('new_entry.error_invalid_number'))
+        sent_msg = await update.message.reply_text(S('new_entry.error_invalid_number'))
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
         return ENTERING_NEW_VALUE
 
 
@@ -284,6 +313,7 @@ async def handle_recalc_confirm(update: Update, context: ContextTypes.DEFAULT_TY
     
     if query.data == "recalc_no":
         await query.edit_message_text(S('settings.recalc_skipped'))
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return await start_edit_entry(update, context)
     
     if query.data == "recalc_yes":
@@ -291,6 +321,7 @@ async def handle_recalc_confirm(update: Update, context: ContextTypes.DEFAULT_TY
         affected_entries = await get_entries(user_id)
         if not affected_entries:
             await query.edit_message_text(S('settings.recalc_done'))
+            await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
             return await start_edit_entry(update, context)
         
         sorted_entries = sorted(affected_entries, key=lambda e: e['date'])
@@ -342,6 +373,7 @@ async def handle_recalc_confirm(update: Update, context: ContextTypes.DEFAULT_TY
             )
         
         await query.edit_message_text(S('settings.recalc_done'))
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return await start_edit_entry(update, context)
     
     return await start_edit_entry(update, context)
@@ -355,22 +387,27 @@ async def start_delete_entry(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     entries = await get_entries(user_id)
     if not entries:
-        msg = S('settings.no_entries')
+        no_entries_text = S('settings.no_entries')
         if query:
-            await query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
+            await query.edit_message_text(no_entries_text, reply_markup=BACK_TO_MENU)
+            await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         else:
-            await update.message.reply_text(msg)
+            sent_msg = await update.message.reply_text(no_entries_text)
+            await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
         return ConversationHandler.END
         
-    msg = S('settings.delete_prompt')
+    delete_prompt_text = S('settings.delete_prompt')
     kb = get_entries_selection_keyboard(entries[-15:], "delete", show_back=bool(query))
     if query:
-        await query.edit_message_text(msg, reply_markup=kb)
+        await query.edit_message_text(delete_prompt_text, reply_markup=kb)
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
     else:
-        await update.message.reply_text(msg, reply_markup=kb)
+        sent_msg = await update.message.reply_text(delete_prompt_text, reply_markup=kb)
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
     return CHOOSING_ENTRY_TO_DELETE
 
 async def handle_delete_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -382,6 +419,7 @@ async def handle_delete_selection(update: Update, context: ContextTypes.DEFAULT_
     context.user_data['deleting_id'] = entry_id
     
     await query.edit_message_text(S('settings.delete_confirm_prompt'), reply_markup=get_confirmation_keyboard('delete'))
+    await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
     return CONFIRM_DELETE
 
 async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -407,20 +445,25 @@ async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_
             ]
         )
         await query.edit_message_text(S('settings.delete_success'))
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return await start_delete_entry(update, context)
     else:
         await query.edit_message_text(S('common.cancelled_plain'), reply_markup=BACK_TO_MENU)
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         
     return ConversationHandler.END
 
 async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     context.user_data.pop('_settings_visited', None)
     schedule_message_cleanup(context, update.effective_chat.id)
-    msg = S('settings.cancelled')
+    cancel_text = S('settings.cancelled')
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
+        await update.callback_query.edit_message_text(cancel_text, reply_markup=BACK_TO_MENU)
+        await record_message(user_id, update.callback_query.message.chat_id, update.callback_query.message.message_id, 'temporary')
     else:
-        await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
+        sent_msg = await update.message.reply_text(cancel_text, reply_markup=BACK_TO_MENU)
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
     return ConversationHandler.END
 
 def get_edit_delete_conv_handler():
@@ -473,8 +516,10 @@ async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = get_settings_keyboard(show_back_to_menu=not first_cmd_entry)
     if query:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode='HTML')
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
     else:
-        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
+        sent_msg = await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='HTML')
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
     return SHOWING_SETTINGS
 
 async def handle_settings_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -498,6 +543,7 @@ async def handle_settings_navigation(update: Update, context: ContextTypes.DEFAU
 
 async def start_setting_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await require_auth(update, context): return ConversationHandler.END
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -512,6 +558,7 @@ async def start_setting_change(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data['changing_setting'] = prefs_key
     
     await query.edit_message_text(prompt)
+    await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
     return SETTING_VALUE
 
 async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -531,16 +578,18 @@ async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYP
         details=f"{setting_labels.get(key, key)} changed",
         changes=[f"<b>{old_val}</b> \u2192 <b>{value}</b>"]
     )
-    await update.message.reply_text(S('settings.setting_changed', value=value), parse_mode='HTML')
+    sent_msg = await update.message.reply_text(S('settings.setting_changed', value=value), parse_mode='HTML')
+    await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
     
     if key in ('petrol_price', 'mobil_price'):
         context.user_data['_price_key'] = key
         context.user_data['_price_value'] = value
-        await update.message.reply_text(
+        sent_msg2 = await update.message.reply_text(
             S('settings.update_old_prompt'),
             reply_markup=get_yes_no_keyboard('update_old'),
             parse_mode='HTML'
         )
+        await record_message(user_id, sent_msg2.chat_id, sent_msg2.message_id, 'temporary')
         return CONFIRM_UPDATE_OLD
     
     return await settings_handler(update, context)
@@ -595,6 +644,7 @@ async def handle_update_old_confirm(update: Update, context: ContextTypes.DEFAUL
         )
         
         await query.edit_message_text(S('settings.update_old_updated'), parse_mode='HTML')
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
     
     return await settings_handler(update, context)
 

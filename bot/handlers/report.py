@@ -9,7 +9,7 @@ from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
 from core.file_data_store import get_entries
-from core.message_store import record_file_message
+from core.message_store import record_message, record_file_message
 from core.audit_logger import log_event
 from docx_generator.logsheet_generator import generate_for_user
 from datetime import datetime
@@ -155,6 +155,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                 caption=caption, parse_mode='HTML'
             )
         await record_file_message(user_id, sent.chat_id, sent.message_id, 'docx', month, year, docx_path.name)
+        await record_message(user_id, sent.chat_id, sent.message_id, 'temporary')
 
         # PDF conversion (toggle with PDF_ENABLED env var)
         if PDF_ENABLED:
@@ -165,9 +166,14 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                 pdf_status = await query.message.reply_text(gen_pdf_msg, parse_mode='HTML')
             else:
                 pdf_status = await update.message.reply_text(gen_pdf_msg, parse_mode='HTML')
+            await record_message(user_id, pdf_status.chat_id, pdf_status.message_id, 'temporary')
             try:
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(None, _convert_to_pdf, str(docx_path), str(pdf_path))
+                try:
+                    await context.bot.delete_message(chat_id=pdf_status.chat_id, message_id=pdf_status.message_id)
+                except Exception:
+                    pass
                 pdf_caption = "\n".join([
                     f"\U0001f4d5 <b>Logsheet — {month}/{year}</b>",
                     f"\U0001f550 Generated: <code>{now_str}</code>",
@@ -177,15 +183,17 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                     f"\U0001f4d5 Type: PDF",
                 ])
                 if query:
-                    await query.message.reply_document(
+                    pdf_sent = await query.message.reply_document(
                         document=pdf_path.open('rb'), filename=pdf_path.name,
                         caption=pdf_caption, parse_mode='HTML'
                     )
                 else:
-                    await update.message.reply_document(
+                    pdf_sent = await update.message.reply_document(
                         document=pdf_path.open('rb'), filename=pdf_path.name,
                         caption=pdf_caption, parse_mode='HTML'
                     )
+                await record_file_message(user_id, pdf_sent.chat_id, pdf_sent.message_id, 'pdf', month, year, pdf_path.name)
+                await record_message(user_id, pdf_sent.chat_id, pdf_sent.message_id, 'temporary')
                 await log_event(context, 'pdf_generated',
                     user_id=user_id, username=user.full_name,
                     details=f"PDF for {month}/{year} generated",

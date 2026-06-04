@@ -2,6 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from core.file_data_store import get_entries, get_user_prefs, set_user_prefs
 from core.expense_calculations import calculate_summary
+from core.message_store import record_message
 from bot.inline_keyboards import to_bn_number, BACK_TO_MENU, FILTER_KEYS, get_list_entries_choice_keyboard, get_filter_checkboxes_keyboard
 from bot.text_resources import S
 from bot.auth import require_auth
@@ -21,7 +22,7 @@ def matches_filter(entry, selected):
         result = result or bool(entry.get('others_designation', ''))
     return result
 
-async def send_entry_message(context, chat_id, i, e, first_entry=False, query=None):
+async def send_entry_message(context, chat_id, user_id, i, e, first_entry=False, query=None):
     dt = datetime.strptime(e['date'], '%Y-%m-%d')
     dt_str = to_bn_number(dt.strftime('%d/%m/%y'))
     if e['entry_type'] == 'REGULAR':
@@ -63,9 +64,10 @@ async def send_entry_message(context, chat_id, i, e, first_entry=False, query=No
     if first_entry and query:
         await query.edit_message_text(text, parse_mode='HTML')
     else:
-        await context.bot.send_message(chat_id=chat_id, text=text, parse_mode='HTML')
+        msg = await context.bot.send_message(chat_id=chat_id, text=text, parse_mode='HTML')
+        await record_message(user_id, chat_id, msg.message_id, 'temporary')
 
-async def send_summary_message(context, chat_id, entries, reply_markup=None):
+async def send_summary_message(context, chat_id, user_id, entries, reply_markup=None):
     summary = calculate_summary(entries)
     text = (
         f"{S('summary.summary_header')}\n"
@@ -81,10 +83,11 @@ async def send_summary_message(context, chat_id, entries, reply_markup=None):
 
 async def display_entries(update, context, entries, query=None):
     chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
     for i, e in enumerate(entries, 1):
-        await send_entry_message(context, chat_id, i, e, first_entry=(i == 1), query=query)
+        await send_entry_message(context, chat_id, user_id, i, e, first_entry=(i == 1), query=query)
     reply_markup = BACK_TO_MENU if query else None
-    await send_summary_message(context, chat_id, entries, reply_markup=reply_markup)
+    await send_summary_message(context, chat_id, user_id, entries, reply_markup=reply_markup)
 
 async def show_filter_choice(update, context, query=None):
     user_id = update.effective_user.id

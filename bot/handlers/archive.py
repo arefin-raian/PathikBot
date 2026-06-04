@@ -4,6 +4,7 @@ from core.file_data_store import get_entries
 from bot.inline_keyboards import MONTHS_BN_FULL, to_bn_number, BACK_TO_MENU
 from bot.text_resources import S
 from bot.auth import require_auth
+from core.message_store import record_message
 from datetime import datetime
 
 # States
@@ -15,11 +16,13 @@ async def months_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     entries = await get_entries(user_id)
     if not entries:
-        msg = S('archive.no_entries')
+        no_entries_msg = S('archive.no_entries')
         if update.callback_query:
-            await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
+            await update.callback_query.edit_message_text(no_entries_msg, reply_markup=BACK_TO_MENU)
+            await record_message(user_id, update.callback_query.message.chat_id, update.callback_query.message.message_id, 'temporary')
         else:
-            await update.message.reply_text(msg)
+            sent_msg = await update.message.reply_text(no_entries_msg)
+            await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
         return ConversationHandler.END
 
     months_data = set()
@@ -39,13 +42,16 @@ async def months_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if from_callback:
         keyboard.append([InlineKeyboardButton(S('common.back_to_menu'), callback_data="main_menu")])
     
-    msg = S('archive.prompt')
+    prompt_msg = S('archive.prompt')
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.callback_query.edit_message_text(prompt_msg, reply_markup=InlineKeyboardMarkup(keyboard))
+        await record_message(user_id, update.callback_query.message.chat_id, update.callback_query.message.message_id, 'temporary')
     else:
-        await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
+        sent_msg = await update.message.reply_text(prompt_msg, reply_markup=InlineKeyboardMarkup(keyboard))
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
 
 async def archive_month_selection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
@@ -67,6 +73,7 @@ async def archive_month_selection_handler(update: Update, context: ContextTypes.
         
         msg = S('archive.action_prompt', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year))
         await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='HTML')
+        await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return SELECTING_ARCHIVE_MONTH
 
     if query.data == "months_back":
@@ -90,11 +97,14 @@ async def archive_month_selection_handler(update: Update, context: ContextTypes.
     return SELECTING_ARCHIVE_MONTH
 
 async def archive_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = S('archive.cancelled')
+    user_id = update.effective_user.id
+    cancel_msg = S('archive.cancelled')
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
+        await update.callback_query.edit_message_text(cancel_msg, reply_markup=BACK_TO_MENU)
+        await record_message(user_id, update.callback_query.message.chat_id, update.callback_query.message.message_id, 'temporary')
     else:
-        await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
+        sent_msg = await update.message.reply_text(cancel_msg, reply_markup=BACK_TO_MENU)
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
     return ConversationHandler.END
 
 def get_archive_handler():
