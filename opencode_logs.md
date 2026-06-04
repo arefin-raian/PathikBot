@@ -1106,3 +1106,30 @@ The "মেসার্স disappears on page 2" symptom was NOT about মেস
 
 ### Commits
 - `8aae1b4` — User fix: handle 10-cell page 2+ layout, Bijoy NFC normalize & reph fix
+
+---
+
+## Round 5 (2026-06-04) — Replace Bijoy Converter
+
+### Change
+Replaced the entire `docx_generator/bijoy_converter.py` (old buggy implementation) with a thin wrapper around the new `converter.py` + `util.py` from the user's reference library.
+
+### Key Improvements Over Old Converter
+- **Correct reph positioning** — reph `©` always lands correctly after the base consonant, never swapped with space.
+- **Correct pre-kar handling** — e-kar (`‡`), i-kar (`w`), oi-kar (`‰`) placed before their base consonant in SutonnyMJ-standard order.
+- **Proper conjunct matching** — longest-match key mapping prevents partial conjunct substitution.
+- **NFC normalization** — composed forms like ো (ে+া) handled via `unicodedata.normalize`.
+- **No post-processing hacks** — no fragile `©` swap loop that broke on multi-word inputs.
+
+### Structural Change
+- `converter.py` + `util.py` — new external library files (copied from the user's reference).
+- `bijoy_converter.py` — replaced 225 lines of custom code with a 7-line wrapper.
+- `convert_to_bijoy()` API unchanged — all callers (`generate_logsheet.py`, `bot/`) continue to work.
+
+### Files Changed
+- `docx_generator/bijoy_converter.py` — 228 → 7 lines (wrapper).
+- `docx_generator/converter.py` — new (616 lines).
+- `docx_generator/util.py` — new (26 lines).
+
+### Commits
+- `654e2fc` — Replace bijoy_converter with external library converter
