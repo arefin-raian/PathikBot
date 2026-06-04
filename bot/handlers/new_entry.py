@@ -9,8 +9,7 @@ from telegram.ext import (
 )
 from datetime import datetime
 import calendar
-import os
-from core.file_data_store import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors
+from core.file_data_store import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors, get_user_prefs
 from core.expense_calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, get_petrol_status, get_mobil_status, calc_carry_forward
 from bot.inline_keyboards import (
     get_entry_type_keyboard, 
@@ -234,7 +233,7 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
             )
             return ENTER_ODO_START
         else:
-            transport_fee = int(os.getenv('TRANSPORT_FEE', '460'))
+            transport_fee = 460
             context.user_data['transport_fee'] = transport_fee
             push_history(context, CONFIRM_TRANSPORT_FEE)
             await query.edit_message_text(
@@ -713,7 +712,7 @@ async def handle_transport_confirm(update: Update, context: ContextTypes.DEFAULT
     await query.answer()
 
     if query.data == "transport_yes":
-        fee = context.user_data.get('transport_fee', int(os.getenv('TRANSPORT_FEE', '460')))
+        fee = context.user_data.get('transport_fee', 460)
         context.user_data['transport_fee'] = fee
         last_odo = await get_last_odo(user_id)
         context.user_data['odo_start'] = last_odo
@@ -749,7 +748,7 @@ async def handle_transport_confirm(update: Update, context: ContextTypes.DEFAULT
 async def handle_back_to_confirm_transport(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    fee = int(os.getenv('TRANSPORT_FEE', '460'))
+    fee = 460
     context.user_data['transport_fee'] = fee
     await query.edit_message_text(
         S('new_entry.transport_confirm', transport_fee=to_bn_number(fee)),
@@ -835,7 +834,7 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return DA_CONFIRM
         elif prev == CONFIRM_TRANSPORT_FEE:
-            transport_fee = context.user_data.get('transport_fee', int(os.getenv('TRANSPORT_FEE', '460')))
+            transport_fee = context.user_data.get('transport_fee', 460)
             await query.edit_message_text(
                 S('new_entry.transport_confirm', transport_fee=to_bn_number(transport_fee)),
                 reply_markup=get_yes_no_keyboard("transport"),

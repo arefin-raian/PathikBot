@@ -1,4 +1,3 @@
-import os
 from telegram import Update
 from telegram.ext import (
     ContextTypes, 
@@ -28,7 +27,9 @@ from core.file_data_store import (
     get_entry_by_id,
     get_distributors,
     add_distributor,
-    remove_distributor
+    remove_distributor,
+    get_user_prefs,
+    set_user_prefs,
 )
 from core.expense_calculations import calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost
 from datetime import datetime
@@ -337,10 +338,12 @@ async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     first_cmd_entry = query is None and '_settings_visited' not in context.user_data
     context.user_data['_settings_visited'] = True
 
-    petrol = os.getenv('PETROL_PRICE_PER_LITER', '140.7')
-    mobil = os.getenv('MOBIL_PRICE_PER_LITER', '560.0')
-    da = os.getenv('DA_AMOUNT', '200')
-    transport = os.getenv('TRANSPORT_FEE', '460')
+    user_id = update.effective_user.id
+    prefs = await get_user_prefs(user_id)
+    petrol = prefs.get('petrol_price', '140.7')
+    mobil = prefs.get('mobil_price', '560.0')
+    da = prefs.get('da_amount', '200')
+    transport = prefs.get('transport_fee', '460')
     
     text = (
         f"{S('settings.config_display_title')}\n\n"
@@ -383,23 +386,24 @@ async def start_setting_change(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     
     setting_map = {
-        "set_petrol_price": ("PETROL_PRICE_PER_LITER", S('settings.prompt_petrol')),
-        "set_mobil_price": ("MOBIL_PRICE_PER_LITER", S('settings.prompt_mobil')),
-        "set_da_rate": ("DA_AMOUNT", S('settings.prompt_da')),
-        "set_transport_fee": ("TRANSPORT_FEE", S('settings.prompt_transport'))
+        "set_petrol_price": ("petrol_price", S('settings.prompt_petrol')),
+        "set_mobil_price": ("mobil_price", S('settings.prompt_mobil')),
+        "set_da_rate": ("da_amount", S('settings.prompt_da')),
+        "set_transport_fee": ("transport_fee", S('settings.prompt_transport'))
     }
     
-    env_key, prompt = setting_map[query.data]
-    context.user_data['changing_setting'] = env_key
+    prefs_key, prompt = setting_map[query.data]
+    context.user_data['changing_setting'] = prefs_key
     
     await query.edit_message_text(prompt)
     return SETTING_VALUE
 
 async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     value = update.message.text
     key = context.user_data.get('changing_setting')
     if key:
-        os.environ[key] = value
+        await set_user_prefs(user_id, {key: value})
     
     await update.message.reply_text(S('settings.setting_changed', value=value), parse_mode='HTML')
     return await settings_handler(update, context)

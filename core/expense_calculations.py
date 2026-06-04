@@ -1,10 +1,5 @@
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-DEFAULT_PETROL_PRICE = float(os.getenv('PETROL_PRICE_PER_LITER', 140.7))
-DEFAULT_MOBIL_PRICE = float(os.getenv('MOBIL_PRICE_PER_LITER', 560.0))
+DEFAULT_PETROL_PRICE = 140.7
+DEFAULT_MOBIL_PRICE = 560.0
 DEFAULT_DA_AMOUNT = 200
 
 def calculate_km(odo_start, odo_end):
