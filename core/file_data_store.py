@@ -155,8 +155,14 @@ async def init_db():
         except (FileNotFoundError, json.JSONDecodeError):
             pass
 
-    if not os.path.exists(DIST_PATH):
-        pass
+    # Remove legacy files after successful migration
+    legacy_files = ['data/entries.json', 'data/user_prefs.json']
+    for lf in legacy_files:
+        if os.path.exists(lf):
+            try:
+                os.remove(lf)
+            except OSError:
+                pass
 
 
 # ── Distributor management (shared) ───────────────────────

@@ -288,6 +288,7 @@ async def handle_odo_start_confirm(update: Update, context: ContextTypes.DEFAULT
         return ENTER_ODO_START
 
 async def handle_odo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await delete_previous_messages(update, context)
     await add_message_to_delete(update, context, update.message.message_id)
     await delete_stale_prompt(update, context)
     try:
@@ -306,6 +307,7 @@ async def handle_odo_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ENTER_ODO_START
 
 async def handle_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await delete_previous_messages(update, context)
     await add_message_to_delete(update, context, update.message.message_id)
     
     # Delete the stale distance prompt message
@@ -429,6 +431,7 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
 
 async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    await delete_previous_messages(update, context)
     await add_message_to_delete(update, context, update.message.message_id)
     await delete_stale_prompt(update, context)
     try:
@@ -513,6 +516,7 @@ async def handle_mobil_question(update: Update, context: ContextTypes.DEFAULT_TY
         return MANAGER_QUESTION
 
 async def handle_mobil_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await delete_previous_messages(update, context)
     await add_message_to_delete(update, context, update.message.message_id)
     await delete_stale_prompt(update, context)
     try:
@@ -579,6 +583,7 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
         return DA_CONFIRM
 
 async def handle_manager_designation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await delete_previous_messages(update, context)
     await add_message_to_delete(update, context, update.message.message_id)
     await delete_stale_prompt(update, context)
     context.user_data['others_designation'] = update.message.text
@@ -655,6 +660,7 @@ async def handle_distributor_selection(update: Update, context: ContextTypes.DEF
 
 async def handle_venue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    await delete_previous_messages(update, context)
     await add_message_to_delete(update, context, update.message.message_id)
     context.user_data['venue'] = update.message.text
     push_history(context, SELECT_MONTH)
@@ -676,6 +682,7 @@ async def handle_venue(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_transport_fee(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    await delete_previous_messages(update, context)
     await add_message_to_delete(update, context, update.message.message_id)
     await delete_stale_prompt(update, context)
     try:
@@ -852,7 +859,23 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             overflow = calc_carry_forward(all_entries, total_km, 'mobil_liters', 'mobil_overflow', 1000)
             context.user_data['mobil_overflow'] = overflow
 
-        entry_id = await add_entry(user_id, context.user_data.copy())
+        entry_id = await add_entry(user_id, {
+            'entry_type': context.user_data.get('entry_type'),
+            'date': context.user_data.get('date'),
+            'odo_start': context.user_data.get('odo_start', 0),
+            'odo_end': context.user_data.get('odo_end', 0),
+            'total_km': context.user_data.get('total_km', 0),
+            'petrol_liters': context.user_data.get('petrol_liters', 0),
+            'petrol_cost': context.user_data.get('petrol_cost', 0),
+            'mobil_liters': context.user_data.get('mobil_liters', 0),
+            'mobil_cost': context.user_data.get('mobil_cost', 0),
+            'da_amount': context.user_data.get('da_amount', 0),
+            'others_designation': context.user_data.get('others_designation', ''),
+            'transport_fee': context.user_data.get('transport_fee', 0),
+            'venue': context.user_data.get('venue', ''),
+            'distributors_raw': context.user_data.get('distributors_raw', []),
+            'total_cost': context.user_data.get('total_cost', 0),
+        })
         
         dt = datetime.strptime(context.user_data['date'], '%Y-%m-%d')
         days_in_month = calendar.monthrange(dt.year, dt.month)[1]
