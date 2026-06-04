@@ -1,11 +1,26 @@
 """Async MongoDB storage backend for PathikBot."""
 import os
 import json
+from urllib.parse import quote
 from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 MONGO_URL = os.getenv("MONGODB_URL")
 MONGO_DB = os.getenv("MONGODB_DB_NAME", "pathikbot")
+
+# Auto-encode special chars in the password portion of the URI
+if MONGO_URL and '@' in MONGO_URL:
+    try:
+        prefix, rest = MONGO_URL.split('@', 1)
+        if '//' in prefix:
+            scheme_part = prefix.split('//', 1)
+            if ':' in scheme_part[1]:
+                user, pw = scheme_part[1].split(':', 1)
+                scheme_part[1] = f"{user}:{quote(pw, safe='*')}"
+            prefix = '//'.join(scheme_part)
+        MONGO_URL = f"{prefix}@{rest}"
+    except Exception:
+        pass  # fall through to original on parse errors
 _client: AsyncIOMotorClient = None
 _db: AsyncIOMotorDatabase = None
 _connected = False
