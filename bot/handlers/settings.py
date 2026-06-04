@@ -31,7 +31,7 @@ from core.file_data_store import (
     get_user_prefs,
     set_user_prefs,
 )
-from core.expense_calculations import calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost
+from core.expense_calculations import calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, DEFAULT_PETROL_PRICE, DEFAULT_MOBIL_PRICE
 from datetime import datetime
 
 # States for settings and edit/delete
@@ -211,6 +211,9 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(S('settings.entry_not_found'), reply_markup=BACK_TO_MENU)
             return ConversationHandler.END
             
+        prefs = await get_user_prefs(user_id)
+        petrol_price = prefs.get('petrol_price', DEFAULT_PETROL_PRICE)
+        mobil_price = prefs.get('mobil_price', DEFAULT_MOBIL_PRICE)
         updates = {}
         if field == "km":
             updates['total_km'] = int(val)
@@ -220,10 +223,10 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
             updates['odo_end'] = int(val)
         elif field == "petrol":
             updates['petrol_liters'] = val
-            updates['petrol_cost'] = calculate_petrol_cost(val)
+            updates['petrol_cost'] = calculate_petrol_cost(val, petrol_price)
         elif field == "mobil":
             updates['mobil_liters'] = val
-            updates['mobil_cost'] = calculate_mobil_cost(val)
+            updates['mobil_cost'] = calculate_mobil_cost(val, mobil_price)
             
         temp_entry = entry.copy()
         temp_entry.update(updates)
@@ -232,7 +235,9 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
             temp_entry.get('petrol_liters', 0),
             temp_entry.get('mobil_liters', 0),
             temp_entry.get('da_amount'),
-            temp_entry.get('transport_fee', 0)
+            temp_entry.get('transport_fee', 0),
+            petrol_price=petrol_price,
+            mobil_price=mobil_price
         )
         
         await update_entry_and_cascade(user_id, entry_id, updates)

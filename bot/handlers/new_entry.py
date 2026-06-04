@@ -10,7 +10,7 @@ from telegram.ext import (
 from datetime import datetime
 import calendar
 from core.file_data_store import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors, get_user_prefs
-from core.expense_calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, get_petrol_status, get_mobil_status, calc_carry_forward
+from core.expense_calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, get_petrol_status, get_mobil_status, calc_carry_forward, DEFAULT_PETROL_PRICE, DEFAULT_MOBIL_PRICE
 from bot.inline_keyboards import (
     get_entry_type_keyboard, 
     get_yes_no_keyboard, 
@@ -436,7 +436,9 @@ async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         liters = float(normalize_number(update.message.text))
         context.user_data['petrol_liters'] = liters
-        context.user_data['petrol_cost'] = calculate_petrol_cost(liters)
+        prefs = await get_user_prefs(user_id)
+        petrol_price = prefs.get('petrol_price', DEFAULT_PETROL_PRICE)
+        context.user_data['petrol_cost'] = calculate_petrol_cost(liters, petrol_price)
         
         push_history(context, MOBIL_QUESTION)
         # Check mobil threshold for embedded mobil question
@@ -515,13 +517,16 @@ async def handle_mobil_question(update: Update, context: ContextTypes.DEFAULT_TY
         return MANAGER_QUESTION
 
 async def handle_mobil_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     await delete_previous_messages(update, context)
     await add_message_to_delete(update, context, update.message.message_id)
     await delete_stale_prompt(update, context)
     try:
         liters = float(normalize_number(update.message.text))
         context.user_data['mobil_liters'] = liters
-        context.user_data['mobil_cost'] = calculate_mobil_cost(liters)
+        prefs = await get_user_prefs(user_id)
+        mobil_price = prefs.get('mobil_price', DEFAULT_MOBIL_PRICE)
+        context.user_data['mobil_cost'] = calculate_mobil_cost(liters, mobil_price)
         
         push_history(context, MANAGER_QUESTION)
         m = await update.message.reply_text(
@@ -537,35 +542,13 @@ async def handle_mobil_liters(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ENTER_MOBIL_LITERS
 
 async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     
     if query.data == "back":
-        prev = pop_history(context)
-        if prev == MOBIL_QUESTION:
-            all_entries = await get_entries(user_id)
-            status = get_mobil_status(all_entries)
-            if context.user_data.get('total_km', 0) > 0:
-                status['distance_since'] += context.user_data['total_km']
-                status['is_due'] = status['distance_since'] >= status['effective_threshold']
-            mobil_text = S('new_entry.mobil_question')
-            if status['is_due']:
-                mobil_text += S('thresholds.mobil_due_reminder', km=to_bn_number(status['distance_since']))
-            await query.edit_message_text(
-                mobil_text,
-                reply_markup=get_yes_no_keyboard('mobil', include_back=True),
-                parse_mode='HTML'
-            )
-            return MOBIL_QUESTION
-        elif prev == MANAGER_QUESTION:
-            await query.edit_message_text(
-                S('new_entry.manager_question'),
-                reply_markup=get_yes_no_keyboard('manager', include_back=True)
-            )
-            return MANAGER_QUESTION
-        return CHOOSING_TYPE
-
+        await query.edit_message_text(S('new_entry.mobil_liters_prompt'), reply_markup=get_back_keyboard())
+        return MOBIL_QUESTION
+    
     if query.data == "manager_yes":
         push_history(context, ENTER_MANAGER)
         context.user_data['prompt_msg_id'] = query.message.message_id
@@ -574,8 +557,10 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
     else:
         context.user_data['others_designation'] = ""
         push_history(context, DA_CONFIRM)
+        prefs = await get_user_prefs(update.effective_user.id)
+        da_default = prefs.get('da_amount', 200)
         await query.edit_message_text(
-            S('new_entry.da_confirm', da_amount=to_bn_number(200)),
+            S('new_entry.da_confirm', da_amount=to_bn_number(da_default)),
             reply_markup=get_yes_no_keyboard('da', include_back=True),
             parse_mode='HTML'
         )
@@ -587,8 +572,10 @@ async def handle_manager_designation(update: Update, context: ContextTypes.DEFAU
     await delete_stale_prompt(update, context)
     context.user_data['others_designation'] = update.message.text
     push_history(context, DA_CONFIRM)
+    prefs = await get_user_prefs(update.effective_user.id)
+    da_default = prefs.get('da_amount', 200)
     m = await update.message.reply_text(
-        S('new_entry.da_confirm', da_amount=to_bn_number(200)),
+        S('new_entry.da_confirm', da_amount=to_bn_number(da_default)),
         reply_markup=get_yes_no_keyboard('da', include_back=True),
         parse_mode='HTML'
     )
@@ -613,7 +600,8 @@ async def handle_da_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CHOOSING_TYPE
 
     if query.data == "da_yes":
-        context.user_data['da_amount'] = 200
+        prefs = await get_user_prefs(update.effective_user.id)
+        context.user_data['da_amount'] = prefs.get('da_amount', 200)
     else:
         context.user_data['da_amount'] = 0
     
@@ -629,8 +617,10 @@ async def handle_distributor_selection(update: Update, context: ContextTypes.DEF
     
     if query.data == "back":
         pop_history(context)
+        prefs = await get_user_prefs(update.effective_user.id)
+        da_default = prefs.get('da_amount', 200)
         await query.edit_message_text(
-            S('new_entry.da_confirm', da_amount=to_bn_number(200)),
+            S('new_entry.da_confirm', da_amount=to_bn_number(da_default)),
             reply_markup=get_yes_no_keyboard('da', include_back=True),
             parse_mode='HTML'
         )
@@ -759,12 +749,17 @@ async def handle_back_to_confirm_transport(update: Update, context: ContextTypes
 
 async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data
+    prefs = await get_user_prefs(update.effective_user.id)
+    petrol_price = prefs.get('petrol_price', DEFAULT_PETROL_PRICE)
+    mobil_price = prefs.get('mobil_price', DEFAULT_MOBIL_PRICE)
     cost = calculate_total_entry_cost(
         data['entry_type'], 
         data.get('petrol_liters', 0), 
         data.get('mobil_liters', 0), 
         data.get('da_amount'),
-        data.get('transport_fee', 0)
+        data.get('transport_fee', 0),
+        petrol_price=petrol_price,
+        mobil_price=mobil_price
     )
     data['total_cost'] = cost
     
@@ -827,8 +822,10 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             await query.edit_message_text(S('new_entry.distributor_prompt'), reply_markup=get_distributor_keyboard(dists))
             return SELECT_DISTRIBUTORS
         elif prev == DA_CONFIRM:
+            prefs = await get_user_prefs(user_id)
+            da_default = prefs.get('da_amount', 200)
             await query.edit_message_text(
-                S('new_entry.da_confirm', da_amount=to_bn_number(200)),
+                S('new_entry.da_confirm', da_amount=to_bn_number(da_default)),
                 reply_markup=get_yes_no_keyboard('da', include_back=True),
                 parse_mode='HTML'
             )

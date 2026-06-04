@@ -18,7 +18,7 @@ def calculate_mobil_cost(liters, price_per_liter=None):
         price_per_liter = DEFAULT_MOBIL_PRICE
     return round(liters * price_per_liter)
 
-def calculate_total_entry_cost(entry_type, petrol_liters=0, mobil_liters=0, da_amount=None, transport_fee=0):
+def calculate_total_entry_cost(entry_type, petrol_liters=0, mobil_liters=0, da_amount=None, transport_fee=0, petrol_price=None, mobil_price=None):
     """Calculate total cost for an entry based on its type."""
     if da_amount is None:
         da_amount = DEFAULT_DA_AMOUNT
@@ -26,8 +26,8 @@ def calculate_total_entry_cost(entry_type, petrol_liters=0, mobil_liters=0, da_a
     if entry_type == 'MONTHLY_MEETING':
         return transport_fee
     else:
-        petrol_cost = calculate_petrol_cost(petrol_liters)
-        mobil_cost = calculate_mobil_cost(mobil_liters)
+        petrol_cost = calculate_petrol_cost(petrol_liters, petrol_price)
+        mobil_cost = calculate_mobil_cost(mobil_liters, mobil_price)
         return petrol_cost + mobil_cost + da_amount
 
 def calculate_summary(entries):
