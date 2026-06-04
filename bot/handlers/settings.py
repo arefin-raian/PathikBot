@@ -283,7 +283,7 @@ async def handle_delete_selection(update: Update, context: ContextTypes.DEFAULT_
     entry_id = int(query.data.split("_")[1])
     context.user_data['deleting_id'] = entry_id
     
-    await query.edit_message_text(S('settings.delete_confirm_prompt'), reply_markup=get_confirmation_keyboard())
+    await query.edit_message_text(S('settings.delete_confirm_prompt'), reply_markup=get_confirmation_keyboard('delete'))
     return CONFIRM_DELETE
 
 async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

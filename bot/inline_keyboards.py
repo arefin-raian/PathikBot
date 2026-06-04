@@ -168,10 +168,13 @@ def get_distributor_keyboard(distributors, selected_indices=None):
 
 def get_yes_no_keyboard(prefix, include_back=False):
     b = S('keyboards.yes_no')
+    context = b.get(prefix, {})
+    yes_text = context.get('yes', '✅ হ্যাঁ')
+    no_text = context.get('no', '❌ না')
     keyboard = [
         [
-            InlineKeyboardButton(b['no'], callback_data=f"{prefix}_no"),
-            InlineKeyboardButton(b['yes'], callback_data=f"{prefix}_yes")
+            InlineKeyboardButton(no_text, callback_data=f"{prefix}_no"),
+            InlineKeyboardButton(yes_text, callback_data=f"{prefix}_yes")
         ]
     ]
     if include_back:
@@ -181,12 +184,13 @@ def get_yes_no_keyboard(prefix, include_back=False):
 def get_back_keyboard():
     return InlineKeyboardMarkup([[InlineKeyboardButton(S('keyboards.yes_no.back'), callback_data="back")]])
 
-def get_confirmation_keyboard():
+def get_confirmation_keyboard(context='save'):
     b = S('keyboards.confirmation')
+    c = b.get(context, b['save'])
     keyboard = [
         [
-            InlineKeyboardButton(b['discard'], callback_data="confirm_discard"),
-            InlineKeyboardButton(b['confirm'], callback_data="confirm_save")
+            InlineKeyboardButton(c['discard'], callback_data="confirm_discard"),
+            InlineKeyboardButton(c['confirm'], callback_data="confirm_save")
         ],
         [InlineKeyboardButton(b['back'], callback_data="back")]
     ]
