@@ -929,3 +929,60 @@ Matching entries displayed + summary with BACK_TO_MENU
 **Recovered entries:** Jun 1 (92km, petrol+mobil, 6 dists), Jun 2 (89km, 5 dists), Jun 3 (meeting, 460 transport), Jun 4 (89km, 6 dists), Jun 6 (76km, 5 dists), Jun 7 (56km, 3 dists, edited).
 
 **Verification:** All 45 tests pass, data survives test runs.
+
+---
+
+## Session: 2026-06-04 (continued)
+
+### Task: Implement lxml-based DOCX generator from implementation_prompt.md spec
+
+**User asked:** "কি কি করা বাকি আছে?  implementation prompt অনুযায়ী?" — asked what's remaining per `implementation_prompt.md`.
+
+**Analysis of `implementation_prompt.md`:**
+- Replace python-docx `LogsheetGenerator` with lxml-based `generate_for_user()` that fills pre-built templates
+- Template naming: `generated_logsheets/` — 28 files (n=3 to n=30) with variants (3HE/4E/3PET/0EST)
+- Function signature: `generate_for_user(user_id, entries, month, year, tpl_dir, out_dir) -> output_path`
+- Template selection: `template_stem(n)` picks correct variant based on entry count
+- Fill cells via lxml: `fill_header()`, `fill_row()`, `fill_total_row()`, `fill_summary()`
+- Unicode→Bijoy via existing `docx_generator.bijoy_converter.convert_to_bijoy()`
+- Output: `outputs/Logsheet_{month}_{year}.docx`
+- Validation: `validate_docx()` checks for undeclared lxml namespace prefixes
+
+**New file created — `generate_logsheet.py` (root):**
+- `generate_for_user(user_id, entries, month, year, tpl_dir, out_dir)` → Path — main entry point
+- `template_stem(n)` — selects pre-built template by entry count (3HE/4E/3PET/0EST variants, 3–30 range)
+- `fill_header(doc, month, year, first_date, last_date)` — month/year + date range in Bijoy
+- `fill_row(doc, page_data_rows, idx)` — data row with distributor names, petrol, mobil, DA, total
+- `fill_total_row(doc, totals, page_data_rows, n_slots)` — 12-cell or 10-cell total row (handles merged cells)
+- `fill_summary(doc, entries, month, year)` — 7-row summary table (total tour, meetings, km, petrol, mobil, DA, grand total)
+- `_convert_entry(entry)` — bot entry dict → internal format with Unicode→Bijoy conversion
+- `_fix_namespace_header(xml_bytes)` — smart injection: only inserts missing namespace declarations (w14, w15, w16se, wp14) after checking which are already present
+- `validate_docx(docx_path)` — checks for undeclared Igonorable prefixes in all XML parts
+- CLI `main()` — standalone runner from `data/entries_6161189904.json`
+
+**Key implementation details:**
+- Template selection matches `generated_logsheets/` naming conventions — parses template filename components (HE, E, PET, EST counts)
+- Meeting distributor cell: Run 1 = venue name (converted) + "|", Run 2 = transport sentence (converted)
+- 12-cell total row: direct column mapping (serial, date, odo_start, odo_end, total_km, petrol_liters, petrol_cost, mobil_liters, mobil_cost, da, transport, grand_total)
+- 10-cell total row: merged cells mapping with vMerge/gridSpan handling for Word tables
+- Summary: raw entries used for weekday calculation, converted entries for display values
+- Namespace injection: checks each needed namespace declaration (`xmlns:w14`, `xmlns:w15`, `xmlns:w16se`, `xmlns:wp14`) against serialized XML bytes and only injects missing ones — avoids "Attribute xmlns:wp14 redefined" error on templates that already retain these namespaces
+- Output follows `outputs/Logsheet_{month}_{year}.docx` (consistent with `.gitignore` pattern)
+
+**Updated file — `bot/handlers/report.py`:**
+- Import: `from docx_generator.generator import LogsheetGenerator` → `from generate_logsheet import generate_for_user`
+- Replaced `LogsheetGenerator().generate_report(entries, month, year, os.path.join("output", filename))` with `generate_for_user(user_id=user_id, entries=entries, month=month, year=year, tpl_dir=Path("generated_logsheets"), out_dir=Path("outputs"))`
+- Added `from pathlib import Path` import
+- Removed manual `os.makedirs("output", exist_ok=True)` and `filename` construction (now handled by `generate_for_user`)
+
+**Verified:**
+- `python -c "import generate_logsheet"` — import OK
+- `python -c "from bot.handlers.report import generate_report_handler"` — report handler import OK
+- `python -c "from bot.main import main"` — full bot import chain OK
+- Generation with `entries_6161189904.json` (6 June entries) → `outputs/Logsheet_6_2026.docx` → `validate_docx()` returns True
+- Generation with 8 synthetic test entries (exercises middle-page logic) → `validate_docx()` returns True
+
+**Template namespace edge case fixed:**
+- Some templates (e.g., `3HE_3PET4_0EST.docx`) already retain namespace declarations after lxml serialization because they have elements using those prefixes
+- `_fix_namespace_header` originally always injected all 4 namespaces, causing "Attribute xmlns:wp14 redefined" validation error on such templates
+- Fixed by checking each namespace declaration string against the serialized byte content — only injects missing ones

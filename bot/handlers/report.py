@@ -1,8 +1,9 @@
 import os
+from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
 from core.database import get_entries
-from docx_generator.generator import LogsheetGenerator
+from generate_logsheet import generate_for_user
 from datetime import datetime
 from bot.keyboards import to_bn_number
 from bot.strings import S
@@ -34,14 +35,17 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             await update.message.reply_text(msg, parse_mode='HTML')
         return
 
-    os.makedirs("output", exist_ok=True)
-    filename = f"Logsheet_{year}_{month:02d}.docx"
-    output_path = os.path.join("output", filename)
-    
-    generator = LogsheetGenerator()
     try:
-        generator.generate_report(entries, month, year, output_path)
+        output_path = generate_for_user(
+            user_id=user_id,
+            entries=entries,
+            month=month,
+            year=year,
+            tpl_dir=Path("generated_logsheets"),
+            out_dir=Path("outputs"),
+        )
         
+        filename = os.path.basename(output_path)
         with open(output_path, 'rb') as f:
             msg = S('report.success', month=to_bn_number(month), year=to_bn_number(year))
             if query:
