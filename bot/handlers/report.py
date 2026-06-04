@@ -1,4 +1,8 @@
 import os
+import subprocess
+import tempfile
+import shutil
+import asyncio
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -12,6 +16,8 @@ from bot.text_resources import S
 from bot.auth import require_auth
 
 STORAGE_CHANNEL = os.getenv("STORAGE_CHANNEL_ID")
+PDF_ENABLED = os.getenv("PDF_ENABLED", "true").lower() == "true"
+SOFFICE_PATH = os.getenv("SOFFICE_PATH", "soffice")
 
 async def _send_to_storage_channel(context: ContextTypes.DEFAULT_TYPE, docx_path: Path, user_id: int, month: int, year: int):
     """Send the generated file to the storage channel and save file_id in MongoDB."""
@@ -107,49 +113,49 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             )
         await record_file_message(user_id, sent.chat_id, sent.message_id, 'docx', month, year, docx_path.name)
 
-        # PDF conversion
-        pdf_path = docx_path.with_suffix('.pdf')
-        gen_pdf_msg = S('report.generating_pdf')
-        if query:
-            pdf_status = await query.message.reply_text(gen_pdf_msg, parse_mode='HTML')
-        else:
-            pdf_status = await update.message.reply_text(gen_pdf_msg, parse_mode='HTML')
-        try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, _convert_to_pdf, str(docx_path), str(pdf_path))
-            pdf_caption = "\n".join([
-                f"\U0001f4d5 <b>Logsheet — {month}/{year}</b>",
-                f"\U0001f550 Generated: <code>{now_str}</code>",
-                f"\U0001f464 User: <code>{user_id}</code> ({user.full_name})",
-                f"\U0001f4ca Entries: <b>{entry_count}</b>",
-                f"\U0001f4c1 File: {pdf_path.name}",
-                f"\U0001f4d5 Type: PDF",
-            ])
+        # PDF conversion (toggle with PDF_ENABLED env var)
+        if PDF_ENABLED:
+            pdf_path = docx_path.with_suffix('.pdf')
+            gen_pdf_msg = S('report.generating_pdf')
             if query:
-                await query.message.reply_document(
-                    document=pdf_path.open('rb'), filename=pdf_path.name,
-                    caption=pdf_caption, parse_mode='HTML'
-                )
+                pdf_status = await query.message.reply_text(gen_pdf_msg, parse_mode='HTML')
             else:
-                await update.message.reply_document(
-                    document=pdf_path.open('rb'), filename=pdf_path.name,
-                    caption=pdf_caption, parse_mode='HTML'
+                pdf_status = await update.message.reply_text(gen_pdf_msg, parse_mode='HTML')
+            try:
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, _convert_to_pdf, str(docx_path), str(pdf_path))
+                pdf_caption = "\n".join([
+                    f"\U0001f4d5 <b>Logsheet — {month}/{year}</b>",
+                    f"\U0001f550 Generated: <code>{now_str}</code>",
+                    f"\U0001f464 User: <code>{user_id}</code> ({user.full_name})",
+                    f"\U0001f4ca Entries: <b>{entry_count}</b>",
+                    f"\U0001f4c1 File: {pdf_path.name}",
+                    f"\U0001f4d5 Type: PDF",
+                ])
+                if query:
+                    await query.message.reply_document(
+                        document=pdf_path.open('rb'), filename=pdf_path.name,
+                        caption=pdf_caption, parse_mode='HTML'
+                    )
+                else:
+                    await update.message.reply_document(
+                        document=pdf_path.open('rb'), filename=pdf_path.name,
+                        caption=pdf_caption, parse_mode='HTML'
+                    )
+                await log_event(context, 'pdf_generated',
+                    user_id=user_id, username=user.full_name,
+                    details=f"PDF for {month}/{year} generated",
+                    changes=[
+                        f"Entries: <b>{entry_count}</b>",
+                        f"File: {pdf_path.name}",
+                    ]
                 )
-            await log_event(context, 'pdf_generated',
-                user_id=user_id, username=user.full_name,
-                details=f"PDF for {month}/{year} generated",
-                changes=[
-                    f"Entries: <b>{entry_count}</b>",
-                    f"File: {pdf_path.name}",
-                ]
-            )
-        except Exception as pdf_err:
-            await pdf_status.edit_text(S('report.pdf_error', error=str(pdf_err)), parse_mode='HTML')
-            await log_event(context, 'warning',
-                user_id=user_id, username=user.full_name,
-                details=f"PDF conversion failed: {pdf_err}"
-            )
+            except Exception as pdf_err:
+                await pdf_status.edit_text(S('report.pdf_error', error=str(pdf_err)), parse_mode='HTML')
+                await log_event(context, 'warning',
+                    user_id=user_id, username=user.full_name,
+                    details=f"PDF conversion failed: {pdf_err}"
+                )
 
     except Exception as e:
         error_msg = S('report.error', error=str(e))
@@ -164,5 +170,27 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
 
 
 def _convert_to_pdf(docx_path: str, pdf_path: str) -> None:
-    from docx2pdf import convert
-    convert(docx_path, pdf_path)
+    """Convert DOCX to PDF using LibreOffice headless mode.
+    
+    Falls back to commented docx2pdf method if soffice is unavailable.
+    Set SOFFICE_PATH env var to override the soffice binary location.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_docx = os.path.join(tmpdir, os.path.basename(docx_path))
+        shutil.copy2(docx_path, tmp_docx)
+        result = subprocess.run(
+            [SOFFICE_PATH, "--headless", "--norestore", "--nofirststartwizard",
+             "--convert-to", "pdf", "--outdir", tmpdir, tmp_docx],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"soffice exited {result.returncode}: {result.stderr}")
+        tmp_pdf = os.path.join(tmpdir, os.path.basename(pdf_path))
+        if not os.path.exists(tmp_pdf):
+            raise RuntimeError(f"LibreOffice did not create PDF output")
+        shutil.copy2(tmp_pdf, pdf_path)
+
+# def _convert_to_pdf_docx2pdf(docx_path, pdf_path):
+#     """Windows-only: uses MS Word via win32com. Kept for reference."""
+#     from docx2pdf import convert
+#     convert(docx_path, pdf_path)

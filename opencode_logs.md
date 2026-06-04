@@ -1571,3 +1571,44 @@ when, why, and what other data was affected. File captions must contain full met
 - All **50 tests pass**
 - All imports verified (`core.audit_logger` loads cleanly in 5 modules)
 - Full bot import chain confirmed clean
+
+---
+
+## Session: 2026-06-05 — LibreOffice PDF conversion for cross-platform deployment
+
+### User requirement
+Switch PDF conversion from `docx2pdf` (Windows-only, requires MS Word) to LibreOffice `soffice` (cross-platform, works on Render/Linux). Make PDF generation togglable via env var so it can be easily disabled without touching code.
+
+### Changes
+
+**`bot/handlers/report.py`:**
+- Added `PDF_ENABLED` env var (default: `"true"`) — set to `"false"` to skip PDF generation entirely
+- Added `SOFFICE_PATH` env var (default: `"soffice"`) — override for custom LibreOffice binary path
+- Replaced `_convert_to_pdf` with LibreOffice implementation:
+  - Copies DOCX to a temp directory (avoids lock file conflicts)
+  - Runs `soffice --headless --norestore --nofirststartwizard --convert-to pdf --outdir <tmpdir> <docx>`
+  - Copies resulting PDF back to the output directory
+  - 120-second timeout, `capture_output` for error reporting
+- Whole PDF block wrapped in `if PDF_ENABLED:` — one env var completely toggles the feature
+- Old `docx2pdf` implementation kept as commented-out fallback for reference
+
+**`requirements.txt`:**
+- Added detailed comment block explaining LibreOffice installation per platform (Linux/Render: `apt-get install libreoffice-writer`, macOS: `brew install libreoffice`, Windows: `winget install`)
+- Notes on `PDF_ENABLED` and `SOFFICE_PATH` env vars
+
+### Toggle mechanism
+```env
+# Disable PDF generation (DOCX still delivered)
+PDF_ENABLED=false
+
+# Override soffice binary path (Render buildpack default)
+SOFFICE_PATH=/usr/bin/soffice
+```
+
+### Files changed
+- `bot/handlers/report.py` — LibreOffice conversion, PDF_ENABLED toggle, added subprocess/tempfile/shutil/asyncio imports
+- `requirements.txt` — LibreOffice install instructions as comments
+
+### Verification
+- All **50 tests pass**
+- Full import chain confirmed clean
