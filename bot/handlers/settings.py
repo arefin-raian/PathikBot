@@ -22,6 +22,7 @@ from bot.inline_keyboards import (
 from bot.text_resources import S
 from bot.auth import require_auth
 from bot.handlers.new_entry import schedule_message_cleanup
+from core.audit_logger import log_event
 from core.file_data_store import (
     get_entries, 
     delete_entry, 
@@ -246,6 +247,17 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         await update_entry_and_cascade(user_id, entry_id, updates)
+
+        user = update.effective_user
+        old_val = entry.get(field if field != 'km' else 'total_km', '')
+        new_val = updates.get('total_km' if field == 'km' else field, '')
+        field_labels = {'km': 'Distance', 'start': 'Odometer Start', 'end': 'Odometer End', 'petrol': 'Petrol Liters', 'mobil': 'Mobil Liters'}
+        flabel = field_labels.get(field, field)
+        await log_event(context, 'entry_edited',
+            user_id=user_id, username=user.full_name,
+            details=f"Entry #{entry_id} — {flabel} changed",
+            changes=[f"{flabel}: <b>{old_val}</b> \u2192 <b>{new_val}</b>"]
+        )
         
         # If distance-affecting field, ask about recalc
         distance_fields = {'km', 'start', 'end'}
@@ -282,6 +294,8 @@ async def handle_recalc_confirm(update: Update, context: ContextTypes.DEFAULT_TY
             return await start_edit_entry(update, context)
         
         sorted_entries = sorted(affected_entries, key=lambda e: e['date'])
+        user = update.effective_user
+        recalc_effects = []
         
         # Recalculate carry_forward for all entries after the edited one
         for i, e in enumerate(sorted_entries):
@@ -290,6 +304,9 @@ async def handle_recalc_confirm(update: Update, context: ContextTypes.DEFAULT_TY
                 new_overflow = calc_carry_forward(
                     prev, e.get('total_km', 0), 'petrol_liters', 'petrol_overflow', PETROL_THRESHOLD_KM
                 )
+                old_overflow = e.get('petrol_overflow', 0)
+                if old_overflow != new_overflow:
+                    recalc_effects.append(f"Entry #{e['id']} petrol overflow: <b>{old_overflow}</b> \u2192 <b>{new_overflow}</b>")
                 await update_entry(user_id, e['id'], {'petrol_overflow': new_overflow})
             
             if e.get('mobil_liters', 0) > 0:
@@ -297,16 +314,32 @@ async def handle_recalc_confirm(update: Update, context: ContextTypes.DEFAULT_TY
                 new_overflow = calc_carry_forward(
                     prev, e.get('total_km', 0), 'mobil_liters', 'mobil_overflow', MOBIL_THRESHOLD_KM
                 )
+                old_overflow = e.get('mobil_overflow', 0)
+                if old_overflow != new_overflow:
+                    recalc_effects.append(f"Entry #{e['id']} mobil overflow: <b>{old_overflow}</b> \u2192 <b>{new_overflow}</b>")
                 await update_entry(user_id, e['id'], {'mobil_overflow': new_overflow})
             
             if e.get('is_last_tour'):
                 cur_and_prev = sorted_entries[:i+1]
                 petrol_info = calculate_fuel_since_refill(cur_and_prev, 'petrol_liters', PETROL_THRESHOLD_KM)
                 mobil_info = calculate_fuel_since_refill(cur_and_prev, 'mobil_liters', MOBIL_THRESHOLD_KM)
+                old_p = e.get('final_petrol_consumed', 0)
+                old_m = e.get('final_mobil_consumed', 0)
+                if old_p != petrol_info['liters_consumed']:
+                    recalc_effects.append(f"Entry #{e['id']} final petrol consumption: <b>{old_p}</b> L \u2192 <b>{petrol_info['liters_consumed']}</b> L")
+                if old_m != mobil_info['liters_consumed']:
+                    recalc_effects.append(f"Entry #{e['id']} final mobil consumption: <b>{old_m}</b> L \u2192 <b>{mobil_info['liters_consumed']}</b> L")
                 await update_entry(user_id, e['id'], {
                     'final_petrol_consumed': petrol_info['liters_consumed'],
                     'final_mobil_consumed': mobil_info['liters_consumed']
                 })
+        
+        if recalc_effects:
+            await log_event(context, 'auto_recalc',
+                user_id=user_id, username=user.full_name,
+                details=f"Automatic recalculation triggered by edit of entry #{entry_id}",
+                effects=recalc_effects
+            )
         
         await query.edit_message_text(S('settings.recalc_done'))
         return await start_edit_entry(update, context)
@@ -361,7 +394,18 @@ async def confirm_delete_callback(update: Update, context: ContextTypes.DEFAULT_
     
     if query.data == "confirm_save":
         entry_id = context.user_data['deleting_id']
+        entry_info = await get_entry_by_id(user_id, entry_id)
         await delete_entry(user_id, entry_id)
+        user = update.effective_user
+        await log_event(context, 'entry_deleted',
+            user_id=user_id, username=user.full_name,
+            details=f"Entry #{entry_id} deleted",
+            changes=[
+                f"Type: <b>{entry_info.get('entry_type', '?') if entry_info else '?'}</b>",
+                f"Date: <b>{entry_info.get('date', '?') if entry_info else '?'}</b>",
+                f"Distance: <b>{entry_info.get('total_km', '?') if entry_info else '?'}</b> km",
+            ]
+        )
         await query.edit_message_text(S('settings.delete_success'))
         return await start_delete_entry(update, context)
     else:
@@ -477,7 +521,16 @@ async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYP
     if not key:
         return await settings_handler(update, context)
     
+    user = update.effective_user
+    prefs_before = await get_user_prefs(user_id)
+    old_val = prefs_before.get(key, '')
     await set_user_prefs(user_id, {key: value})
+    setting_labels = {'petrol_price': 'Petrol Price', 'mobil_price': 'Mobil Price', 'da_amount': 'DA Amount', 'transport_fee': 'Transport Fee'}
+    await log_event(context, 'settings_changed',
+        user_id=user_id, username=user.full_name,
+        details=f"{setting_labels.get(key, key)} changed",
+        changes=[f"<b>{old_val}</b> \u2192 <b>{value}</b>"]
+    )
     await update.message.reply_text(S('settings.setting_changed', value=value), parse_mode='HTML')
     
     if key in ('petrol_price', 'mobil_price'):
@@ -513,6 +566,7 @@ async def handle_update_old_confirm(update: Update, context: ContextTypes.DEFAUL
         
         now = datetime.now()
         entries = await get_entries(user_id, now.month, now.year)
+        updated_count = 0
         for entry in entries:
             liters = entry.get(liters_field, 0)
             if liters > 0:
@@ -529,6 +583,16 @@ async def handle_update_old_confirm(update: Update, context: ContextTypes.DEFAUL
                     cost_field: new_cost,
                     'total_cost': old_total + delta
                 })
+                updated_count += 1
+        
+        user = update.effective_user
+        await log_event(context, 'auto_recalc',
+            user_id=user_id, username=user.full_name,
+            details=f"Price change propagated to {updated_count} existing entries this month",
+            effects=[
+                f"<b>{updated_count}</b> entries had their {cost_field} recalculated with new price <b>{value}</b>"
+            ]
+        )
         
         await query.edit_message_text(S('settings.update_old_updated'), parse_mode='HTML')
     

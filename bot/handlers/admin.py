@@ -2,6 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from bot.text_resources import S
 from core.file_data_store import OWNER_ID, add_user, remove_user, get_all_users
+from core.audit_logger import log_event
 
 # States
 ADDUSER_AWAIT_ID, ADDUSER_CONFIRM, REMOVEUSER_SELECT, REMOVEUSER_CONFIRM = range(4)
@@ -54,6 +55,11 @@ async def confirm_adduser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "admin_confirm_add":
         target_id = context.user_data.pop('add_target_id', None)
         if target_id and await add_user(target_id):
+            await log_event(context, 'user_added',
+                user_id=update.effective_user.id, username=update.effective_user.full_name,
+                details=f"New user registered: #{target_id}",
+                changes=[f"User ID: <b>{target_id}</b>"]
+            )
             await query.edit_message_text(
                 S('admin.adduser_success', user_id=target_id), parse_mode='HTML'
             )
@@ -116,6 +122,11 @@ async def confirm_removeuser(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if query.data == "admin_confirm_remove":
         target_id = context.user_data.pop('remove_target_id', None)
         if target_id and await remove_user(target_id):
+            await log_event(context, 'user_removed',
+                user_id=update.effective_user.id, username=update.effective_user.full_name,
+                details=f"User removed: #{target_id}",
+                changes=[f"User ID: <b>{target_id}</b>"]
+            )
             await query.edit_message_text(
                 S('admin.removeuser_success', user_id=target_id), parse_mode='HTML'
             )

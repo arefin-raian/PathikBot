@@ -11,6 +11,7 @@ from telegram.ext import (
 from datetime import datetime
 from core.file_data_store import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors, get_user_prefs
 from core.message_store import record_message
+from core.audit_logger import log_event
 from core.expense_calculations import calculate_km, calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, get_petrol_status, get_mobil_status, calc_carry_forward, calculate_fuel_since_refill, PETROL_THRESHOLD_KM, MOBIL_THRESHOLD_KM, DEFAULT_PETROL_PRICE, DEFAULT_MOBIL_PRICE
 from bot.inline_keyboards import (
     get_entry_type_keyboard, 
@@ -857,7 +858,27 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         from bot.handlers.summary import send_summary_message
         month_entries = await get_entries(user_id, dt.month, dt.year)
         await send_summary_message(context, update.effective_chat.id, month_entries)
-        
+
+        user = update.effective_user
+        entry_type = context.user_data.get('entry_type', '')
+        total_km = context.user_data.get('total_km', 0)
+        petrol_l = context.user_data.get('petrol_liters', 0)
+        mobil_l = context.user_data.get('mobil_liters', 0)
+        changes = []
+        changes.append(f"Type: <b>{entry_type}</b>")
+        changes.append(f"Date: <b>{context.user_data.get('date', '')}</b>")
+        changes.append(f"Distance: <b>{total_km}</b> km")
+        if petrol_l:
+            changes.append(f"Petrol: <b>{petrol_l}</b> L (cost: {context.user_data.get('petrol_cost', 0)}/-)")
+        if mobil_l:
+            changes.append(f"Mobil: <b>{mobil_l}</b> L (cost: {context.user_data.get('mobil_cost', 0)}/-)")
+        changes.append(f"Total Cost: <b>{context.user_data.get('total_cost', 0)}</b>/-")
+        await log_event(context, 'entry_created',
+            user_id=user_id, username=user.full_name,
+            details=f"Entry #{entry_id} created",
+            changes=changes
+        )
+
         # Count REGULAR tour entries for the month (excluding meetings)
         tour_count = sum(1 for e in month_entries if e.get('entry_type') == 'REGULAR')
         
@@ -912,6 +933,23 @@ async def handle_last_tour_confirm(update: Update, context: ContextTypes.DEFAULT
             'final_petrol_consumed': petrol_info['liters_consumed'],
             'final_mobil_consumed': mobil_info['liters_consumed']
         })
+
+        user = update.effective_user
+        effects = []
+        if petrol_info['liters_consumed'] > 0:
+            effects.append(f"Auto-calculated petrol consumption: <b>{petrol_info['liters_consumed']}</b> L over <b>{petrol_info['distance_since_refill']}</b> km since last refill")
+        if mobil_info['liters_consumed'] > 0:
+            effects.append(f"Auto-calculated mobil consumption: <b>{mobil_info['liters_consumed']}</b> L over <b>{mobil_info['distance_since_refill']}</b> km since last refill")
+        await log_event(context, 'entry_edited',
+            user_id=user_id, username=user.full_name,
+            details=f"Entry #{entry_id} marked as last tour of the month",
+            changes=[
+                f"<code>is_last_tour</code> → <b>True</b>",
+                f"<code>final_petrol_consumed</code> → <b>{petrol_info['liters_consumed']}</b> L",
+                f"<code>final_mobil_consumed</code> → <b>{mobil_info['liters_consumed']}</b> L",
+            ],
+            effects=effects
+        )
         
         consumption_text = ""
         if petrol_info['liters_consumed'] > 0:

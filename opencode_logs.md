@@ -1480,3 +1480,94 @@ entry_id = await add_entry(user_id, {
 - File captions updated with stored metadata (month, year, generation ISO datetime)
 - `message_store` uses `aiofiles` for async JSON I/O consistent with existing pattern
 - `to_bn_number` imported from `bot.inline_keyboards` in cleanup.py (avoids duplication)
+
+---
+
+## Session: 2026-06-05 — Complete audit logging system with storage channel
+
+### User requirement
+Transform the storage channel from a simple file upload destination into a comprehensive audit trail.
+Every meaningful action must be logged with descriptive messages showing what happened, who did it,
+when, why, and what other data was affected. File captions must contain full metadata.
+
+### New file
+- **`core/audit_logger.py`** — Centralized audit logging service:
+  - `log_event(context_or_bot, event_type, **kw)` — sends formatted HTML messages to STORAGE_CHANNEL
+  - 15 event types with dedicated emojis: `user_added`, `user_removed`, `entry_created`, `entry_edited`, `entry_deleted`, `auto_recalc`, `docx_generated`, `pdf_generated`, `settings_changed`, `bot_started`, `critical_error`, `warning`, `recovery`
+  - Structured message format: emoji + title, timestamp, user link, details, Changes list, Cascading Effects list
+  - Graciously handles missing STORAGE_CHANNEL env var (logging silently disabled)
+  - All exceptions caught silently — logging never crashes the bot
+
+### Audit log events added
+
+**Entry created** (`new_entry.py:save_entry_callback`):
+- Logs: entry type, date, distance, petrol/mobil liters+cost, total cost
+
+**Entry marked last tour** (`new_entry.py:handle_last_tour_confirm`):
+- Logs: `is_last_tour` flag set, `final_petrol_consumed`, `final_mobil_consumed`
+- Cascading effects: auto-calculated consumption amounts
+
+**Entry field edited** (`settings.py:handle_new_value`):
+- Logs: field name, old value → new value, entry ID
+- Followed by recalc trigger (separate event if recalc confirmed)
+
+**Auto recalculation** (`settings.py:handle_recalc_confirm`):
+- Logs: each carry-forward overflow change per entry (petrol/mobil)
+- Logs: final consumption changes for last-tour entries
+- Cascading effects section shows every value that changed
+
+**Entry deleted** (`settings.py:confirm_delete_callback`):
+- Logs: entry ID, type, date, distance
+
+**Settings changed** (`settings.py:handle_setting_value`):
+- Logs: setting name, old value → new value
+- Petrol Price, Mobil Price, DA Amount, Transport Fee
+
+**Price propagation** (`settings.py:handle_update_old_confirm`):
+- Logs: how many existing entries were recalculated with new price
+
+**User added** (`admin.py:confirm_adduser`):
+- Logs: target user ID, who added them
+
+**User removed** (`admin.py:confirm_removeuser`):
+- Logs: target user ID, who removed them
+
+**DOCX generated** (`report.py:generate_report_handler`):
+- Logs: entry count, filename, path
+- Caption: full metadata (generation timestamp, user ID + name, entry count, file type)
+
+**PDF generated** (`report.py:generate_report_handler`):
+- Logs: entry count, filename
+- Caption: full metadata (same format as DOCX)
+
+**Bot started** (`main.py:post_init`):
+- Logs: version, Python version, bot started successfully
+
+**Critical errors** (`report.py:generate_report_handler`):
+- Logs: error details when DOCX/PDF generation fails
+
+**Warnings** (`report.py:generate_report_handler`):
+- Logs: PDF conversion failures (DOCX still delivered)
+
+### File captions format (DOCX and PDF)
+```
+📄 Logsheet — 6/2026
+🕐 Generated: <code>2026-06-08 14:23:17</code>
+👤 User: <code>123456789</code> (John)
+📊 Entries: <b>24</b>
+📁 File: Logsheet - June'2026.docx
+📄 Type: DOCX
+```
+
+### Files changed
+- `core/audit_logger.py` — new (85 lines)
+- `bot/handlers/new_entry.py` — added import + 2 audit log calls
+- `bot/handlers/settings.py` — added import + 5 audit log calls
+- `bot/handlers/admin.py` — added import + 2 audit log calls
+- `bot/handlers/report.py` — added import + 4 audit log calls + full metadata captions + PDF generation
+- `bot/main.py` — added import + bot_started audit log in post_init
+
+### Verification
+- All **50 tests pass**
+- All imports verified (`core.audit_logger` loads cleanly in 5 modules)
+- Full bot import chain confirmed clean

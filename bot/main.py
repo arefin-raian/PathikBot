@@ -13,6 +13,8 @@ warnings.filterwarnings("ignore", category=PTBUserWarning, message="If 'per_mess
 
 from dotenv import load_dotenv
 
+from core.audit_logger import log_event
+
 from bot.handlers.start import start_command, help_command, main_menu_callback
 from bot.handlers.new_entry import get_new_entry_handler
 from bot.handlers.report import generate_report_handler
@@ -60,6 +62,13 @@ async def post_init(application):
     except Exception as e:
         logging.error("init_db failed (continuing with file backend): %s", e)
     await application.bot.set_my_commands(bot_commands())
+    try:
+        await log_event(application.bot, 'bot_started',
+            details="PathikBot started successfully",
+            changes=[f"Version: <b>2.1</b>", f"Python: <b>3.12</b>"]
+        )
+    except Exception:
+        pass
 
 def main():
     if not TOKEN:
