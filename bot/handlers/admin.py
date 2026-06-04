@@ -12,14 +12,14 @@ async def owner_only(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
     if user and user.id == OWNER_ID:
         return True
     if update.effective_message:
-        await update.effective_message.reply_text(S('admin.not_owner'))
+        await update.effective_message.reply_text(S('admin.not_owner'), parse_mode='HTML')
     return False
 
 
 async def start_adduser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await owner_only(update, context):
         return ConversationHandler.END
-    await update.effective_message.reply_text(S('admin.adduser_prompt_id'))
+    await update.effective_message.reply_text(S('admin.adduser_prompt_id'), parse_mode='HTML')
     return ADDUSER_AWAIT_ID
 
 
@@ -27,12 +27,12 @@ async def handle_adduser_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         target_id = int(update.message.text.strip())
     except ValueError:
-        await update.message.reply_text(S('admin.adduser_invalid_id'))
+        await update.message.reply_text(S('admin.adduser_invalid_id'), parse_mode='HTML')
         return ADDUSER_AWAIT_ID
 
     users = await get_all_users()
     if str(target_id) in users:
-        await update.message.reply_text(S('admin.adduser_exists', user_id=target_id))
+        await update.message.reply_text(S('admin.adduser_exists', user_id=target_id), parse_mode='HTML')
         return ConversationHandler.END
 
     context.user_data['add_target_id'] = target_id
@@ -71,7 +71,7 @@ async def start_removeuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = await get_all_users()
     non_owner = {k: v for k, v in users.items() if int(k) != OWNER_ID}
     if not non_owner:
-        await update.effective_message.reply_text(S('admin.removeuser_no_users'))
+        await update.effective_message.reply_text(S('admin.removeuser_no_users'), parse_mode='HTML')
         return ConversationHandler.END
 
     kb = []
@@ -83,7 +83,7 @@ async def start_removeuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.effective_message.reply_text(
         S('admin.removeuser_prompt_select'),
-        reply_markup=InlineKeyboardMarkup(kb)
+        reply_markup=InlineKeyboardMarkup(kb), parse_mode='HTML'
     )
     return REMOVEUSER_SELECT
 
@@ -93,7 +93,7 @@ async def select_removeuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "admin_cancel":
-        await query.edit_message_text(S('admin.removeuser_cancelled'))
+        await query.edit_message_text(S('admin.removeuser_cancelled'), parse_mode='HTML')
         return ConversationHandler.END
 
     target_id = int(query.data.split("_")[2])
@@ -128,7 +128,7 @@ async def confirm_removeuser(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_message:
-        await update.effective_message.reply_text(S('common.cancelled'))
+        await update.effective_message.reply_text(S('common.cancelled'), parse_mode='HTML')
     return ConversationHandler.END
 
 
@@ -137,14 +137,14 @@ async def listusers_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     users = await get_all_users()
     if not users:
-        await update.effective_message.reply_text(S('admin.users_empty'))
+        await update.effective_message.reply_text(S('admin.users_empty'), parse_mode='HTML')
         return
     lines = [S('admin.users_title')]
     for uid_str, info in users.items():
         role = info.get('role', 'user')
         added = info.get('added_at', '?')[:10]
         lines.append(S('admin.users_line', user_id=uid_str, role=role, added_at=added))
-    await update.effective_message.reply_text(''.join(lines))
+    await update.effective_message.reply_text(''.join(lines), parse_mode='HTML')
 
 
 def get_admin_conv_handler():

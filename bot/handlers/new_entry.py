@@ -360,7 +360,7 @@ async def handle_odo_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
             status['is_due'] = status['distance_since'] >= status['effective_threshold']
         text = S('new_entry.petrol_question')
         if status['is_due']:
-            text += S('thresholds.petrol_due_reminder')
+            text += S('thresholds.petrol_due_reminder', km=to_bn_number(status['distance_since']))
         await query.edit_message_text(
             text,
             reply_markup=get_yes_no_keyboard('petrol', include_back=True),
@@ -394,7 +394,7 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
                 status['is_due'] = status['distance_since'] >= status['effective_threshold']
             text = S('new_entry.petrol_question')
             if status['is_due']:
-                text += S('thresholds.petrol_due_reminder')
+                text += S('thresholds.petrol_due_reminder', km=to_bn_number(status['distance_since']))
             await query.edit_message_text(
                 text,
                 reply_markup=get_yes_no_keyboard('petrol', include_back=True),
@@ -420,7 +420,7 @@ async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_T
             status['is_due'] = status['distance_since'] >= status['effective_threshold']
         mobil_text = S('new_entry.mobil_question')
         if status['is_due']:
-            mobil_text += S('thresholds.mobil_due_reminder')
+            mobil_text += S('thresholds.mobil_due_reminder', km=to_bn_number(status['distance_since']))
         await query.edit_message_text(
             mobil_text,
             reply_markup=get_yes_no_keyboard('mobil', include_back=True),
@@ -447,7 +447,7 @@ async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
             status['is_due'] = status['distance_since'] >= status['effective_threshold']
         petrol_text = S('new_entry.petrol_result', petrol_cost=to_bn_number(context.user_data['petrol_cost']))
         if status['is_due']:
-            petrol_text += S('thresholds.mobil_due_reminder')
+            petrol_text += S('thresholds.mobil_due_reminder', km=to_bn_number(status['distance_since']))
         m = await update.message.reply_text(
             petrol_text,
             reply_markup=get_yes_no_keyboard('mobil', include_back=True),
@@ -475,7 +475,7 @@ async def handle_mobil_question(update: Update, context: ContextTypes.DEFAULT_TY
                 status['is_due'] = status['distance_since'] >= status['effective_threshold']
             text = S('new_entry.petrol_question')
             if status['is_due']:
-                text += S('thresholds.petrol_due_reminder')
+                text += S('thresholds.petrol_due_reminder', km=to_bn_number(status['distance_since']))
             await query.edit_message_text(
                 text,
                 reply_markup=get_yes_no_keyboard('petrol', include_back=True),
@@ -490,7 +490,7 @@ async def handle_mobil_question(update: Update, context: ContextTypes.DEFAULT_TY
                 status['is_due'] = status['distance_since'] >= status['effective_threshold']
             mobil_text = S('new_entry.mobil_question')
             if status['is_due']:
-                mobil_text += S('thresholds.mobil_due_reminder')
+                mobil_text += S('thresholds.mobil_due_reminder', km=to_bn_number(status['distance_since']))
             await query.edit_message_text(
                 mobil_text,
                 reply_markup=get_yes_no_keyboard('mobil', include_back=True),
@@ -551,7 +551,7 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
                 status['is_due'] = status['distance_since'] >= status['effective_threshold']
             mobil_text = S('new_entry.mobil_question')
             if status['is_due']:
-                mobil_text += S('thresholds.mobil_due_reminder')
+                mobil_text += S('thresholds.mobil_due_reminder', km=to_bn_number(status['distance_since']))
             await query.edit_message_text(
                 mobil_text,
                 reply_markup=get_yes_no_keyboard('mobil', include_back=True),
@@ -807,7 +807,7 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 total_cost=to_bn_number(cost))
         )
 
-    msg = summary + S('new_entry.confirm_footer')
+    msg = summary + '\n\n' + S('new_entry.entry_preview')
     if update.callback_query:
         await update.callback_query.edit_message_text(msg, reply_markup=get_confirmation_keyboard(), parse_mode='HTML')
     else:
