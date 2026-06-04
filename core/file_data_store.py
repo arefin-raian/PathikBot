@@ -374,15 +374,156 @@ async def delete_logsheet_file_id(user_id: int, month: int, year: int):
 
 # ── Dispatch to MongoDB when configured ─────────────────────
 if os.getenv("MONGODB_URL"):
-    from core.mongo_db import (  # noqa: F811
-        is_registered, is_owner, add_user, remove_user,
-        get_all_users, init_user_storage, init_db,
-        add_entry, get_entries, get_entry_by_id,
-        update_entry, delete_entry, update_entry_and_cascade,
-        get_last_day_in_month, get_last_odo,
-        get_user_prefs, set_user_prefs,
-        get_distributors, save_distributors,
-        add_distributor, remove_distributor,
-        save_logsheet_file_id, get_logsheet_file_id,
-        delete_logsheet_file_id,
-    )
+    import core.mongo_db as _mongo
+
+    # Save file-based references for fallback
+    _file = {
+        'is_registered': is_registered,
+        'add_user': add_user,
+        'remove_user': remove_user,
+        'get_all_users': get_all_users,
+        'init_user_storage': init_user_storage,
+        'init_db': init_db,
+        'add_entry': add_entry,
+        'get_entries': get_entries,
+        'get_entry_by_id': get_entry_by_id,
+        'update_entry': update_entry,
+        'delete_entry': delete_entry,
+        'update_entry_and_cascade': update_entry_and_cascade,
+        'get_last_day_in_month': get_last_day_in_month,
+        'get_last_odo': get_last_odo,
+        'get_user_prefs': get_user_prefs,
+        'set_user_prefs': set_user_prefs,
+        'get_distributors': get_distributors,
+        'save_distributors': save_distributors,
+        'add_distributor': add_distributor,
+        'remove_distributor': remove_distributor,
+        'save_logsheet_file_id': save_logsheet_file_id,
+        'get_logsheet_file_id': get_logsheet_file_id,
+        'delete_logsheet_file_id': delete_logsheet_file_id,
+    }
+
+    _mongo_available = False
+
+    async def _use_mongo():
+        """Check if MongoDB is reachable and update the flag."""
+        global _mongo_available
+        db = await _mongo.get_db()
+        _mongo_available = db is not None
+        return _mongo_available
+
+    async def is_registered(user_id):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.is_registered(user_id)
+        return await _file['is_registered'](user_id)
+
+    async def add_user(user_id, role="user"):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.add_user(user_id, role)
+        return await _file['add_user'](user_id, role)
+
+    async def remove_user(user_id):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.remove_user(user_id)
+        return await _file['remove_user'](user_id)
+
+    async def get_all_users():  # noqa: F811
+        if _mongo_available:
+            return await _mongo.get_all_users()
+        return await _file['get_all_users']()
+
+    async def init_user_storage(user_id):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.init_user_storage(user_id)
+        return await _file['init_user_storage'](user_id)
+
+    async def init_db():  # noqa: F811
+        await _use_mongo()
+        if _mongo_available:
+            return await _mongo.init_db()
+        return await _file['init_db']()
+
+    async def add_entry(user_id, entry_data):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.add_entry(user_id, entry_data)
+        return await _file['add_entry'](user_id, entry_data)
+
+    async def get_entries(user_id, month=None, year=None):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.get_entries(user_id, month, year)
+        return await _file['get_entries'](user_id, month, year)
+
+    async def get_entry_by_id(user_id, entry_id):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.get_entry_by_id(user_id, entry_id)
+        return await _file['get_entry_by_id'](user_id, entry_id)
+
+    async def update_entry(user_id, entry_id, updated_data):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.update_entry(user_id, entry_id, updated_data)
+        return await _file['update_entry'](user_id, entry_id, updated_data)
+
+    async def delete_entry(user_id, entry_id):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.delete_entry(user_id, entry_id)
+        return await _file['delete_entry'](user_id, entry_id)
+
+    async def update_entry_and_cascade(user_id, entry_id, updated_data):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.update_entry_and_cascade(user_id, entry_id, updated_data)
+        return await _file['update_entry_and_cascade'](user_id, entry_id, updated_data)
+
+    async def get_last_day_in_month(user_id, month, year):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.get_last_day_in_month(user_id, month, year)
+        return await _file['get_last_day_in_month'](user_id, month, year)
+
+    async def get_last_odo(user_id):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.get_last_odo(user_id)
+        return await _file['get_last_odo'](user_id)
+
+    async def get_user_prefs(user_id):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.get_user_prefs(user_id)
+        return await _file['get_user_prefs'](user_id)
+
+    async def set_user_prefs(user_id, prefs):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.set_user_prefs(user_id, prefs)
+        return await _file['set_user_prefs'](user_id, prefs)
+
+    async def get_distributors():  # noqa: F811
+        if _mongo_available:
+            return await _mongo.get_distributors()
+        return await _file['get_distributors']()
+
+    async def save_distributors(dist_list):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.save_distributors(dist_list)
+        return await _file['save_distributors'](dist_list)
+
+    async def add_distributor(name):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.add_distributor(name)
+        return await _file['add_distributor'](name)
+
+    async def remove_distributor(name):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.remove_distributor(name)
+        return await _file['remove_distributor'](name)
+
+    async def save_logsheet_file_id(user_id, month, year, file_id, file_name):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.save_logsheet_file_id(user_id, month, year, file_id, file_name)
+        return await _file['save_logsheet_file_id'](user_id, month, year, file_id, file_name)
+
+    async def get_logsheet_file_id(user_id, month, year):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.get_logsheet_file_id(user_id, month, year)
+        return await _file['get_logsheet_file_id'](user_id, month, year)
+
+    async def delete_logsheet_file_id(user_id, month, year):  # noqa: F811
+        if _mongo_available:
+            return await _mongo.delete_logsheet_file_id(user_id, month, year)
+        return await _file['delete_logsheet_file_id'](user_id, month, year)
