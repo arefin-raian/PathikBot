@@ -1612,3 +1612,25 @@ SOFFICE_PATH=/usr/bin/soffice
 ### Verification
 - All **50 tests pass**
 - Full import chain confirmed clean
+
+---
+
+## Session: 2026-06-05 — Dockerfile: Install LibreOffice for PDF generation
+
+### Task
+User requested updating the Dockerfile to install LibreOffice so PDF generation works in Docker deployments.
+
+### Change
+**`Dockerfile`:**
+- Added `apt-get update && apt-get install -y libreoffice-writer` before pip install
+- Added `rm -rf /var/lib/apt/lists/*` to keep the image size down
+- The CMD remains `python -m bot.main`
+
+The `apt.txt` file already listed `libreoffice-writer`, and the bot's `report.py` already uses `soffice --headless --convert-to pdf` with `PDF_ENABLED` and `SOFFICE_PATH` env vars for configuration. The Dockerfile just needed the actual LibreOffice package installed.
+
+### Files changed
+- `Dockerfile` — 10 → 15 lines (added LibreOffice install step)
+
+### Current state
+- Bot running cleanly
+- Docker image will now support PDF generation via LibreOffice Writer
