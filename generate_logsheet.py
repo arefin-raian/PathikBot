@@ -182,30 +182,61 @@ def fill_header(tbl0, month: int, year: int):
 
 def fill_row(row, entry: dict):
     cells = row.findall(f".//{{{W}}}tc")
-    if len(cells) < 12:
-        return
+    n = len(cells)
 
-    set_cell(cells[0],  f"{entry['serial']:02d}")
-    set_cell(cells[1],  entry['date_str'])
-    set_multi_paragraph_cell(cells[2],  entry['distributors_runs'])
-    set_cell(cells[3],  str(entry['odo_start']))
-    set_cell(cells[4],  str(entry['odo_end']))
-    set_cell(cells[5],  "00" if entry['total_km'] == 0 else str(entry['total_km']))
+    # Page-1 tables have 12 cells (includes separate odo_start / odo_end /
+    # total_km columns).  Page-2+ tables (4E / 3PET templates) are narrower
+    # and only have 10 cells — the three odometer columns are absent.
+    # Previously the function returned immediately for n < 12, which meant
+    # every distributor name on page 2 onwards was silently never written.
 
-    if entry.get('petrol_liters', 0) > 0:
-        set_runs(cells[6], [str(int(entry['petrol_liters'])), " wjUvi"])
-        set_cell(cells[7], fmt_taka(entry['petrol_cost']))
+    if n >= 12:
+        # ── Full layout (page 1) ──────────────────────────────────────────
+        set_cell(cells[0],  f"{entry['serial']:02d}")
+        set_cell(cells[1],  entry['date_str'])
+        set_multi_paragraph_cell(cells[2],  entry['distributors_runs'])
+        set_cell(cells[3],  str(entry['odo_start']))
+        set_cell(cells[4],  str(entry['odo_end']))
+        set_cell(cells[5],  "00" if entry['total_km'] == 0 else str(entry['total_km']))
 
-    set_cell(cells[8],  fmt_taka(entry.get('mobil_cost', 0)))
-    set_cell(cells[9],  fmt_taka(entry.get('da_amount', 0)))
-    set_cell(cells[10], fmt_taka(entry['total_cost']))
+        if entry.get('petrol_liters', 0) > 0:
+            set_runs(cells[6], [str(int(entry['petrol_liters'])), " wjUvi"])
+            set_cell(cells[7], fmt_taka(entry['petrol_cost']))
 
-    mb = entry.get('manager_bijoy')
-    if mb:
-        if entry['entry_type'] == 'MONTHLY_MEETING':
-            set_cell(cells[11], "gvwmK wgwUs")
-        else:
-            set_cell(cells[11], mb)
+        set_cell(cells[8],  fmt_taka(entry.get('mobil_cost', 0)))
+        set_cell(cells[9],  fmt_taka(entry.get('da_amount', 0)))
+        set_cell(cells[10], fmt_taka(entry['total_cost']))
+
+        mb = entry.get('manager_bijoy')
+        if mb:
+            if entry['entry_type'] == 'MONTHLY_MEETING':
+                set_cell(cells[11], "gvwmK wgwUs")
+            else:
+                set_cell(cells[11], mb)
+
+    elif n >= 10:
+        # ── Compact layout (page 2+, no odo columns) ─────────────────────
+        set_cell(cells[0],  f"{entry['serial']:02d}")
+        set_cell(cells[1],  entry['date_str'])
+        set_multi_paragraph_cell(cells[2],  entry['distributors_runs'])
+        set_cell(cells[3],  "00" if entry['total_km'] == 0 else str(entry['total_km']))
+
+        if entry.get('petrol_liters', 0) > 0:
+            set_runs(cells[4], [str(int(entry['petrol_liters'])), " wjUvi"])
+            set_cell(cells[5], fmt_taka(entry['petrol_cost']))
+
+        set_cell(cells[6],  fmt_taka(entry.get('mobil_cost', 0)))
+        set_cell(cells[7],  fmt_taka(entry.get('da_amount', 0)))
+        set_cell(cells[8],  fmt_taka(entry['total_cost']))
+
+        mb = entry.get('manager_bijoy')
+        if mb:
+            if entry['entry_type'] == 'MONTHLY_MEETING':
+                set_cell(cells[9], "gvwmK wgwUs")
+            else:
+                set_cell(cells[9], mb)
+
+    # Fewer than 10 cells → unrecognised row shape, skip silently
 
 
 def fill_total_row(total_row, entries):
@@ -260,12 +291,12 @@ def fill_summary(summary_tbl, entries):
     def vc(ri):
         return rows[ri].findall(f".//{{{W}}}tc")
 
-    c = vc(0); set_runs(c[1], [str(total_tours), " wU"]);  set_runs(c[4], [str(int(total_l)), " wjUvi"])
-    c = vc(1); set_cell(c[1], fri_txt);                    set_cell(c[4], f"({last_odo}-{first_odo}) wKwg")
+    c = vc(0); set_runs(c[1], [f"{total_tours:02d}", " wU"]);  set_runs(c[4], [str(int(total_l)), " wjUvi"])
+    c = vc(1); set_cell(c[1], fri_txt);                         set_cell(c[4], f"({last_odo}-{first_odo}) wKwg")
     c = vc(2); set_runs(c[1], [f"{meeting_count:02d}", " wU"]); set_runs(c[4], [f"{total_pet:,}", " UvKv"])
     c = vc(3); set_runs(c[1], [f"{mgr_tours:02d}", " wU"]);     set_runs(c[4], [f"{total_mob:,}", " UvKv"])
     c = vc(4); set_cell(c[1], f"{under50:02d} wU");             set_runs(c[4], [f"{total_da:,}", " UvKv"])
-    c = vc(5); set_runs(c[1], [str(net_tours), " wU"]);         set_runs(c[4], [f"{total_oth:,}", " UvKv"])
+    c = vc(5); set_runs(c[1], [f"{net_tours:02d}", " wU"]);     set_runs(c[4], [f"{total_oth:,}", " UvKv"])
     c = vc(6); set_runs(c[4], [f"{grand:,}", " UvKv"])
 
 
@@ -330,10 +361,18 @@ def _convert_entry(entry: dict, serial: int) -> dict:
     if entry['entry_type'] == 'MONTHLY_MEETING':
         venue_b = convert_to_bijoy(entry.get('venue', ''))
         fee = int(entry.get('transport_fee', 0))
-        transport_b = convert_to_bijoy(f"যাতায়াত ও আসা যাওয়ার ভাড়া = {fee}/-")
-        result['distributors_runs'] = [
-            f"{venue_b}| {transport_b}",
-        ]
+        # FIX: Convert only the Bengali part of the ভাড়া label separately,
+        # then append the ASCII number and suffix as plain strings.
+        # Previously the whole f-string (Bengali + digits + "/-") was passed
+        # to convert_to_bijoy, which caused the ড় in ভাড়া to be mangled by
+        # the no-op NFC normalisation bug.  Keeping Bengali and ASCII separate
+        # also makes the intent clearer and avoids any future encoding issues.
+        transport_label_b = convert_to_bijoy("যাতায়াত ও আসা যাওয়ার ভাড়া")
+        transport_b = f"{transport_label_b} = {fee}/-"
+        # FIX: Use two separate paragraph entries instead of joining with "|"
+        # so set_multi_paragraph_cell() renders them on separate lines in the
+        # cell, which matches the visual layout of the original template.
+        result['distributors_runs'] = [venue_b, transport_b]
         result['manager_bijoy'] = "gvwmK wgwUs"
     else:
         raw_names = entry.get('distributors_raw', [])
