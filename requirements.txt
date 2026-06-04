@@ -1,6 +1,8 @@
-python-telegram-bot
+python-telegram-bot>=20.0
 python-docx
 aiosqlite
 python-dotenv
 pytz
 aiofiles
+motor>=3.5
+pymongo>=4.0
