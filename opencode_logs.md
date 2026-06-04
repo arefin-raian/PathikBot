@@ -1438,3 +1438,145 @@ Persist data in MongoDB (for Render's ephemeral filesystem) and store generated 
 - All 45 tests pass
 - Settings now per-user via MongoDB user_prefs (or file-based user_prefs/{user_id}.json)
 - No env vars needed for pricing — defaults hardcoded, overridable per-user via settings UI
+
+---
+
+## Session: 2026-06-05 — Fix: calc_carry_forward crash on empty entries
+
+### Bug
+When a new user (or any user with zero prior entries) clicks "Yes, save" for their very first entry, `calc_carry_forward` crashed with `IndexError: list index out of range` at line 175 of `expense_calculations.py`.
+
+### Root cause
+`all_entries = await get_entries(user_id)` returns `[]` for new users. `calc_carry_forward([], total_km, ...)`:
+- `sorted_entries = []` (empty)
+- `last_refill_idx = -1` (no refill found)
+- `for i in range(-1, 0):` → iterates with `i = -1`
+- `sorted_entries[-1]` → `IndexError` on empty list
+
+This also explained why non-owner users appeared "stuck" — they'd click confirm_save, the crash silently swallowed the error, and the entry never saved.
+
+### Fix
+- Added `if not sorted_entries: return 0` at the start of the function
+- Changed loop start to `max(0, last_refill_idx)` to avoid `range(-1, ...)` when no refill found
+
+### Files changed
+- `core/expense_calculations.py` — early return + safe start index
+
+### Commit
+- `69fc158` — "fix: calc_carry_forward crash when entries list empty (new users)"
+
+---
+
+## Session: 2026-06-05 — Fix: Custom petrol/mobil/DA prices ignored in cost calculations
+
+### Bug
+When a user changed petrol price to 650 in settings, new entries still used the default 560 for mobil cost (and 140.7 for petrol). DA amount was also hardcoded to 200 regardless of user prefs.
+
+### Root cause
+- `calculate_petrol_cost()` and `calculate_mobil_cost()` used `DEFAULT_PETROL_PRICE` (140.7) / `DEFAULT_MOBIL_PRICE` (560.0) when `price_per_liter=None`
+- All callers (`handle_liters`, `handle_mobil_liters`, `show_confirmation`, `handle_new_value` in settings.py) passed no price argument
+- `calculate_total_entry_cost()` didn't propagate prices to child functions
+- DA amount was hardcoded as `200` in `handle_da_confirm` instead of reading from user prefs
+
+### Fixes
+- `calculate_total_entry_cost()` now accepts `petrol_price` and `mobil_price` parameters and passes them through
+- `handle_liters`, `handle_mobil_liters`, `show_confirmation` read user prefs and pass prices
+- `handle_new_value` in settings.py reads user prefs and passes prices
+- Added `DEFAULT_PETROL_PRICE`, `DEFAULT_MOBIL_PRICE` to imports
+
+### Files changed
+- `core/expense_calculations.py` — updated function signatures
+- `bot/handlers/new_entry.py` — read prefs at all cost calculation points
+- `bot/handlers/settings.py` — same for edit entry flow
+
+### Commit
+- `00b9bd2` — "fix: use user-specific petrol/mobil/DA amounts from prefs in cost calculations"
+
+---
+
+## Session: 2026-06-05 — Fix: Context-specific yes/no labels and natural menu names
+
+### User complaint
+1. All yes/no questions used identical "✅ হ্যাঁ, হয়েছে" / "❌ না, হয়নি" buttons regardless of context — felt unnatural
+2. Menu names like "সব এন্ট্রি দেখুন", "এডিট বা ডিলিট", "কনফিগারেশন ও সেটিংস" could be simpler
+
+### Fixes
+**Yes/No buttons — context-specific labels per question:**
+
+| Question | Old | New |
+|---|---|---|
+| ওডোমিটার শুরু? | হ্যাঁ, হয়েছে / না, হয়নি | হ্যাঁ, শুরু করব / না, নিজে লিখব |
+| দূরত্ব সঠিক? | হ্যাঁ, হয়েছে / না, হয়নি | হ্যাঁ, সঠিক আছে / না, পুনরায় লিখব |
+| ম্যানেজার ছিলেন? | হ্যাঁ, হয়েছে / না, হয়নি | হ্যাঁ, ছিলেন / না, ছিলেন না |
+| DA/পরিবহন ঠিক আছে? | হ্যাঁ, হয়েছে / না, হয়নি | হ্যাঁ, ঠিক আছে / না, পরিবর্তন চাই |
+| আর কোনো এন্ট্রি নেই? | হ্যাঁ, হয়েছে / না, হয়নি | হ্যাঁ, আর নেই / না, আরও দেব |
+
+**Confirmation buttons:**
+- Delete: was "হ্যাঁ, সংরক্ষণ করুন" → "✅ হ্যাঁ, ডিলিট করুন"
+
+**Menu names:**
+- "📋 সব এন্ট্রি দেখুন" → "📋 এন্ট্রি দেখুন"
+- "📝 এন্ট্রি এডিট বা ডিলিট" → "📝 এন্ট্রি সংশোধন"
+- "⚙️ কনফিগারেশন ও সেটিংস" → "⚙️ সেটিংস"
+- "❓ সাহায্য ও নির্দেশিকা" → "❓ সাহায্য"
+- "মুল মেনু" → "মূল মেনু" (fixed spelling, 7 occurrences)
+
+### Files changed
+- `bot/text_resources.json` — restructured yes_no section as per-context dicts; updated menu names; fixed "মুল"→"মূল"
+- `bot/inline_keyboards.py` — `get_yes_no_keyboard()` now looks up labels by prefix; `get_confirmation_keyboard()` accepts context param
+- `bot/handlers/settings.py` — passes `context='delete'` for delete confirmation
+
+### Commit
+- `a0e61d3` — "fix: context-specific yes/no labels and natural menu names"
+
+---
+
+## Session: 2026-06-05 — UX improvements: DA step removed, price update on old entries, natural threshold text
+
+### Changes applied
+
+#### 1. Threshold text — "পেট্রোল দিন" → natural wording
+- "পেট্রোল দেওয়ার সময় হয়েছে!" → "পেট্রোল নেওয়ার সময় হয়েছে!"
+- "দয়া করে পেট্রোল দিন এবং হিসাব আপডেট করুন" → "অনুগ্রহ করে পেট্রোল নিয়ে এন্ট্রিটি আপডেট করুন"
+- Same for mobil variants
+- "পেট্রোল দিন" (give petrol) sounded unnatural; "পেট্রোল নিন" (take petrol / refill) is the natural Bangla expression
+
+#### 2. DA confirmation step removed entirely
+**Why:** The user said DA amount should always use the default/setting value without asking "কি এই Amount-ই ঠিক আছে?" every time. Users who need to change DA can do it from settings.
+
+**What was removed:**
+- `DA_CONFIRM` state constant from the state tuple
+- `handle_da_confirm()` function (entirely)
+- `DA_CONFIRM` state from conversation handler
+- `da_confirm` text from `text_resources.json`
+- `da` yes/no context from `text_resources.json`
+- DA back-buttons in `handle_distributor_selection` and `save_entry_callback`
+
+**New flow:**
+- `handle_manager_question` (no): Sets `da_amount` from user prefs, goes directly to `SELECT_DISTRIBUTORS`
+- `handle_manager_designation`: Sets `da_amount` from user prefs, goes directly to `SELECT_DISTRIBUTORS`
+- `handle_distributor_selection` back → `MANAGER_QUESTION` or `ENTER_MANAGER` (instead of DA_CONFIRM)
+- `save_entry_callback` back: DA_CONFIRM case removed (SELECT_DISTRIBUTORS takes over)
+
+#### 3. Settings: petrol/mobil price change asks about updating existing entries
+**New flow:** After entering new petrol/mobil price, bot shows:
+> "নতুন দাম সংরক্ষণ করা হয়েছে। আপনি কি চলতি মাসের পুরনো এন্ট্রিগুলোর দামও আপডেট করতে চান?"
+> [✅ হ্যাঁ, আপডেট করুন] [❌ না, রেখে দিন]
+
+- If Yes: Iterates current month's entries, recalculates petrol_cost/mobil_cost and total_cost for each entry that has the relevant field > 0, saves via `update_entry_and_cascade`
+- If No: Returns to settings menu directly
+
+**New state:** `CONFIRM_UPDATE_OLD = 11` in settings conv handler
+
+### Files changed
+- `bot/text_resources.json` — threshold text, removed da_confirm, added update_old text
+- `bot/handlers/new_entry.py` — removed DA_CONFIRM state, handle_da_confirm, updated 4 handlers
+- `bot/handlers/settings.py` — added CONFIRM_UPDATE_OLD state + handler, updated conv handler
+- `bot/inline_keyboards.py` — no changes needed
+
+### Commits
+- (included in this session's commit)
+
+### Verification
+- All 45 tests pass
+- Bot starts cleanly

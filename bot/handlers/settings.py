@@ -9,6 +9,7 @@ from telegram.ext import (
 )
 from bot.inline_keyboards import (
     get_settings_keyboard, 
+    get_yes_no_keyboard,
     BACK_TO_MENU,
     to_bn_number, 
     get_edit_delete_keyboard,
@@ -45,6 +46,7 @@ EDITING_DISTRIBUTORS = 7
 MANAGING_DISTRIBUTORS = 8
 ADDING_DISTRIBUTOR = 9
 SHOWING_SETTINGS = 10
+CONFIRM_UPDATE_OLD = 11
 
 async def edit_delete_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await require_auth(update, context): return ConversationHandler.END
@@ -407,10 +409,64 @@ async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = update.effective_user.id
     value = update.message.text
     key = context.user_data.get('changing_setting')
-    if key:
-        await set_user_prefs(user_id, {key: value})
+    if not key:
+        return await settings_handler(update, context)
     
+    await set_user_prefs(user_id, {key: value})
     await update.message.reply_text(S('settings.setting_changed', value=value), parse_mode='HTML')
+    
+    if key in ('petrol_price', 'mobil_price'):
+        context.user_data['_price_key'] = key
+        context.user_data['_price_value'] = value
+        await update.message.reply_text(
+            S('settings.update_old_prompt'),
+            reply_markup=get_yes_no_keyboard('update_old'),
+            parse_mode='HTML'
+        )
+        return CONFIRM_UPDATE_OLD
+    
+    return await settings_handler(update, context)
+
+async def handle_update_old_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data == "update_old_no":
+        return await settings_handler(update, context)
+    
+    if query.data == "update_old_yes":
+        key = context.user_data.get('_price_key')
+        value = context.user_data.get('_price_value')
+        try:
+            value_float = float(value)
+        except (ValueError, TypeError):
+            return await settings_handler(update, context)
+        
+        cost_field = 'petrol_cost' if key == 'petrol_price' else 'mobil_cost'
+        liters_field = 'petrol_liters' if key == 'petrol_price' else 'mobil_liters'
+        
+        now = datetime.now()
+        entries = await get_entries(user_id, now.month, now.year)
+        for entry in entries:
+            liters = entry.get(liters_field, 0)
+            if liters > 0:
+                if key == 'petrol_price':
+                    new_cost = calculate_petrol_cost(liters, value_float)
+                else:
+                    new_cost = calculate_mobil_cost(liters, value_float)
+                
+                old_total = entry.get('total_cost', 0)
+                old_cost = entry.get(cost_field, 0)
+                delta = new_cost - old_cost
+                
+                await update_entry_and_cascade(user_id, entry['id'], {
+                    cost_field: new_cost,
+                    'total_cost': old_total + delta
+                })
+        
+        await query.edit_message_text(S('settings.update_old_updated'), parse_mode='HTML')
+    
     return await settings_handler(update, context)
 
 def get_settings_conv_handler():
@@ -424,6 +480,7 @@ def get_settings_conv_handler():
         states={
             SHOWING_SETTINGS: [CallbackQueryHandler(handle_settings_navigation, pattern="^set_|^manage_distributors$|^main_menu$")],
             SETTING_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_setting_value)],
+            CONFIRM_UPDATE_OLD: [CallbackQueryHandler(handle_update_old_confirm, pattern="^update_old_|^back$")],
             MANAGING_DISTRIBUTORS: [CallbackQueryHandler(handle_distributor_mgmt_callback)],
             ADDING_DISTRIBUTOR: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_distributor_name)]
         },

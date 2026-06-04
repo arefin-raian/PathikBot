@@ -40,7 +40,6 @@ from bot.auth import require_auth
     ENTER_LITERS,
     MOBIL_QUESTION,
     ENTER_MOBIL_LITERS,
-    DA_CONFIRM,
     MANAGER_QUESTION,
     ENTER_MANAGER,
     SELECT_DISTRIBUTORS,
@@ -49,7 +48,7 @@ from bot.auth import require_auth
     ENTER_TRANSPORT_FEE,
     CONFIRM_FINAL_ENTRY,
     CONFIRM_TRANSPORT_FEE
-) = range(20)
+) = range(19)
 
 # Add a history for back button
 HISTORY = "step_history"
@@ -556,59 +555,26 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
         return ENTER_MANAGER
     else:
         context.user_data['others_designation'] = ""
-        push_history(context, DA_CONFIRM)
         prefs = await get_user_prefs(update.effective_user.id)
-        da_default = prefs.get('da_amount', 200)
-        await query.edit_message_text(
-            S('new_entry.da_confirm', da_amount=to_bn_number(da_default)),
-            reply_markup=get_yes_no_keyboard('da', include_back=True),
-            parse_mode='HTML'
-        )
-        return DA_CONFIRM
+        context.user_data['da_amount'] = prefs.get('da_amount', 200)
+        push_history(context, SELECT_DISTRIBUTORS)
+        context.user_data['selected_dist_indices'] = []
+        dists = await get_distributors()
+        await query.edit_message_text(S('new_entry.distributor_prompt'), reply_markup=get_distributor_keyboard(dists))
+        return SELECT_DISTRIBUTORS
 
 async def handle_manager_designation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await delete_previous_messages(update, context)
     await add_message_to_delete(update, context, update.message.message_id)
     await delete_stale_prompt(update, context)
     context.user_data['others_designation'] = update.message.text
-    push_history(context, DA_CONFIRM)
     prefs = await get_user_prefs(update.effective_user.id)
-    da_default = prefs.get('da_amount', 200)
-    m = await update.message.reply_text(
-        S('new_entry.da_confirm', da_amount=to_bn_number(da_default)),
-        reply_markup=get_yes_no_keyboard('da', include_back=True),
-        parse_mode='HTML'
-    )
-    await add_message_to_delete(update, context, m.message_id)
-    return DA_CONFIRM
-
-async def handle_da_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    if query.data == "back":
-        prev = pop_history(context)
-        if prev == MANAGER_QUESTION:
-            await query.edit_message_text(
-                S('new_entry.manager_question'),
-                reply_markup=get_yes_no_keyboard('manager', include_back=True)
-            )
-            return MANAGER_QUESTION
-        elif prev == ENTER_MANAGER:
-            await query.edit_message_text(S('new_entry.manager_designation_prompt'), reply_markup=get_back_keyboard())
-            return ENTER_MANAGER
-        return CHOOSING_TYPE
-
-    if query.data == "da_yes":
-        prefs = await get_user_prefs(update.effective_user.id)
-        context.user_data['da_amount'] = prefs.get('da_amount', 200)
-    else:
-        context.user_data['da_amount'] = 0
-    
+    context.user_data['da_amount'] = prefs.get('da_amount', 200)
     push_history(context, SELECT_DISTRIBUTORS)
     context.user_data['selected_dist_indices'] = []
     dists = await get_distributors()
-    await query.edit_message_text(S('new_entry.distributor_prompt'), reply_markup=get_distributor_keyboard(dists))
+    m = await update.message.reply_text(S('new_entry.distributor_prompt'), reply_markup=get_distributor_keyboard(dists))
+    await add_message_to_delete(update, context, m.message_id)
     return SELECT_DISTRIBUTORS
 
 async def handle_distributor_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -616,15 +582,15 @@ async def handle_distributor_selection(update: Update, context: ContextTypes.DEF
     await query.answer()
     
     if query.data == "back":
-        pop_history(context)
-        prefs = await get_user_prefs(update.effective_user.id)
-        da_default = prefs.get('da_amount', 200)
+        prev = pop_history(context)
+        if prev == ENTER_MANAGER:
+            await query.edit_message_text(S('new_entry.manager_designation_prompt'), reply_markup=get_back_keyboard())
+            return ENTER_MANAGER
         await query.edit_message_text(
-            S('new_entry.da_confirm', da_amount=to_bn_number(da_default)),
-            reply_markup=get_yes_no_keyboard('da', include_back=True),
-            parse_mode='HTML'
+            S('new_entry.manager_question'),
+            reply_markup=get_yes_no_keyboard('manager', include_back=True)
         )
-        return DA_CONFIRM
+        return MANAGER_QUESTION
 
     selected = context.user_data.get('selected_dist_indices', [])
     dists = await get_distributors()
@@ -821,15 +787,6 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             dists = await get_distributors()
             await query.edit_message_text(S('new_entry.distributor_prompt'), reply_markup=get_distributor_keyboard(dists))
             return SELECT_DISTRIBUTORS
-        elif prev == DA_CONFIRM:
-            prefs = await get_user_prefs(user_id)
-            da_default = prefs.get('da_amount', 200)
-            await query.edit_message_text(
-                S('new_entry.da_confirm', da_amount=to_bn_number(da_default)),
-                reply_markup=get_yes_no_keyboard('da', include_back=True),
-                parse_mode='HTML'
-            )
-            return DA_CONFIRM
         elif prev == CONFIRM_TRANSPORT_FEE:
             transport_fee = context.user_data.get('transport_fee', 460)
             await query.edit_message_text(
@@ -977,7 +934,6 @@ def get_new_entry_handler():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_manager_designation),
                 CallbackQueryHandler(handle_manager_question, pattern="^back$")
             ],
-            DA_CONFIRM: [CallbackQueryHandler(handle_da_confirm, pattern="^da_|^back$")],
             SELECT_DISTRIBUTORS: [CallbackQueryHandler(handle_distributor_selection, pattern="^toggle_dist_|^dist_done|^cancel$|^back$")],
             CONFIRM_TRANSPORT_FEE: [CallbackQueryHandler(handle_transport_confirm, pattern="^transport_|^back$")],
             CONFIRM_ENTRY: [CallbackQueryHandler(save_entry_callback, pattern="^confirm_|^back$")],
