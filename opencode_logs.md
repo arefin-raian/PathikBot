@@ -1274,3 +1274,64 @@ Replaced `subprocess.run([soffice.exe, --headless, --convert-to, pdf, ...])` wit
 
 **Files changed:**
 - `bot/handlers/report.py` — LibreOffice → docx2pdf conversion
+
+---
+
+## Session: 2026-06-04 — Bulk fix: storage, message deletion, legacy cleanup, interactive admin
+
+### User concerns addressed
+
+#### 1. Data storage: `entries.json` + `user_prefs.json` cleanup
+**Problem:** `data/entries.json` was an empty legacy file; `data/user_prefs.json` was a legacy flat dict — both remained after migration to per-user files, confusing the project structure.
+
+**Fix:**
+- `init_db()` now removes `entries.json` and `user_prefs.json` after successful migration
+- `data/entries.json` deleted from git
+- Clean directory now: `entries_{user_id}.json` (per-user), `user_prefs/{user_id}.json` (per-user), `users.json`, `distributors.json`
+
+#### 2. Entry save — `context.user_data.copy()` → clean dict
+**Problem:** `add_entry(user_id, context.user_data.copy())` dumped ALL conversation state into entry storage — `step_history`, `messages_to_delete`, `_user_id`, `selected_dist_indices`, `prompt_msg_id`, etc. — corrupting the data with garbage fields.
+
+**Fix in `save_entry_callback`:** Build a whitelist dict with only entry-relevant fields:
+```python
+entry_id = await add_entry(user_id, {
+    'entry_type': ...,
+    'date': ...,
+    'odo_start': ...,
+    'odo_end': ...,
+    'total_km': ...,
+    'petrol_liters': ...,
+    # etc. (15 clean fields, no conversation garbage)
+})
+```
+
+#### 3. Message deletion — clean up user replies mid-flow
+**Problem:** Bot's prompts were deleted via `delete_stale_prompt` but the user's reply messages remained visible throughout the conversation.
+
+**Fix:** Added `await delete_previous_messages(update, context)` at the start of every text input handler (`handle_odo_start`, `handle_distance`, `handle_liters`, `handle_mobil_liters`, `handle_manager_designation`, `handle_venue`, `handle_transport_fee`). This deletes the previous round's tracked messages (both bot prompt + user reply) before processing new input, keeping the chat tidy step-by-step.
+
+#### 4. Interactive admin commands
+**Problem:** `/adduser <id>` and `/removeuser <id>` required manual typing of user IDs. No interactive guidance.
+
+**Fix:** Rewrote `bot/handlers/admin.py` with a ConversationHandler:
+
+- **`/adduser`**: Bot asks "Enter user ID" → owner types ID → bot shows confirm/cancel buttons → done
+- **`/removeuser`**: Bot shows all non-owner users as inline buttons → owner selects one → bot shows confirm/cancel/back → done
+- **`/users`**: Stays as-is (list display)
+- Added Bangla strings for all interactive prompts and button labels in `text_resources.json`
+- ConversationHandler registered in `main.py`
+
+### Files changed
+- `bot/handlers/admin.py` — rewritten with ConversationHandler (4 states, interactive flow)
+- `bot/handlers/new_entry.py` — clean entry dict + mid-flow message deletion
+- `bot/main.py` — register admin conv handler, remove stale `adduser_handler`/`removeuser_handler` references
+- `bot/text_resources.json` — new interactive admin strings
+- `core/file_data_store.py` — `init_db()` removes legacy files after migration
+- `data/entries.json` — deleted from repo (empty legacy file)
+
+### Verification
+- All 45 tests pass
+- Bot starts cleanly (no import errors, no warnings)
+- Legacy files cleaned up
+- Commits: `c4ff1c1`, `4ccef60`
+- Pushed to GitHub
