@@ -129,8 +129,9 @@ async def start_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if field == "dist":
         from bot.inline_keyboards import get_distributor_keyboard
+        dists = await get_distributors()
         context.user_data['selected_dist_indices'] = []
-        await query.edit_message_text(S('settings.edit_field_dist_prompt'), reply_markup=get_distributor_keyboard())
+        await query.edit_message_text(S('settings.edit_field_dist_prompt'), reply_markup=get_distributor_keyboard(dists))
         await record_message(user_id, query.message.chat_id, query.message.message_id, 'temporary')
         return EDITING_DISTRIBUTORS
     
