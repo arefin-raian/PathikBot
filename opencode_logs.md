@@ -1766,3 +1766,74 @@ User reported 3 issues:
 - Bot imports cleanly (no module errors).
 - `git diff --stat`: 5 files changed, 36 insertions(+), 7 deletions(-) — no unintended changes.
 - Generated logsheet files restored to original (test-run artifacts discarded).
+
+---
+
+## Session: 2026-06-05 — Comprehensive test suite: mock-based handler tests, 7 bugfixes, 136 new tests
+
+### Goal
+Systematically validate every feature, workflow, calculation, and user path using mock PTB objects — handler-level tests that simulate real Telegram updates without a live bot.
+
+### Bug fixes applied (commit `4600401` and `f44d98c`)
+
+**1. `send_summary_message` missing `user_id` arg (`new_entry.py:860`):**
+- `save_entry_callback` called `send_summary_message(context, chat_id, month_entries)` but the function requires 4 args. Fixed: added `user_id`.
+
+**2. `set_user_prefs` overwrites all prefs on single-key change (`settings.py:574`):**
+- `handle_setting_value` called `set_user_prefs(user_id, {key: value})`, replacing the entire file. Fixed: loads existing prefs, updates one key, saves full dict.
+
+**3. `EDITING_DISTRIBUTORS` pattern doesn't match `back` (`settings.py:482`):**
+- Pattern `^toggle_dist_|^dist_done|^cancel$` excluded `back`. Fixed: added `|^back$`.
+
+**4. `handle_manager_question` back hardcodes `MOBIL_QUESTION` (`new_entry.py:565-567`):**
+- Back from manager question always returned `MOBIL_QUESTION`. Fixed: uses `pop_history()` return value.
+
+**5. `PDF_ENABLED` defaults to `"false"` (`report.py:21`):**
+- Default disabled PDF. Fixed: changed default to `"true"`.
+
+**6. Settings values stored as strings (`settings.py:574`):**
+- `da_amount`/`transport_fee` now converted to `int`, `petrol_price`/`mobil_price` to `float`. Added `settings.error_invalid_number` text resource.
+
+**7. `/clean` command handler unregistered (`main.py`):**
+- Import for `clean_command` was removed accidentally. Fixed: restored import and handler registration.
+
+**8. `get_distributor_keyboard()` missing required `distributors` arg (`settings.py:133`):**
+- Edit-field-distributors path called `get_distributor_keyboard()` without the `distributors` parameter. Fixed: added `dists = await get_distributors()` before the call.
+
+### Test infrastructure
+
+Created mock PTB helpers (`make_text_update`, `make_callback_update`, `make_context`) in each test file to simulate `Update`/`Context` objects with proper `chat_id` serialization for `record_message`.
+
+### Test files created
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `tests/playground/test_entry_flow.py` | 26 | Regular + meeting entry creation flow |
+| `tests/playground/test_data_edge_cases.py` | 34 (+1 xfail) | Data layer edge cases, interrupted workflows, max entries |
+| `tests/playground/test_settings_flow.py` | 19 | Settings change, distributor management |
+| `tests/playground/test_admin_flow.py` | 14 | Add/remove user interactive flow |
+| `tests/playground/test_edit_delete_flow.py` | 22 | Edit entry field, delete entry, recalc prompt |
+| `tests/playground/test_summary_flow.py` | 16 | List entries, summary, filter by criteria |
+| `tests/playground/test_report_flow.py` | 4 | Report generation flow |
+
+### Key findings discovered during testing
+
+- **Callback data mismatch**: Entry flow tests revealed callback data must match inline keyboard definitions exactly — `"type_regular"`, `"type_meeting"`, `"cancel"` (not `"REGULAR"`, `"MONTHLY_MEETING"`, `"CANCEL"`). Tests fixed to use correct values.
+- **`pop_history` pops two entries**: Returns previous state by popping current + previous; tests need ≥2 history entries for back navigation.
+- **`handle_type_selection` for meeting**: Returns `SELECT_MONTH` (or `SELECT_DATE` with sticky month), not `ENTER_VENUE`. Venue is hardcoded.
+- **`generate_for_user` is synchronous**: Must use `MagicMock`, not `AsyncMock`.
+- **`add_entry` doesn't validate date format**: Handler-level validation only; storage accepts any string.
+
+### Fix: PDF not sent to storage channel
+
+`bot/handlers/report.py` — `generate_report_handler` sends DOCX to storage channel (line 121) but was missing the equivalent call for PDF. Added `await _send_to_storage_channel(context, pdf_path, user_id, month, year)` after PDF generation (before sending to user chat). Both files now logged.
+
+### Full suite results
+
+- **186 passed, 1 xfailed** in ~11s
+- No regressions from original 50 tests
+- DOCX generation testable; PDF requires LibreOffice soffice (not available on dev machine)
+
+### Commits
+- `4600401` — "Fix 7 bugs: save crash, prefs overwrite, back navigation, PDF default, string types, missing /clean handler"
+- `f44d98c` — "Fix get_distributor_keyboard() missing args bug + comprehensive test suite"

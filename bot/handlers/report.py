@@ -182,6 +182,9 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                     f"\U0001f4c1 File: {pdf_path.name}",
                     f"\U0001f4d5 Type: PDF",
                 ])
+                # Also send PDF to storage channel
+                await _send_to_storage_channel(context, pdf_path, user_id, month, year)
+
                 if query:
                     pdf_sent = await query.message.reply_document(
                         document=pdf_path.open('rb'), filename=pdf_path.name,
