@@ -1837,3 +1837,39 @@ Created mock PTB helpers (`make_text_update`, `make_callback_update`, `make_cont
 ### Commits
 - `4600401` — "Fix 7 bugs: save crash, prefs overwrite, back navigation, PDF default, string types, missing /clean handler"
 - `f44d98c` — "Fix get_distributor_keyboard() missing args bug + comprehensive test suite"
+
+---
+
+## Session: 2026-06-05 — Fix ENTER_ODO_END NameError + HTML escaping in confirmation
+
+### User report
+After selecting distributors and clicking "Done" (OK button) in the new entry flow, "nothing really happens, it's just stuck there."
+
+### Investigation
+Extensive static analysis of the distributor "Done" flow (`handle_distributor_selection` → `dist_done` → `show_confirmation`):
+- Pattern `^toggle_dist_|^dist_done|^cancel$|^back$` in state `SELECT_DISTRIBUTORS` correctly matches `dist_done` (regex confirmed)
+- `handle_distributor_selection` at `new_entry.py:640` correctly processes `dist_done` by calling `show_confirmation(update, context)`
+- `show_confirmation` at `new_entry.py:800` builds message and calls `edit_message_text(..., parse_mode='HTML')`
+- All 186 tests pass including `test_distributor_done_flow`
+
+### Bug 1 found: ENTER_ODO_END missing state (NameError)
+**Location:** `bot/handlers/new_entry.py:390`
+**Cause:** `handle_odo_confirm` "no" branch (user rejects odo distance confirmation) returns `ENTER_ODO_END`, which was never defined in the state tuple or ConversationHandler states dict. This raises `NameError` at runtime when the user clicks "No" on "দূরত্ব: X কিমি — is this correct?".
+**Effect:** PTB silently catches the error, `edit_message_text` already ran (shows odo_end_prompt), but state stays at `CONFIRM_ODO_END`. The CallbackQueryHandler in CONFIRM_ODO_END won't match a text message → user is stuck.
+**Fix:**
+- Added `ENTER_ODO_END = 19` to state tuple (changed `range(19)` → `range(20)`)
+- Created `handle_odo_end()` → parses the user's odo_end text, recalculates distance, shows new distance confirmation
+- Created `handle_odo_end_back()` → back from odo_end entry returns to distance confirmation screen
+- Added `ENTER_ODO_END` state to ConversationHandler's states dict with MessageHandler + back button handler
+
+### Bug 2: Missing HTML escaping for distributor names
+**Location:** `bot/handlers/new_entry.py:827`
+**Cause:** Distributor names inserted directly into `<blockquote expandable>` HTML without escaping. A name containing `&`, `<`, or `>` would cause Telegram's HTML parser to reject the confirmation message with a 400 error → PTB catches it → `edit_message_text` silently fails → user sees no change.
+**Fix:** Added `import html` and `html.escape(name)` when building distributor block in `show_confirmation`.
+
+### Test results
+- All 186 tests pass (no regressions)
+- Bot module imports cleanly
+
+### Open questions
+- The distributor "Done" button code (`handle_distributor_selection` → `dist_done` → `show_confirmation`) is semantically correct based on static analysis and passing mock tests. If the user still experiences "nothing happens" on the Done button after these fixes, the cause is likely a runtime Telegram API error (e.g., message text >4096 chars, invalid HTML from special characters in distributor names) which the html.escape fix addresses. Restart the bot after applying changes.

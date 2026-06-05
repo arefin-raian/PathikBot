@@ -1,4 +1,5 @@
 import asyncio
+import html
 from telegram import Update, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ContextTypes, 
@@ -49,8 +50,9 @@ from bot.auth import require_auth
     ENTER_VENUE,
     ENTER_TRANSPORT_FEE,
     CONFIRM_TRANSPORT_FEE,
-    CONFIRM_LAST_TOUR
-) = range(19)
+    CONFIRM_LAST_TOUR,
+    ENTER_ODO_END
+) = range(20)
 
 # Add a history for back button
 HISTORY = "step_history"
@@ -388,6 +390,55 @@ async def handle_odo_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data['prompt_msg_id'] = query.message.message_id
         await query.edit_message_text(S('new_entry.odo_end_prompt'), reply_markup=get_back_keyboard())
         return ENTER_ODO_END
+
+async def handle_odo_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    await delete_previous_messages(update, context)
+    await add_message_to_delete(update, context, update.message.message_id)
+    await delete_stale_prompt(update, context)
+    try:
+        odo_end = int(normalize_number(update.message.text))
+    except ValueError:
+        m = await update.message.reply_text(S('new_entry.error_invalid_int'))
+        await add_message_to_delete(update, context, m.message_id)
+        return ENTER_ODO_END
+
+    context.user_data['odo_end'] = odo_end
+    odo_start = context.user_data['odo_start']
+    distance = calculate_km(odo_start, odo_end)
+    context.user_data['total_km'] = distance
+
+    all_entries = await get_entries(user_id)
+    petrol_status = get_petrol_status(all_entries)
+    if distance > 0:
+        petrol_status['distance_since'] += distance
+        petrol_status['is_due'] = petrol_status['distance_since'] >= petrol_status['effective_threshold']
+
+    text = S('new_entry.distance_result', dist=to_bn_number(distance), odo_end=to_bn_number(odo_end))
+    if petrol_status['is_due']:
+        text += S('thresholds.petrol_due_reminder', km=to_bn_number(petrol_status['distance_since']))
+
+    m = await update.message.reply_text(
+        text,
+        reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True),
+        parse_mode='HTML'
+    )
+    await add_message_to_delete(update, context, m.message_id)
+    return CONFIRM_ODO_END
+
+
+async def handle_odo_end_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    dist = context.user_data.get('total_km', 0)
+    odo_end = context.user_data.get('odo_end', 0)
+    await query.edit_message_text(
+        S('new_entry.distance_result', dist=to_bn_number(dist), odo_end=to_bn_number(odo_end)),
+        reply_markup=get_yes_no_keyboard('odo_confirm', include_back=True),
+        parse_mode='HTML'
+    )
+    return CONFIRM_ODO_END
+
 
 async def handle_petrol_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -774,7 +825,7 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if data.get('distributors_raw'):
             dist_block = "<blockquote expandable>"
             for name in data['distributors_raw']:
-                dist_block += S('summary.entry_distributor_line', name=name)
+                dist_block += S('summary.entry_distributor_line', name=html.escape(name))
             dist_block += "</blockquote>"
         summary = (
             S('summary.entry_header_regular', index="", date=date_bn) + "\n" +
@@ -1031,6 +1082,10 @@ def get_new_entry_handler():
                 CallbackQueryHandler(handle_odo_start_confirm, pattern="^back$") # Reuse back logic
             ],
             CONFIRM_ODO_END: [CallbackQueryHandler(handle_odo_confirm, pattern="^odo_confirm_|^back$")],
+            ENTER_ODO_END: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_odo_end),
+                CallbackQueryHandler(handle_odo_end_back, pattern="^back$")
+            ],
             PETROL_QUESTION: [CallbackQueryHandler(handle_petrol_question, pattern="^petrol_|^back$")],
             ENTER_LITERS: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_liters),
