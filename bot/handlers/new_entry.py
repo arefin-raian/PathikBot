@@ -505,7 +505,7 @@ async def handle_liters(update: Update, context: ContextTypes.DEFAULT_TYPE):
         liters = float(normalize_number(update.message.text))
         context.user_data['petrol_liters'] = liters
         prefs = await get_user_prefs(user_id)
-        petrol_price = prefs.get('petrol_price', DEFAULT_PETROL_PRICE)
+        petrol_price = float(prefs.get('petrol_price', DEFAULT_PETROL_PRICE))
         context.user_data['petrol_cost'] = calculate_petrol_cost(liters, petrol_price)
         
         push_history(context, MOBIL_QUESTION)
@@ -593,7 +593,7 @@ async def handle_mobil_liters(update: Update, context: ContextTypes.DEFAULT_TYPE
         liters = float(normalize_number(update.message.text))
         context.user_data['mobil_liters'] = liters
         prefs = await get_user_prefs(user_id)
-        mobil_price = prefs.get('mobil_price', DEFAULT_MOBIL_PRICE)
+        mobil_price = float(prefs.get('mobil_price', DEFAULT_MOBIL_PRICE))
         context.user_data['mobil_cost'] = calculate_mobil_cost(liters, mobil_price)
         
         push_history(context, MANAGER_QUESTION)
@@ -640,7 +640,7 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
     else:
         context.user_data['others_designation'] = ""
         prefs = await get_user_prefs(update.effective_user.id)
-        context.user_data['da_amount'] = prefs.get('da_amount', 200)
+        context.user_data['da_amount'] = int(prefs.get('da_amount', 200))
         push_history(context, SELECT_DISTRIBUTORS)
         context.user_data['selected_dist_indices'] = []
         dists = await get_distributors()
@@ -800,8 +800,8 @@ async def handle_back_to_confirm_transport(update: Update, context: ContextTypes
 async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data
     prefs = await get_user_prefs(update.effective_user.id)
-    petrol_price = prefs.get('petrol_price', DEFAULT_PETROL_PRICE)
-    mobil_price = prefs.get('mobil_price', DEFAULT_MOBIL_PRICE)
+    petrol_price = float(prefs.get('petrol_price', DEFAULT_PETROL_PRICE))
+    mobil_price = float(prefs.get('mobil_price', DEFAULT_MOBIL_PRICE))
     cost = calculate_total_entry_cost(
         data['entry_type'], 
         data.get('petrol_liters', 0), 

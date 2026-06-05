@@ -245,8 +245,8 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
             
         prefs = await get_user_prefs(user_id)
-        petrol_price = prefs.get('petrol_price', DEFAULT_PETROL_PRICE)
-        mobil_price = prefs.get('mobil_price', DEFAULT_MOBIL_PRICE)
+        petrol_price = float(prefs.get('petrol_price', DEFAULT_PETROL_PRICE))
+        mobil_price = float(prefs.get('mobil_price', DEFAULT_MOBIL_PRICE))
         updates = {}
         if field == "km":
             updates['total_km'] = int(val)
