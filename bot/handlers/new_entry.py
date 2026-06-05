@@ -563,8 +563,23 @@ async def handle_manager_question(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
     
     if query.data == "back":
-        await query.edit_message_text(S('new_entry.mobil_liters_prompt'), reply_markup=get_back_keyboard())
-        return MOBIL_QUESTION
+        prev = pop_history(context)
+        if prev == ENTER_MOBIL_LITERS:
+            await query.edit_message_text(S('new_entry.mobil_liters_prompt'), reply_markup=get_back_keyboard())
+            return ENTER_MOBIL_LITERS
+        elif prev == MOBIL_QUESTION:
+            user_id = update.effective_user.id
+            all_entries = await get_entries(user_id)
+            status = get_mobil_status(all_entries)
+            if context.user_data.get('total_km', 0) > 0:
+                status['distance_since'] += context.user_data['total_km']
+                status['is_due'] = status['distance_since'] >= status['effective_threshold']
+            mobil_text = S('new_entry.mobil_question')
+            if status['is_due']:
+                mobil_text += S('thresholds.mobil_due_reminder', km=to_bn_number(status['distance_since']))
+            await query.edit_message_text(mobil_text, reply_markup=get_yes_no_keyboard('mobil', include_back=True), parse_mode='HTML')
+            return MOBIL_QUESTION
+        return CHOOSING_TYPE
     
     if query.data == "manager_yes":
         push_history(context, ENTER_MANAGER)
@@ -857,7 +872,7 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         from bot.handlers.summary import send_summary_message
         month_entries = await get_entries(user_id, dt.month, dt.year)
-        await send_summary_message(context, update.effective_chat.id, month_entries)
+        await send_summary_message(context, update.effective_chat.id, user_id, month_entries)
 
         user = update.effective_user
         entry_type = context.user_data.get('entry_type', '')

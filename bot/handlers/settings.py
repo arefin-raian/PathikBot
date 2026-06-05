@@ -479,7 +479,7 @@ def get_edit_delete_conv_handler():
             CHOOSING_ENTRY_TO_EDIT: [CallbackQueryHandler(handle_edit_selection, pattern="^edit_|^edit_delete_menu$")],
             CHOOSING_FIELD_TO_EDIT: [CallbackQueryHandler(start_field_edit, pattern="^edit_field_|^edit_entry$")],
             ENTERING_NEW_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_new_value)],
-            EDITING_DISTRIBUTORS: [CallbackQueryHandler(handle_edit_distributors, pattern="^toggle_dist_|^dist_done|^cancel$")],
+            EDITING_DISTRIBUTORS: [CallbackQueryHandler(handle_edit_distributors, pattern="^toggle_dist_|^dist_done|^cancel$|^back$")],
             CHOOSING_ENTRY_TO_DELETE: [CallbackQueryHandler(handle_delete_selection, pattern="^delete_|^edit_delete_menu$")],
             CONFIRM_DELETE: [CallbackQueryHandler(confirm_delete_callback, pattern="^confirm_|^back$")],
             CONFIRM_RECALC: [CallbackQueryHandler(handle_recalc_confirm, pattern="^recalc_")],
@@ -571,7 +571,17 @@ async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYP
     user = update.effective_user
     prefs_before = await get_user_prefs(user_id)
     old_val = prefs_before.get(key, '')
-    await set_user_prefs(user_id, {key: value})
+    try:
+        if key in ('da_amount', 'transport_fee'):
+            value = int(value)
+        elif key in ('petrol_price', 'mobil_price'):
+            value = float(value)
+    except ValueError:
+        sent_msg = await update.message.reply_text(S('settings.error_invalid_number'))
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
+        return SETTING_VALUE
+    prefs_before[key] = value
+    await set_user_prefs(user_id, prefs_before)
     setting_labels = {'petrol_price': 'Petrol Price', 'mobil_price': 'Mobil Price', 'da_amount': 'DA Amount', 'transport_fee': 'Transport Fee'}
     await log_event(context, 'settings_changed',
         user_id=user_id, username=user.full_name,

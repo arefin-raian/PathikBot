@@ -18,7 +18,7 @@ from bot.text_resources import S
 from bot.auth import require_auth
 
 STORAGE_CHANNEL = os.getenv("STORAGE_CHANNEL_ID")
-PDF_ENABLED = os.getenv("PDF_ENABLED", "false").lower() == "true"
+PDF_ENABLED = os.getenv("PDF_ENABLED", "true").lower() == "true"
 SOFFICE_PATH = os.getenv("SOFFICE_PATH", "soffice")
 
 FONTS_DIR = Path(__file__).resolve().parent.parent.parent / "fonts"

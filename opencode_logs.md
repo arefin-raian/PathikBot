@@ -1724,3 +1724,45 @@ User reported 3 issues:
 - `/clean` brute-force scans up to 500 message IDs back, deleting bot messages
 - `/start` cleanup scans up to 200 message IDs back
 - PDF status message correctly shows "পিডিএফ তৈরি হচ্ছে" and is deleted after PDF delivery
+
+---
+
+## Session: 2026-06-05
+
+### Task: Fix 7 bugs identified during code review
+
+**Bugs fixed:**
+
+1. **`send_summary_message` missing `user_id` argument** (`bot/handlers/new_entry.py:860`)
+   - `save_entry_callback` called `send_summary_message(context, chat_id, month_entries)` but function signature requires 4 args.
+   - Fixed: added `user_id` as 3rd argument.
+
+2. **`set_user_prefs` overwrites all prefs on single-key change** (`bot/handlers/settings.py:574`)
+   - `handle_setting_value` called `set_user_prefs(user_id, {key: value})`, overwriting the entire prefs file with just one key.
+   - Fixed: loads existing prefs first with `get_user_prefs()`, updates the single key, then saves the full dict.
+
+3. **EDITING_DISTRIBUTORS pattern doesn't match `back`** (`bot/handlers/settings.py:482`)
+   - Pattern `^toggle_dist_|^dist_done|^cancel$` excluded `back`, making the back button a dead click in edit-distributors flow.
+   - Fixed: added `|^back$` to pattern.
+
+4. **`handle_manager_question` back hardcodes MOBIL_QUESTION** (`bot/handlers/new_entry.py:565-567`)
+   - Back from manager question always returned `MOBIL_QUESTION` with `mobil_liters_prompt` text, even when user came from `ENTER_MOBIL_LITERS`.
+   - Fixed: uses `pop_history()` to determine correct previous state — restores `ENTER_MOBIL_LITERS` prompt or `MOBIL_QUESTION` with threshold reminders accordingly.
+
+5. **PDF_ENABLED defaults to `"false"`** (`bot/handlers/report.py:21`)
+   - Default disables PDF generation in deployment.
+   - Fixed: changed default to `"true"` so PDF generation works out of the box.
+
+6. **Settings values stored as strings cause TypeError in calculations** (`bot/handlers/settings.py:574`, `bot/text_resources.json`)
+   - `handle_setting_value` stored `update.message.text` (string) directly into prefs; `da_amount` and `transport_fee` used in arithmetic would fail.
+   - Fixed: converts `da_amount`/`transport_fee` to `int`, `petrol_price`/`mobil_price` to `float` before storing; added `settings.error_invalid_number` text resource for validation error message.
+
+7. **`/clean` command handler unregistered** (`bot/main.py`)
+   - Import for `clean_command` was removed in a prior cleanup commit but the command remained in the bot's command list.
+   - Fixed: restored import of `clean_command` from `bot.handlers.cleanup` and registered `CommandHandler('clean', clean_command)`.
+
+**Verification:**
+- All 50 tests pass (no regressions).
+- Bot imports cleanly (no module errors).
+- `git diff --stat`: 5 files changed, 36 insertions(+), 7 deletions(-) — no unintended changes.
+- Generated logsheet files restored to original (test-run artifacts discarded).

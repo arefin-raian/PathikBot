@@ -17,6 +17,7 @@ from core.audit_logger import log_event
 
 from bot.handlers.start import start_command, help_command, main_menu_callback
 from bot.handlers.new_entry import get_new_entry_handler
+from bot.handlers.cleanup import clean_command
 from bot.handlers.report import generate_report_handler
 from bot.handlers.summary import list_entries_handler, summary_handler
 from bot.handlers.settings import settings_handler, get_settings_conv_handler, get_edit_delete_conv_handler
@@ -112,6 +113,8 @@ def main():
     application.add_handler(cancel_handler)
     application.add_handler(menu_handler)
     application.add_handler(listusers_handler_cmd)
+    clean_handler = CommandHandler('clean', clean_command)
+    application.add_handler(clean_handler)
 
     # Start health HTTP server for Render port binding
     hs = threading.Thread(target=_start_health_server, daemon=True)
