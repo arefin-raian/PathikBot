@@ -193,40 +193,58 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
 
 
 def _find_jvm_dll() -> str:
+    if os.name == "nt":
+        lib_name = "jvm.dll"
+    else:
+        lib_name = "libjvm.so"
+
     java_home = os.environ.get("JAVA_HOME") or os.environ.get("JDK_HOME")
     if java_home:
-        candidate = Path(java_home) / "jre" / "bin" / "server" / "jvm.dll"
-        if candidate.is_file():
-            return str(candidate)
-        candidate = Path(java_home) / "bin" / "server" / "jvm.dll"
-        if candidate.is_file():
-            return str(candidate)
-
-    for base in [
-        Path("C:/Program Files/Eclipse Adoptium"),
-        Path("C:/Program Files/Java"),
-        Path("C:/Program Files/Eclipse Adoptium/jdk-17.0.19.10-hotspot"),
-    ]:
-        if not base.is_dir():
-            continue
-        for jdk_dir in base.iterdir():
-            candidate = jdk_dir / "bin" / "server" / "jvm.dll"
+        for sub in ("jre", ""):
+            candidate = Path(java_home) / sub / "bin" / "server" / lib_name
             if candidate.is_file():
                 return str(candidate)
+
+    if os.name == "nt":
+        for base in [
+            Path("C:/Program Files/Eclipse Adoptium"),
+            Path("C:/Program Files/Java"),
+        ]:
+            if not base.is_dir():
+                continue
+            for jdk_dir in base.iterdir():
+                candidate = jdk_dir / "bin" / "server" / lib_name
+                if candidate.is_file():
+                    return str(candidate)
 
     try:
-        result = subprocess.run(["where", "java"], capture_output=True, text=True, timeout=5)
-        java_path = result.stdout.strip().splitlines()[0]
-        if java_path:
-            home = Path(java_path).resolve().parent.parent
-            candidate = home / "bin" / "server" / "jvm.dll"
-            if candidate.is_file():
-                return str(candidate)
+        if os.name == "nt":
+            result = subprocess.run(["where", "java"], capture_output=True, text=True, timeout=5)
+            java_path = result.stdout.strip().splitlines()[0]
+            if java_path:
+                home = Path(java_path).resolve().parent.parent
+                for sub in ("jre", ""):
+                    candidate = home / sub / "bin" / "server" / lib_name
+                    if candidate.is_file():
+                        return str(candidate)
+        else:
+            result = subprocess.run(
+                ["sh", "-c", "readlink -f $(which java)"],
+                capture_output=True, text=True, timeout=5,
+            )
+            java_path = result.stdout.strip()
+            if java_path:
+                # readlink resolves /usr/bin/java -> /etc/alternatives/java -> /usr/lib/jvm/...
+                home = Path(java_path).resolve().parent.parent
+                for sub in ("jre", ""):
+                    candidate = home / sub / "lib" / "server" / lib_name
+                    if candidate.is_file():
+                        return str(candidate)
     except Exception:
         pass
 
     raise RuntimeError(
-        "No JVM shared library file (jvm.dll) found. "
+        f"No JVM shared library file ({lib_name}) found. "
         "Set the JAVA_HOME environment variable to your JDK installation path."
     )
 
