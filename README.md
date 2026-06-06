@@ -182,9 +182,9 @@ python -m pytest tests/ -v
 FROM python:3.12-slim
 WORKDIR /app
 
-# Java 17 (required for Aspose.Words JAR via JPype)
+# Java (required for Aspose.Words JAR via JPype)
 RUN apt-get update && apt-get install -y \
-    fontconfig openjdk-17-jre-headless \
+    fontconfig openjdk-21-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
