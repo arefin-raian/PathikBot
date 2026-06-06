@@ -2,9 +2,9 @@ import asyncio
 import threading
 from playwright.async_api import async_playwright
 
+_PLAYWRIGHT = None
 _BROWSER = None
 _PAGE = None
-_LOCK = threading.Lock()
 _LOOP = None
 _THREAD = None
 
@@ -30,10 +30,10 @@ def _get_loop():
 
 
 async def _ensure_page():
-    global _BROWSER, _PAGE
+    global _PLAYWRIGHT, _BROWSER, _PAGE
     if _PAGE is None:
-        p = await async_playwright().start()
-        _BROWSER = await p.chromium.launch(headless=True)
+        _PLAYWRIGHT = await async_playwright().start()
+        _BROWSER = await _PLAYWRIGHT.chromium.launch(headless=True)
         _PAGE = await _BROWSER.new_page()
         await _PAGE.goto(CONVERTER_URL, wait_until="domcontentloaded", timeout=30000)
         await _PAGE.wait_for_selector("#btnToBijoy", timeout=15000)
