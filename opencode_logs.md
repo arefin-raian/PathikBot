@@ -2019,54 +2019,24 @@ Extensive static analysis of the distributor "Done" flow (`handle_distributor_se
 - `core/file_data_store.py` — `_sync_mongo_to_local()` in dispatch block
 - `opencode_logs.md` — this entry
 
+---
+
+## Session: 2026-06-06 (evening) — Reverted: removed PDF adjuster
+
+### What
+- Deleted `docx_generator/pdf_adjuster.py`
+- Restored `bot/handlers/report.py` to previous version: direct Aspose conversion via JPype, no font shrink or page-spacing pre-processing
+- Removed the PDF adjuster log entry
+
+Now back to simple DOCX→PDF conversion with `_find_jvm_dll()` auto-detection.
+
+### Files changed
+- `docx_generator/pdf_adjuster.py` — deleted
+- `bot/handlers/report.py` — restored `jpype`/`subprocess` imports, `_find_jvm_dll()`, old `_convert_to_pdf()`
+- `opencode_logs.md` — this entry
+
 ### Verification
 - Code uses **Aspose** (JPype + JAR) — confirmed: `from com.aspose.words import Document, SaveFormat, FontSettings` in `report.py:233`. Zero LibreOffice references remain anywhere.
 - MongoDB sync runs at startup when `MONGODB_URL` is set
 - `.env` shows `PDF_ENABLED=true` and `STORAGE_CHANNEL_ID=-1003987447869`
 
----
-
-## Session: 2026-06-06 (evening) — PDF layout fix: font shrink + page-spacing adjustment
-
-### Problem
-PDF conversion renders content slightly larger than DOCX, causing table header rows to spill backward onto previous pages (page 3 header appears on page 2, etc.).
-
-### Approach
-After generating the final DOCX, create a temp copy → reduce all font sizes by 1pt → add spacing at table boundaries without changing page count → convert the copy to PDF → clean up.
-
-**Key constraint:** Original DOCX and templates must remain untouched. Only the temp copy is modified.
-
-### New file: `docx_generator/pdf_adjuster.py`
-Full pipeline module with:
-- `copy_docx(src)` — copies DOCX to a temp path with unique hash name (`{stem}_pdfadj_{sha256}.docx`)
-- `reduce_font_sizes(docx_path)` — uses python-docx to iterate every run in every paragraph/table cell; reduces font.size by Pt(1) when explicitly set; leaves inherited sizes unchanged
-- `_read_docx_xml()` / `_write_docx_xml()` — extract/replace `word/document.xml` inside the OPC zip
-- `get_page_count(docx_path)` — Aspose Document.getPageCount() via JPype
-- `adjust_page_spacing(docx_path)` — per table-boundary adjustment:
-  1. Find positions between consecutive `<w:tbl>` elements in the body
-  2. For each boundary: insert 2 spacer `<w:p>` paragraphs, check page count via Aspose
-  3. If page count increased → remove one spacer, re-check
-  4. If still increased → remove both (keep 0 at that boundary)
-  5. Moves to next boundary
-- `convert_docx_to_pdf(docx_path, pdf_path, fonts_dir)` — Aspose conversion
-- `prepare_for_pdf(original_docx)` — convenience: copy → reduce → adjust → return (temp, pdf)
-- `cleanup_temp(temp_path)` — clean up
-
-**Spacer XML:** `<w:p>` with `<w:spacing w:line="480" w:lineRule="auto" w:before="120" w:after="120"/>`
-
-### Changes in `bot/handlers/report.py`
-- Removed `jpype`, `jpype.imports`, `subprocess` imports (moved to pdf_adjuster)
-- Removed `_find_jvm_dll()` function (moved to pdf_adjuster)
-- Replaced `_convert_to_pdf()` — now calls `prepare_for_pdf()` → `convert_docx_to_pdf()` → `cleanup_temp()`
-- New `_convert_to_pdf()` is 7 lines instead of 60+
-
-### Verify
-- All 226 tests pass
-- Pipeline tested: copy → -1pt (4 pages) → adjust (4 pages) → PDF (26KB)
-- Original DOCX remains untouched
-- Temp files cleaned up after conversion
-
-### Files changed
-- `docx_generator/pdf_adjuster.py` — new (260 lines)
-- `bot/handlers/report.py` — simplified converter, removed old JVM/path utilities
-- `opencode_logs.md` — this entry
