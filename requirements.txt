@@ -8,8 +8,6 @@ lxml
 motor>=3.5
 pymongo>=4.0
 jpype1
-playwright
 
 # lxml is used by docx_generator/logsheet_generator.py
-# Playwright is used by docx_generator/web_converter.py (bangla.plus converter)
 # Java 17+ required for Aspose.Words JAR (aspose-words-20.12-jdk17-cracked.jar)

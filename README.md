@@ -37,7 +37,7 @@ A **Telegram bot** for Territory Marketing Officers to track daily field-visit e
 ### DOCX/PDF Report Generation
 - Landscape A4 format with template variants for 3–30 entries
 - All Bangla text encoded in **Bijoy** (`SutonnyMJ` font)
-- Distributor names converted via **bangla.plus** web converter (Playwright headless Chromium) — ensures accurate Bijoy output
+- Distributor names converted via **Unicode-to-Bijoy REST API** (`bijoy.converteraz.com`) — ensures accurate Bijoy output without browser overhead
 - PDF conversion via **Aspose.Words for Java** (cracked JAR, no evaluation watermark)
 - Reports uploaded to Telegram channel for persistent access
 
@@ -61,7 +61,6 @@ cd PathikBot
 python -m venv venv
 .\venv\Scripts\Activate
 pip install -r requirements.txt
-python -m playwright install chromium
 ```
 
 ### Linux (Ubuntu/Debian)
@@ -72,7 +71,6 @@ cd PathikBot
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python -m playwright install chromium
 ```
 
 ### Termux (Android)
@@ -85,7 +83,6 @@ cd PathikBot
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python -m playwright install chromium
 ```
 
 > **Note**: Running 24/7 on Termux requires extra tools like `termux-services` or `tmux`. See the **Deployment** section below for persistent hosting options.
@@ -185,16 +182,13 @@ python -m pytest tests/ -v
 FROM python:3.12-slim
 WORKDIR /app
 
-# Java 17 + Playwright system deps
+# Java 17 (required for Aspose.Words JAR via JPype)
 RUN apt-get update && apt-get install -y \
     fontconfig openjdk-17-jre-headless \
-    libnss3 libatk-bridge2.0-0 libdrm-dev libxkbcommon-dev \
-    libgbm-dev libasound2 libxshmfence-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN python -m playwright install chromium
 
 COPY . .
 CMD ["python", "-m", "bot.main"]
@@ -221,7 +215,7 @@ docker compose up -d
 4. The included `render.yaml` will be auto-detected (Blueprint). Or manually:
    - **Name**: `pathikbot`
    - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt && python -m playwright install chromium`
+   - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `python -m bot.main`
    - **Plan**: Free
 5. Add Environment Variables:
@@ -311,7 +305,7 @@ PathikBot/
 │   ├── bijoy_converter.py          # Unicode → Bijoy conversion (dates, venue, labels)
 │   ├── bijoy_conversion_rules.py   # Bijoy mapping engine
 │   ├── character_map_utils.py      # String/character utilities
-│   └── web_converter.py            # Playwright-based bangla.plus converter (distributor names)
+│   └── web_converter.py            # REST API converter (bijoy.converteraz.com)
 ├── scripts/
 │   ├── template_variant_generator.py
 │   └── test_data_generator.py
@@ -350,7 +344,7 @@ PathikBot/
 | MongoDB Driver (tests) | [`pymongo`](https://github.com/mongodb/mongo-python-driver) (sync) |
 | DOCX Generation | `lxml` (reads/writes OpenXML directly) |
 | PDF Conversion | **Aspose.Words for Java** (cracked JAR via [`jpype`](https://jpype.readthedocs.io/)) |
-| Bangla Converter (distributor names) | [`playwright`](https://playwright.dev/) — headless Chromium visits bangla.plus |
+| Bangla Converter (distributor names) | REST API (`bijoy.converteraz.com`) via `urllib` |
 | Bangla Converter (other fields) | Custom Unicode → Bijoy mapping (`bijoy_converter.py`) |
 | File Storage (dev) | `aiofiles` + JSON |
 | Environment | `python-dotenv` |
