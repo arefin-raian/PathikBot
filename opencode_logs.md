@@ -1971,3 +1971,55 @@ Extensive static analysis of the distributor "Done" flow (`handle_distributor_se
 6. Kill running bot instances
 7. Restart bot
 8. Reply to user
+
+---
+
+## Session: 2026-06-06 (continued) — JVM auto-detect + MongoDB → Local sync
+
+### Fix: JVM not found when JAVA_HOME not set
+
+**Problem:** When `JAVA_HOME` environment variable wasn't set, `jpype.getDefaultJVMPath()` couldn't find `jvm.dll`, crashing PDF generation.
+
+**Fix in `bot/handlers/report.py`:**
+- Added `_find_jvm_dll()` — tries in order:
+  1. `JAVA_HOME` / `JDK_HOME` env var (checks `jre/bin/server/jvm.dll` then `bin/server/jvm.dll`)
+  2. Common Windows install paths (`C:/Program Files/Eclipse Adoptium`, `C:/Program Files/Java`)
+  3. `where java` output → deduce JAVA_HOME from java.exe location
+  4. Raises `RuntimeError` with clear instructions if nothing found
+- Updated `_convert_to_pdf()` to call `_find_jvm_dll()` instead of `jpype.getDefaultJVMPath()`
+
+**Also updated `run.bat`:**
+- Sets `JAVA_HOME` to the known Java 17 path if not already defined
+
+**Verification:** Tested without JAVA_HOME — correctly finds `jvm.dll` at `C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot\bin\server\jvm.dll`. PDF converts successfully (25KB).
+
+### Fix: data/message_log/ missing from .gitignore
+- Added `data/message_log/` to `.gitignore` (wasn't ignored, getting accidentally committed)
+
+### Feature: MongoDB → Local sync on startup
+
+**Problem:** When running with MongoDB (MONGODB_URL set), local JSON files were only used as fallback. If MongoDB had data that local files didn't (e.g. after remote usage), local state was stale.
+
+**Fix in `core/file_data_store.py` — dispatch block:**
+- Added `_sync_mongo_to_local()` — called in `init_db()` after MongoDB connects:
+  - Pulls all users → writes `data/users.json`
+  - For each user: pulls entries → writes `data/entries_{id}.json` (strips `_id`, `user_id`)
+  - For each user: pulls prefs → writes `data/user_prefs/{id}.json`
+  - Pulls distributors → writes `data/distributors.json`
+- Sync runs automatically on every bot startup when `_mongo_available` is true
+
+**Current architecture:**
+- `MONGODB_URL` set → MongoDB primary, file fallback, startup sync pulls MongoDB → Local
+- `MONGODB_URL` unset → File-based only (tests also force this via conftest.py)
+
+### Files changed
+- `bot/handlers/report.py` — `_find_jvm_dll()` auto-detection, `subprocess` import
+- `run.bat` — JAVA_HOME fallback
+- `.gitignore` — `data/message_log/` added
+- `core/file_data_store.py` — `_sync_mongo_to_local()` in dispatch block
+- `opencode_logs.md` — this entry
+
+### Verification
+- Code uses **Aspose** (JPype + JAR) — confirmed: `from com.aspose.words import Document, SaveFormat, FontSettings` in `report.py:233`. Zero LibreOffice references remain anywhere.
+- MongoDB sync runs at startup when `MONGODB_URL` is set
+- `.env` shows `PDF_ENABLED=true` and `STORAGE_CHANNEL_ID=-1003987447869`

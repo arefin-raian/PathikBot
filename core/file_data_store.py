@@ -437,10 +437,44 @@ if os.getenv("MONGODB_URL"):
             return await _mongo.init_user_storage(user_id)
         return await _file['init_user_storage'](user_id)
 
+    async def _sync_mongo_to_local():
+        """Pull all data from MongoDB and write to local JSON files."""
+
+        def _write_json(path, data):
+            _ensure_data_dir()
+            parent = os.path.dirname(path)
+            if parent and not os.path.exists(parent):
+                os.makedirs(parent)
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+        # Users
+        users = await _mongo.get_all_users()
+        _write_json(USERS_PATH, users)
+
+        # Per-user entries & prefs
+        for uid_str in users:
+            uid = int(uid_str)
+
+            entries = await _mongo.get_entries(uid)
+            for e in entries:
+                e.pop("_id", None)
+                e.pop("user_id", None)
+            _write_json(_entries_path(uid), entries)
+
+            prefs = await _mongo.get_user_prefs(uid)
+            _write_json(_user_prefs_path(uid), prefs)
+
+        # Distributors
+        dists = await _mongo.get_distributors()
+        _write_json(DIST_PATH, dists)
+
     async def init_db():  # noqa: F811
         await _use_mongo()
         if _mongo_available:
-            return await _mongo.init_db()
+            await _mongo.init_db()
+            await _sync_mongo_to_local()
+            return
         return await _file['init_db']()
 
     async def add_entry(user_id, entry_data):  # noqa: F811
