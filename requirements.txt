@@ -7,6 +7,8 @@ aiofiles
 motor>=3.5
 pymongo>=4.0
 jpype1
+playwright
 
 # PDF conversion uses Aspose.Words for Java (cracked JAR via JPype).
 # Requires Java 17+ installed on the system.
+# Browser automation for bangla.plus converter uses Playwright (Chromium).
