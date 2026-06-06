@@ -31,7 +31,6 @@ except ImportError:
     sys.exit(1)
 
 from docx_generator.bijoy_converter import convert_to_bijoy
-from docx_generator.bangla_plus_converter import convert_unicode_to_bijoy
 
 W         = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
@@ -383,11 +382,14 @@ def _convert_entry(entry: dict, serial: int) -> dict:
         result['manager_bijoy'] = "gvwmK wgwUs"
     else:
         raw_names = entry.get('distributors_raw', [])
-        # Build full Unicode text block (all names with মেসার্স, pipes,
-        # newlines) and convert as one unit using the bangla.plus converter.
-        # This produces correct reph/kar positioning across the full context.
+        # The bot inconsistently prepends মেসার্স (Messrs) to distributor
+        # names in some entries but omits it in others (typically page 2+).
+        # Normalise: strip any existing variant first, then always prepend,
+        # so every name in the logsheet gets the prefix uniformly.
+        MESSRS_UNICODE = 'মেসার্স'
         MESSRS_VARIANTS = ('মেসার্স ', 'মেসার্স', 'messrs ', 'messrs')
-        unicode_lines = []
+        MESSRS_BIJOY = convert_to_bijoy(MESSRS_UNICODE) + ' '
+        bijoy_runs = []
         for name in raw_names:
             clean = name.split("(")[0].split("（")[0].split("{")[0].strip()
             lower = clean.lower()
@@ -395,10 +397,8 @@ def _convert_entry(entry: dict, serial: int) -> dict:
                 if lower.startswith(variant.lower()):
                     clean = clean[len(variant):].strip()
                     break
-            unicode_lines.append('মেসার্স ' + clean + '|')
-        full_unicode_block = '\n'.join(unicode_lines)
-        full_bijoy_block = convert_unicode_to_bijoy(full_unicode_block)
-        result['distributors_runs'] = full_bijoy_block.split('\n')
+            bijoy_runs.append(MESSRS_BIJOY + convert_to_bijoy(clean) + "|")
+        result['distributors_runs'] = bijoy_runs
 
         mgr = entry.get('others_designation', '')
         result['manager_bijoy'] = convert_to_bijoy(mgr) if mgr else ""
