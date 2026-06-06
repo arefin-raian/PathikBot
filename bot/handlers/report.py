@@ -1,10 +1,5 @@
 import os
-import sys
-import subprocess
-import tempfile
-import shutil
 import asyncio
-import platform
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -19,51 +14,11 @@ from bot.auth import require_auth
 
 STORAGE_CHANNEL = os.getenv("STORAGE_CHANNEL_ID")
 PDF_ENABLED = os.getenv("PDF_ENABLED", "true").lower() == "true"
-SOFFICE_PATH = os.getenv("SOFFICE_PATH", "soffice")
 
 FONTS_DIR = Path(__file__).resolve().parent.parent.parent / "fonts"
 
 
-def _ensure_fonts_installed():
-    """Install SutonnyMJ fonts so LibreOffice can find them during PDF conversion.
-
-    On Windows, fonts are copied to %APPDATA%/LibreOffice/4/user/fonts/
-    so that LibreOffice picks them up without admin privileges.
-    On Linux/macOS, they are copied to ~/.fonts/ and fc-cache is run.
-    Skips if the target already has the font (checked by filename).
-    """
-    if not FONTS_DIR.is_dir():
-        return
-
-    system = platform.system()
-    if system == "Windows":
-        lo_user_fonts = Path(os.environ.get("APPDATA", "")) / "LibreOffice" / "4" / "user" / "fonts"
-    elif system == "Linux":
-        lo_user_fonts = Path.home() / ".fonts"
-    elif system == "Darwin":
-        lo_user_fonts = Path.home() / "Library" / "Fonts"
-    else:
-        return
-
-    lo_user_fonts.mkdir(parents=True, exist_ok=True)
-
-    installed = False
-    for ttf in FONTS_DIR.glob("*.ttf"):
-        dest = lo_user_fonts / ttf.name
-        if not dest.exists():
-            try:
-                shutil.copy2(str(ttf), str(dest))
-                installed = True
-            except PermissionError:
-                pass
-
-    if installed and system == "Linux":
-        subprocess.run(["fc-cache", "-f"], capture_output=True, timeout=30)
-    elif installed and system == "Darwin":
-        subprocess.run(["atsutil", "databases", "-remove"], capture_output=True, timeout=30)
-
 async def _send_to_storage_channel(context: ContextTypes.DEFAULT_TYPE, docx_path: Path, user_id: int, month: int, year: int):
-    """Send the generated file to the storage channel and save file_id in MongoDB."""
     if not STORAGE_CHANNEL:
         return
     try:
@@ -159,7 +114,6 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
 
         # PDF conversion (toggle with PDF_ENABLED env var)
         if PDF_ENABLED:
-            _ensure_fonts_installed()
             pdf_path = docx_path.with_suffix('.pdf')
             gen_pdf_msg = S('report.generating_pdf')
             if query:
@@ -182,7 +136,6 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                     f"\U0001f4c1 File: {pdf_path.name}",
                     f"\U0001f4d5 Type: PDF",
                 ])
-                # Also send PDF to storage channel
                 await _send_to_storage_channel(context, pdf_path, user_id, month, year)
 
                 if query:
@@ -225,28 +178,16 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
 
 
 def _convert_to_pdf(docx_path: str, pdf_path: str) -> None:
-    """Convert DOCX to PDF using LibreOffice headless mode.
-    
-    Falls back to commented docx2pdf method if soffice is unavailable.
-    Set SOFFICE_PATH env var to override the soffice binary location.
-    """
-    _ensure_fonts_installed()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_docx = os.path.join(tmpdir, os.path.basename(docx_path))
-        shutil.copy2(docx_path, tmp_docx)
-        result = subprocess.run(
-            [SOFFICE_PATH, "--headless", "--norestore", "--nofirststartwizard",
-             "--convert-to", "pdf", "--outdir", tmpdir, tmp_docx],
-            capture_output=True, text=True, timeout=120
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"soffice exited {result.returncode}: {result.stderr}")
-        tmp_pdf = os.path.join(tmpdir, os.path.basename(pdf_path))
-        if not os.path.exists(tmp_pdf):
-            raise RuntimeError(f"LibreOffice did not create PDF output")
-        shutil.copy2(tmp_pdf, pdf_path)
+    """Convert DOCX to PDF using Aspose.Words (no system dependencies)."""
+    import aspose.words as aw
 
-# def _convert_to_pdf_docx2pdf(docx_path, pdf_path):
-#     """Windows-only: uses MS Word via win32com. Kept for reference."""
-#     from docx2pdf import convert
-#     convert(docx_path, pdf_path)
+    font_settings = aw.fonts.FontSettings()
+    if FONTS_DIR.is_dir():
+        # Keep system fonts AND add our custom fonts folder
+        system_source = aw.fonts.SystemFontSource()
+        folder_source = aw.fonts.FolderFontSource(str(FONTS_DIR), True)
+        font_settings.set_fonts_sources([system_source, folder_source])
+
+    doc = aw.Document(docx_path)
+    doc.font_settings = font_settings
+    doc.save(pdf_path, aw.SaveFormat.PDF)

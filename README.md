@@ -34,7 +34,7 @@ A **Telegram bot** for Territory Marketing Officers to track daily field-visit e
 - Configured via the bot's `/settings` menu — each user can have their own rates
 - Hardcoded defaults apply if no custom value is set
 
-### DOCX Report Generation
+### DOCX Report Generation & PDF Conversion
 - Landscape A4 format with 4 page types:
   - **Type 1** — Header + first 3 entries
   - **Type 2** — Middle pages (4 entries each, cloned as needed)
@@ -42,6 +42,7 @@ A **Telegram bot** for Territory Marketing Officers to track daily field-visit e
   - **Type 4** — Summary statistics
 - All Bangla text encoded in **Bijoy** (`SutonnyMJ` font)
 - Report files uploaded to a Telegram channel for persistent access
+- **PDF conversion** via Aspose.Words (no system dependencies — cross-platform, no headless server needed)
 
 ### All Bangla Strings in One Place
 All user-facing text is externalized to `bot/text_resources.json`. Edit text without touching code.
@@ -114,6 +115,13 @@ DESIGNATION=টেরিটরি মার্কেটিং অফিসার
 POSTING_AREA=ডোমার
 MOTORCYCLE_BRAND=বাজাজ ডিসকভার
 DEPO_NAME=রংপুর
+
+# PDF_ENABLED=false to skip PDF conversion (default: true)
+# PDF_ENABLED=true
+
+# Aspose.Words license (optional — removes evaluation watermark)
+# Set path to license file or leave unset for evaluation mode
+# ASPOSE_LICENSE=aspose.lic
 ```
 
 ### 2. Storage Backend Options
@@ -159,9 +167,9 @@ Send `/start` to your bot on Telegram. If you're the owner (ID `6161189904`), yo
 python -m pytest tests/ -v
 ```
 
-**45 tests total:**
-- `test_calculations.py` — 16 scenarios: threshold tracking, carry-forward, edge cases
-- `test_user_mgmt.py` — 29 scenarios: user CRUD, data isolation, auth, edge cases
+**61 tests total:**
+- `test_calculations.py` — 31 scenarios: threshold tracking, signed carry-forward, edge cases
+- `test_user_mgmt.py` — 30 scenarios: user CRUD, data isolation, auth, edge cases
 
 > Tests always use the **file-based backend** (clears `MONGODB_URL` automatically in `conftest.py`).
 
@@ -172,7 +180,6 @@ python -m pytest tests/ -v
 ### Docker
 
 ```dockerfile
-# Dockerfile
 FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt .
@@ -315,8 +322,8 @@ PathikBot/
 ├── outputs/
 ├── tests/
 │   ├── conftest.py                 # Forces file-based backend for tests
-│   ├── test_user_mgmt.py           # 29 user mgmt tests
-│   └── test_calculations.py        # 16 calculation tests
+│   ├── test_user_mgmt.py           # 30 user mgmt tests
+│   └── test_calculations.py        # 31 calculation tests
 ├── .env.example                    # Template for .env (no secrets)
 ├── .gitignore
 ├── Dockerfile
@@ -337,6 +344,7 @@ PathikBot/
 | MongoDB Driver (tests) | [`pymongo`](https://github.com/mongodb/mongo-python-driver) (synchronous) |
 | Document Generation | `python-docx` + custom XML |
 | Standalone Generator | `lxml` |
+| PDF Conversion | [`aspose-words`](https://products.aspose.com/words/python/) (no system deps) |
 | Bangla Encoding | Custom Unicode → Bijoy converter |
 | File Storage (dev) | `aiofiles` + JSON |
 | Environment | `python-dotenv` |

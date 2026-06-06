@@ -158,8 +158,13 @@ def get_mobil_status(entries):
 
 def calc_carry_forward(entries, new_entry_km, liters_field, overflow_field, threshold):
     """
-    Calculate overflow (excess km) when adding a new entry that includes a refill.
+    Calculate signed carry-forward when adding a new entry that includes a refill.
     Should be called BEFORE the entry is saved (entries = existing data only).
+
+    Returns SIGNED value:
+      - Negative: km remaining (refuelled before threshold — petrol still left)
+      - Positive: excess km (exceeded threshold — next threshold reduced)
+      - Zero:     exactly at threshold
     """
     sorted_entries = sorted(entries, key=lambda e: e['date'])
     if not sorted_entries:
@@ -174,13 +179,15 @@ def calc_carry_forward(entries, new_entry_km, liters_field, overflow_field, thre
             prev_carry = sorted_entries[i].get(overflow_field, 0)
             break
 
+    if last_refill_idx == -1:
+        return 0
+
     distance_since = new_entry_km
-    start_idx = max(0, last_refill_idx)
-    for i in range(start_idx, len(sorted_entries)):
+    for i in range(last_refill_idx, len(sorted_entries)):
         distance_since += sorted_entries[i].get('total_km', 0)
 
     effective_threshold = threshold - prev_carry
-    return max(0, distance_since - effective_threshold)
+    return distance_since - effective_threshold
 
 
 def calculate_fuel_since_refill(entries, liters_field, threshold_km):
