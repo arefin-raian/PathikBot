@@ -65,6 +65,13 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         return
 
     try:
+        gen_msg = S('report.generating_docx')
+        if query:
+            status_msg = await query.message.reply_text(gen_msg, parse_mode='HTML')
+        else:
+            status_msg = await update.message.reply_text(gen_msg, parse_mode='HTML')
+        await record_message(user_id, status_msg.chat_id, status_msg.message_id, 'temporary')
+
         output_path = generate_for_user(
             user_id=user_id,
             entries=entries,
@@ -73,6 +80,11 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             tpl_dir=Path("generated_logsheets"),
             out_dir=Path("outputs"),
         )
+
+        try:
+            await context.bot.delete_message(chat_id=status_msg.chat_id, message_id=status_msg.message_id)
+        except Exception:
+            pass
 
         docx_path = Path(output_path)
 
