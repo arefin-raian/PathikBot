@@ -31,7 +31,6 @@ except ImportError:
     sys.exit(1)
 
 from docx_generator.bijoy_converter import convert_to_bijoy
-from docx_generator.web_converter import convert_unicode_to_bijoy
 
 W         = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
@@ -384,7 +383,8 @@ def _convert_entry(entry: dict, serial: int) -> dict:
     else:
         raw_names = entry.get('distributors_raw', [])
         # Build full Unicode text block and convert via bangla.plus website
-        # using Playwright, which gives accurate conversion for all names.
+        # using Playwright (lazy import). Falls back to old converter if
+        # Playwright is unavailable or the website is unreachable.
         MESSRS_VARIANTS = ('মেসার্স ', 'মেসার্স', 'messrs ', 'messrs')
         unicode_lines = []
         for name in raw_names:
@@ -396,8 +396,17 @@ def _convert_entry(entry: dict, serial: int) -> dict:
                     break
             unicode_lines.append('মেসার্স ' + clean + '|')
         full_unicode_block = '\n'.join(unicode_lines)
-        full_bijoy_block = convert_unicode_to_bijoy(full_unicode_block)
-        result['distributors_runs'] = full_bijoy_block.split('\n')
+        try:
+            from docx_generator.web_converter import convert_unicode_to_bijoy
+            full_bijoy_block = convert_unicode_to_bijoy(full_unicode_block)
+            result['distributors_runs'] = full_bijoy_block.split('\n')
+        except Exception:
+            MESSRS_BIJOY = convert_to_bijoy('মেসার্স') + ' '
+            bijoy_runs = []
+            for line in unicode_lines:
+                clean = line.replace('মেসার্স ', '', 1).rstrip('|')
+                bijoy_runs.append(MESSRS_BIJOY + convert_to_bijoy(clean) + "|")
+            result['distributors_runs'] = bijoy_runs
 
         mgr = entry.get('others_designation', '')
         result['manager_bijoy'] = convert_to_bijoy(mgr) if mgr else ""
