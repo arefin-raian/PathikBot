@@ -33,6 +33,7 @@ data/user_prefs.json
 data/users.json
 data/entries_*.json
 data/user_prefs/
+data/message_log/
 
 # Logs
 *.log
