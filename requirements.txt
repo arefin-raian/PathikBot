@@ -6,9 +6,7 @@ pytz
 aiofiles
 motor>=3.5
 pymongo>=4.0
-aspose-words
+jpype1
 
-# PDF conversion uses Aspose.Words (no system dependencies).
-# For production, set ASPOSE_LICENSE environment variable or
-# place aspose.lic in the project root to remove evaluation watermarks.
-# See https://purchase.aspose.com/temporary-license for a trial license.
+# PDF conversion uses Aspose.Words for Java (cracked JAR via JPype).
+# Requires Java 17+ installed on the system.

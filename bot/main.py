@@ -3,6 +3,11 @@ import logging
 import warnings
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from dotenv import load_dotenv
+
+# Load environment variables BEFORE any module imports that depend on them
+load_dotenv()
+
 from telegram import Update, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
 from telegram.warnings import PTBUserWarning
@@ -10,8 +15,6 @@ from telegram.warnings import PTBUserWarning
 # Suppress harmless PTB warnings about per_message settings with mixed handler types
 warnings.filterwarnings("ignore", category=PTBUserWarning, message="If 'per_message=False'")
 warnings.filterwarnings("ignore", category=PTBUserWarning, message="If 'per_message=True'")
-
-from dotenv import load_dotenv
 
 from core.audit_logger import log_event
 
@@ -26,8 +29,6 @@ from bot.handlers.admin import get_admin_conv_handler, listusers_handler
 from bot.text_resources import bot_commands
 from core.file_data_store import init_db
 
-# Load environment variables
-load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
 

@@ -934,10 +934,8 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         changes.append(f"Type: <b>{entry_type}</b>")
         changes.append(f"Date: <b>{context.user_data.get('date', '')}</b>")
         changes.append(f"Distance: <b>{total_km}</b> km")
-        if petrol_l:
-            changes.append(f"Petrol: <b>{petrol_l}</b> L (cost: {context.user_data.get('petrol_cost', 0)}/-)")
-        if mobil_l:
-            changes.append(f"Mobil: <b>{mobil_l}</b> L (cost: {context.user_data.get('mobil_cost', 0)}/-)")
+        changes.append(f"Petrol: <b>{petrol_l}</b> L (cost: {context.user_data.get('petrol_cost', 0)}/-)")
+        changes.append(f"Mobil: <b>{mobil_l}</b> L (cost: {context.user_data.get('mobil_cost', 0)}/-)")
         changes.append(f"Total Cost: <b>{context.user_data.get('total_cost', 0)}</b>/-")
         await log_event(context, 'entry_created',
             user_id=user_id, username=user.full_name,

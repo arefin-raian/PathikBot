@@ -276,8 +276,10 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update_entry_and_cascade(user_id, entry_id, updates)
 
         user = update.effective_user
-        old_val = entry.get(field if field != 'km' else 'total_km', '')
-        new_val = updates.get('total_km' if field == 'km' else field, '')
+        field_key_map = {'km': 'total_km', 'start': 'odo_start', 'end': 'odo_end', 'petrol': 'petrol_liters', 'mobil': 'mobil_liters'}
+        entry_key = field_key_map.get(field, field)
+        old_val = entry.get(entry_key, '')
+        new_val = updates.get(entry_key, '')
         field_labels = {'km': 'Distance', 'start': 'Odometer Start', 'end': 'Odometer End', 'petrol': 'Petrol Liters', 'mobil': 'Mobil Liters'}
         flabel = field_labels.get(field, field)
         await log_event(context, 'entry_edited',

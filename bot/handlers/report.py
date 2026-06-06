@@ -1,5 +1,7 @@
 import os
 import asyncio
+import jpype
+import jpype.imports
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -178,16 +180,18 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
 
 
 def _convert_to_pdf(docx_path: str, pdf_path: str) -> None:
-    """Convert DOCX to PDF using Aspose.Words (no system dependencies)."""
-    import aspose.words as aw
+    """Convert DOCX to PDF using Aspose.Words for Java (cracked JAR via JPype)."""
+    jar_path = str(Path(__file__).resolve().parent.parent.parent / 'aspose-words-20.12-jdk17-cracked.jar')
 
-    font_settings = aw.fonts.FontSettings()
+    if not jpype.isJVMStarted():
+        jpype.startJVM(jpype.getDefaultJVMPath(), classpath=[jar_path], convertStrings=True)
+
+    from com.aspose.words import Document, SaveFormat, FontSettings
+
+    font_settings = FontSettings()
     if FONTS_DIR.is_dir():
-        # Keep system fonts AND add our custom fonts folder
-        system_source = aw.fonts.SystemFontSource()
-        folder_source = aw.fonts.FolderFontSource(str(FONTS_DIR), True)
-        font_settings.set_fonts_sources([system_source, folder_source])
+        font_settings.setFontsFolder(str(FONTS_DIR), True)
 
-    doc = aw.Document(docx_path)
-    doc.font_settings = font_settings
-    doc.save(pdf_path, aw.SaveFormat.PDF)
+    doc = Document(docx_path)
+    doc.setFontSettings(font_settings)
+    doc.save(pdf_path, SaveFormat.PDF)

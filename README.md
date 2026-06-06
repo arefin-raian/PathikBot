@@ -182,6 +182,7 @@ python -m pytest tests/ -v
 ```dockerfile
 FROM python:3.12-slim
 WORKDIR /app
+RUN apt-get update && apt-get install -y openjdk-17-jre-headless && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
@@ -344,7 +345,7 @@ PathikBot/
 | MongoDB Driver (tests) | [`pymongo`](https://github.com/mongodb/mongo-python-driver) (synchronous) |
 | Document Generation | `python-docx` + custom XML |
 | Standalone Generator | `lxml` |
-| PDF Conversion | [`aspose-words`](https://products.aspose.com/words/python/) (no system deps) |
+| PDF Conversion | [`aspose-words`](https://products.aspose.com/words/) for Java (cracked JAR via [`jpype`](https://jpype.readthedocs.io/)) |
 | Bangla Encoding | Custom Unicode → Bijoy converter |
 | File Storage (dev) | `aiofiles` + JSON |
 | Environment | `python-dotenv` |

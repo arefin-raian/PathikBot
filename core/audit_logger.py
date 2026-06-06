@@ -1,8 +1,6 @@
 import os
 from datetime import datetime
 
-STORAGE_CHANNEL = os.getenv("STORAGE_CHANNEL_ID")
-
 EVENT_EMOJI = {
     'user_added': '\U0001f464',
     'user_removed': '\U0001f465',
@@ -36,7 +34,8 @@ def _indent(text, prefix="  \u2022 "):
     return "\n".join(f"{prefix}{line}" for line in text.split("\n"))
 
 async def log_event(context_or_bot, event_type, **kw):
-    if not STORAGE_CHANNEL:
+    channel = os.getenv("STORAGE_CHANNEL_ID")
+    if not channel:
         return
     bot = context_or_bot.bot if hasattr(context_or_bot, 'bot') else context_or_bot
     try:
@@ -69,7 +68,7 @@ async def log_event(context_or_bot, event_type, **kw):
                 parts.append(_indent(e, "  \u2192 "))
 
         await bot.send_message(
-            chat_id=STORAGE_CHANNEL,
+            chat_id=channel,
             text="\n".join(parts),
             parse_mode='HTML'
         )
