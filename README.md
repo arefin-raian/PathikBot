@@ -1,6 +1,6 @@
 # PathikBot — Motorcycle Logsheet Automation System
 
-A **Telegram bot** for Territory Marketing Officers to track daily field-visit expenses and auto-generate monthly **DOCX logsheet reports** in Bijoy-encoded Bangla (SutonnyMJ font).
+A **Telegram bot** for Territory Marketing Officers to track daily field-visit expenses and auto-generate monthly **DOCX + PDF logsheet reports** in Bijoy-encoded Bangla (SutonnyMJ font).
 
 ---
 
@@ -13,7 +13,7 @@ A **Telegram bot** for Territory Marketing Officers to track daily field-visit e
 - **`/editentry` / `/delentry`** — Modify or delete entries with automatic cascading odometer recalculation
 - **`/months`** — Browse and manage records from previous months (list, summary, generate report)
 - **`/settings`** — Per-user configurable petrol price, mobil price, DA rate, transport fee, and distributor list
-- **`/generate`** — Generate a formatted `.docx` logsheet report
+- **`/generate`** — Generate a formatted `.docx` logsheet report (converted to PDF automatically)
 - **`/adduser`**, **`/removeuser`**, **`/users`** — Owner-only interactive user management
 
 ### Smart Calculations
@@ -22,27 +22,24 @@ A **Telegram bot** for Territory Marketing Officers to track daily field-visit e
 - **Mobil cost**: `liters × price_per_liter` (auto-calculated)
 - **Total cost** varies by entry type (Regular Tour vs Monthly Meeting)
 - **Cascading odometers**: editing/deleting an entry auto-updates all subsequent entries' readings
-- **Threshold tracking**: petrol (480 km) / mobil (1000 km) — carry-forward excess distance adjusts next threshold; due reminders shown when threshold reached
+- **Signed carry-forward tracking**: petrol (480 km) / mobil (1000 km) — negative carry-forward = remaining km, positive = excess km carried over; due reminders shown when threshold reached
 
 ### Data Storage (Dual Backend)
 - **File-based** (local dev) — JSON files in `data/`
-- **MongoDB** (production) — via `motor` async driver; auto-migrates legacy data on startup
-- **Telegram Channel** — Generated DOCX reports uploaded to a private channel for persistent file storage
+- **MongoDB** (production) — via `motor` async driver; auto-syncs from MongoDB to local JSON on startup
+- **Telegram Channel** — Generated DOCX/PDF reports uploaded to a private channel for persistent file storage
 
 ### Per-User Pricing
 - Petrol price, mobil price, DA amount, and transport fee are **stored per user**, not in `.env`
 - Configured via the bot's `/settings` menu — each user can have their own rates
 - Hardcoded defaults apply if no custom value is set
 
-### DOCX Report Generation & PDF Conversion
-- Landscape A4 format with 4 page types:
-  - **Type 1** — Header + first 3 entries
-  - **Type 2** — Middle pages (4 entries each, cloned as needed)
-  - **Type 3** — Last entries + totals row
-  - **Type 4** — Summary statistics
+### DOCX/PDF Report Generation
+- Landscape A4 format with template variants for 3–30 entries
 - All Bangla text encoded in **Bijoy** (`SutonnyMJ` font)
-- Report files uploaded to a Telegram channel for persistent access
-- **PDF conversion** via Aspose.Words (no system dependencies — cross-platform, no headless server needed)
+- Distributor names converted via **bangla.plus** web converter (Playwright headless Chromium) — ensures accurate Bijoy output
+- PDF conversion via **Aspose.Words for Java** (cracked JAR, no evaluation watermark)
+- Reports uploaded to Telegram channel for persistent access
 
 ### All Bangla Strings in One Place
 All user-facing text is externalized to `bot/text_resources.json`. Edit text without touching code.
@@ -54,6 +51,7 @@ All user-facing text is externalized to `bot/text_resources.json`. Edit text wit
 ### Prerequisites
 - Python 3.10+
 - A Telegram Bot Token (from [@BotFather](https://t.me/botfather))
+- Java 17+ (for PDF conversion via Aspose.Words)
 
 ### Windows
 
@@ -63,6 +61,7 @@ cd PathikBot
 python -m venv venv
 .\venv\Scripts\Activate
 pip install -r requirements.txt
+python -m playwright install chromium
 ```
 
 ### Linux (Ubuntu/Debian)
@@ -73,18 +72,20 @@ cd PathikBot
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+python -m playwright install chromium
 ```
 
 ### Termux (Android)
 
 ```bash
 pkg update && pkg upgrade
-pkg install python git
+pkg install python git openjdk-17
 git clone https://github.com/YOUR_USERNAME/PathikBot.git
 cd PathikBot
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+python -m playwright install chromium
 ```
 
 > **Note**: Running 24/7 on Termux requires extra tools like `termux-services` or `tmux`. See the **Deployment** section below for persistent hosting options.
@@ -135,9 +136,9 @@ DEPO_NAME=রংপুর
 When `MONGODB_URL` is set, the bot automatically:
 - Connects to MongoDB Atlas (or your self-hosted MongoDB)
 - Creates collections: `users`, `entries`, `user_prefs`, `distributors`, `logsheets`
-- Migrates existing JSON data (`entries_*.json`, `users.json`, `user_prefs/*.json`) into MongoDB
+- Syncs MongoDB data to local JSON files on startup
 
-### 3. Telegram Channel Setup (for DOCX storage)
+### 3. Telegram Channel Setup (for DOCX/PDF storage)
 
 1. Create a **private Telegram channel**
 2. Add your bot as an **administrator** (needs "Post Messages" permission)
@@ -167,9 +168,10 @@ Send `/start` to your bot on Telegram. If you're the owner (ID `6161189904`), yo
 python -m pytest tests/ -v
 ```
 
-**61 tests total:**
-- `test_calculations.py` — 31 scenarios: threshold tracking, signed carry-forward, edge cases
-- `test_user_mgmt.py` — 30 scenarios: user CRUD, data isolation, auth, edge cases
+**226 tests (1 xfailed):**
+- `tests/test_calculations.py` — 61 scenarios: signed carry-forward, threshold tracking, fuel efficiency, edge cases
+- `tests/test_user_mgmt.py` — 30 scenarios: user CRUD, data isolation, auth, edge cases
+- `tests/playground/` — 135 scenarios: entry flow, edit/delete flow, settings, summary, report, data edge cases
 
 > Tests always use the **file-based backend** (clears `MONGODB_URL` automatically in `conftest.py`).
 
@@ -182,9 +184,18 @@ python -m pytest tests/ -v
 ```dockerfile
 FROM python:3.12-slim
 WORKDIR /app
-RUN apt-get update && apt-get install -y openjdk-17-jre-headless && rm -rf /var/lib/apt/lists/*
+
+# Java 17 + Playwright system deps
+RUN apt-get update && apt-get install -y \
+    fontconfig openjdk-17-jre-headless \
+    libnss3 libatk-bridge2.0-0 libdrm-dev libxkbcommon-dev \
+    libgbm-dev libasound2 libxshmfence-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m playwright install chromium
+
 COPY . .
 CMD ["python", "-m", "bot.main"]
 ```
@@ -202,26 +213,24 @@ services:
 docker compose up -d
 ```
 
-### Render
+### Render (Recommended)
 
 1. Push your repo to GitHub
 2. Go to [dashboard.render.com](https://dashboard.render.com) → **New +** → **Web Service**
 3. Connect your repo
-4. Fill:
+4. The included `render.yaml` will be auto-detected (Blueprint). Or manually:
    - **Name**: `pathikbot`
    - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
+   - **Build Command**: `pip install -r requirements.txt && python -m playwright install chromium`
    - **Start Command**: `python -m bot.main`
    - **Plan**: Free
 5. Add Environment Variables:
    - `BOT_TOKEN` (required)
    - `MONGODB_URL` (required for persistence — use [MongoDB Atlas](https://www.mongodb.com/atlas) free tier)
-   - `MONGODB_DB_NAME` = `pathikbot`
-   - `STORAGE_CHANNEL_ID` (optional)
    - `COMPANY_NAME`, `OFFICER_NAME`, etc.
 6. Click **Deploy Web Service**
 
-> **Note**: Render's free tier spins down after inactivity. The bot itself is event-driven (Telegram webhook), so it responds on demand. For polling mode, set **Health Check Path** to `/` and add a simple health endpoint, or use a **Cron Job** to ping it periodically.
+> **Note**: Render's free tier spins down after inactivity. Since the bot uses **polling** (not webhook), set a **Cron Job** (e.g., [cron-job.org](https://cron-job.org)) to ping `https://your-app.onrender.com/` every 10 minutes to keep it awake. The health check endpoint returns 200 immediately.
 
 ### Railway
 
@@ -229,16 +238,10 @@ docker compose up -d
 2. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**
 3. Add Environment Variables (same as Render above)
 4. Set Start Command: `python -m bot.main`
-5. Railway auto-detects Python — no build command needed
-
-### Koyeb / Fly.io / Heroku
-
-Same pattern: set env vars, start command is `python -m bot.main`. Use MongoDB Atlas for persistence across restarts.
 
 ### VPS (Linux)
 
 ```bash
-# Using systemd
 sudo nano /etc/systemd/system/pathikbot.service
 ```
 
@@ -268,14 +271,10 @@ sudo systemctl enable --now pathikbot
 ### Termux (Android — 24/7)
 
 ```bash
-# Install termux-services
-pkg install termux-services
-# Start bot in a tmux session
 pkg install tmux
 tmux new -s pathikbot
 cd PathikBot && source venv/bin/activate && python -m bot.main
-# Detach: Ctrl+B, D
-# Reattach: tmux attach -t pathikbot
+# Detach: Ctrl+B, D   |   Reattach: tmux attach -t pathikbot
 ```
 
 ---
@@ -290,6 +289,7 @@ PathikBot/
 │   ├── inline_keyboards.py         # Inline keyboard builders (Bangla)
 │   ├── text_resources.py           # S(key, **kwargs) string loader
 │   ├── text_resources.json         # ALL user-facing Bangla text
+│   ├── audit_logger.py             # Event logging to Telegram channel
 │   └── handlers/
 │       ├── start.py                # /start, /help, main menu
 │       ├── new_entry.py            # 20-state entry ConversationHandler
@@ -297,19 +297,21 @@ PathikBot/
 │       ├── settings.py             # Per-user prefs, edit/delete entries, dist mgmt
 │       ├── archive.py              # /months (past records browser)
 │       ├── admin.py                # Interactive /adduser, /removeuser, /users
-│       └── report.py               # /generate DOCX report + channel upload
+│       └── report.py               # /generate DOCX + PDF report + channel upload
 ├── core/
 │   ├── file_data_store.py          # User mgmt, entries CRUD, cascading odos, dispatch
-│   ├── mongo_db.py                 # MongoDB async backend (motor) + legacy migration
-│   └── expense_calculations.py     # Cost, summary, threshold tracking
+│   ├── mongo_db.py                 # MongoDB async backend (motor) + sync to local
+│   ├── expense_calculations.py     # Cost, summary, signed carry-forward tracking
+│   └── audit_logger.py             # Log events to Telegram channel
 ├── docx_generator/
 │   ├── __init__.py
-│   ├── logsheet_generator.py       # Main generator (lxml, used by bot)
+│   ├── logsheet_generator.py       # Main generator (lxml) — populates DOCX templates
 │   ├── legacy_docx_generator.py    # Alternate python-docx generator (legacy)
 │   ├── docx_xml_helpers.py         # Cell formatting helpers
-│   ├── bijoy_converter.py          # Unicode → Bijoy conversion wrapper
+│   ├── bijoy_converter.py          # Unicode → Bijoy conversion (dates, venue, labels)
 │   ├── bijoy_conversion_rules.py   # Bijoy mapping engine
-│   └── character_map_utils.py      # String/character utilities
+│   ├── character_map_utils.py      # String/character utilities
+│   └── web_converter.py            # Playwright-based bangla.plus converter (distributor names)
 ├── scripts/
 │   ├── template_variant_generator.py
 │   └── test_data_generator.py
@@ -318,19 +320,22 @@ PathikBot/
 │   ├── distributors.json           # Shared distributor list
 │   ├── entries_{user_id}.json      # Per-user entries (file backend)
 │   └── user_prefs/{user_id}.json   # Per-user preferences (file backend)
-├── templates/
-├── generated_logsheets/
-├── outputs/
+├── templates/                      # Aspose-compatible DOCX templates
+├── generated_logsheets/            # Pre-built logsheet templates (lxml-based)
+├── outputs/                        # Generated DOCX/PDF output
 ├── tests/
 │   ├── conftest.py                 # Forces file-based backend for tests
+│   ├── test_calculations.py        # 61 calculation tests
 │   ├── test_user_mgmt.py           # 30 user mgmt tests
-│   └── test_calculations.py        # 31 calculation tests
-├── .env.example                    # Template for .env (no secrets)
+│   └── playground/                 # 135 flow/integration tests
+├── aspose-words-20.12-jdk17-cracked.jar  # Aspose.Words for Java (PDF)
+├── .env.example
 ├── .gitignore
 ├── Dockerfile
 ├── docker-compose.yml
+├── render.yaml
 ├── requirements.txt
-├── run.bat                         # Windows launcher
+├── run.bat
 └── README.md
 ```
 
@@ -342,11 +347,11 @@ PathikBot/
 |-----------|---------|
 | Bot Framework | [`python-telegram-bot`](https://github.com/python-telegram-bot/python-telegram-bot) (async, v20.x) |
 | MongoDB Driver (production) | [`motor`](https://github.com/mongodb/motor) (async) |
-| MongoDB Driver (tests) | [`pymongo`](https://github.com/mongodb/mongo-python-driver) (synchronous) |
-| Document Generation | `python-docx` + custom XML |
-| Standalone Generator | `lxml` |
-| PDF Conversion | [`aspose-words`](https://products.aspose.com/words/) for Java (cracked JAR via [`jpype`](https://jpype.readthedocs.io/)) |
-| Bangla Encoding | Custom Unicode → Bijoy converter |
+| MongoDB Driver (tests) | [`pymongo`](https://github.com/mongodb/mongo-python-driver) (sync) |
+| DOCX Generation | `lxml` (reads/writes OpenXML directly) |
+| PDF Conversion | **Aspose.Words for Java** (cracked JAR via [`jpype`](https://jpype.readthedocs.io/)) |
+| Bangla Converter (distributor names) | [`playwright`](https://playwright.dev/) — headless Chromium visits bangla.plus |
+| Bangla Converter (other fields) | Custom Unicode → Bijoy mapping (`bijoy_converter.py`) |
 | File Storage (dev) | `aiofiles` + JSON |
 | Environment | `python-dotenv` |
 | Testing | `pytest` + `pytest-asyncio` |
