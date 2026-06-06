@@ -1,10 +1,32 @@
 import asyncio
+import threading
 from playwright.async_api import async_playwright
 
 _BROWSER = None
 _PAGE = None
+_LOCK = threading.Lock()
+_LOOP = None
+_THREAD = None
 
 CONVERTER_URL = "https://bangla.plus/bijoy-unicode-converter/"
+
+
+def _start_loop():
+    global _LOOP, _THREAD
+    _LOOP = asyncio.new_event_loop()
+    asyncio.set_event_loop(_LOOP)
+    _LOOP.run_forever()
+
+
+def _get_loop():
+    global _LOOP, _THREAD
+    if _LOOP is None:
+        _THREAD = threading.Thread(target=_start_loop, daemon=True)
+        _THREAD.start()
+        # Wait for loop to be ready
+        while _LOOP is None:
+            pass
+    return _LOOP
 
 
 async def _ensure_page():
@@ -29,14 +51,6 @@ async def _convert_text(text: str) -> str:
 
 
 def convert_unicode_to_bijoy(text: str) -> str:
-    return asyncio.run(_convert_text(text))
-
-
-async def cleanup():
-    global _BROWSER, _PAGE
-    if _PAGE:
-        await _PAGE.close()
-        _PAGE = None
-    if _BROWSER:
-        await _BROWSER.stop()
-        _BROWSER = None
+    loop = _get_loop()
+    future = asyncio.run_coroutine_threadsafe(_convert_text(text), loop)
+    return future.result()
