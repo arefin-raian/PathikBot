@@ -1,9 +1,6 @@
 import os
 import asyncio
-import jpype
-import jpype.imports
 from pathlib import Path
-import subprocess
 from telegram import Update
 from telegram.ext import ContextTypes
 from core.file_data_store import get_entries
@@ -180,62 +177,11 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             await update.message.reply_text(error_msg, parse_mode='HTML')
 
 
-def _find_jvm_dll() -> str:
-    """Locate jvm.dll by checking JAVA_HOME or scanning common install paths."""
-    java_home = os.environ.get("JAVA_HOME") or os.environ.get("JDK_HOME")
-    if java_home:
-        candidate = Path(java_home) / "jre" / "bin" / "server" / "jvm.dll"
-        if candidate.is_file():
-            return str(candidate)
-        candidate = Path(java_home) / "bin" / "server" / "jvm.dll"
-        if candidate.is_file():
-            return str(candidate)
-
-    # Probe common Windows install locations
-    for base in [
-        Path("C:/Program Files/Eclipse Adoptium"),
-        Path("C:/Program Files/Java"),
-        Path("C:/Program Files/Eclipse Adoptium/jdk-17.0.19.10-hotspot"),
-    ]:
-        if not base.is_dir():
-            continue
-        for jdk_dir in base.iterdir():
-            candidate = jdk_dir / "bin" / "server" / "jvm.dll"
-            if candidate.is_file():
-                return str(candidate)
-
-    # Fallback: run `where java` and deduce JAVA_HOME
-    try:
-        result = subprocess.run(["where", "java"], capture_output=True, text=True, timeout=5)
-        java_path = result.stdout.strip().splitlines()[0]
-        if java_path:
-            home = Path(java_path).resolve().parent.parent
-            candidate = home / "bin" / "server" / "jvm.dll"
-            if candidate.is_file():
-                return str(candidate)
-    except Exception:
-        pass
-
-    raise RuntimeError(
-        "No JVM shared library file (jvm.dll) found. "
-        "Set the JAVA_HOME environment variable to your JDK installation path."
-    )
-
-
 def _convert_to_pdf(docx_path: str, pdf_path: str) -> None:
-    """Convert DOCX to PDF using Aspose.Words for Java (cracked JAR via JPype)."""
-    jar_path = str(Path(__file__).resolve().parent.parent.parent / 'aspose-words-20.12-jdk17-cracked.jar')
-
-    if not jpype.isJVMStarted():
-        jvm_path = _find_jvm_dll()
-        jpype.startJVM(jvm_path, classpath=[jar_path], convertStrings=True)
-
-    from com.aspose.words import Document, SaveFormat, FontSettings
-
-    font_settings = FontSettings()
-    if FONTS_DIR.is_dir():
-        font_settings.setFontsFolder(str(FONTS_DIR), True)
-
-    doc = Document(docx_path)
-    doc.setFontSettings(font_settings)
-    doc.save(pdf_path, SaveFormat.PDF)
+    """Convert DOCX to PDF with font shrink and page-spacing adjustment."""
+    from docx_generator.pdf_adjuster import prepare_for_pdf, convert_docx_to_pdf, cleanup_temp
+    temp, _ = prepare_for_pdf(docx_path)
+    try:
+        convert_docx_to_pdf(temp, pdf_path, str(FONTS_DIR))
+    finally:
+        cleanup_temp(temp)
