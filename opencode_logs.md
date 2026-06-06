@@ -2040,3 +2040,97 @@ Now back to simple DOCX→PDF conversion with `_find_jvm_dll()` auto-detection.
 - MongoDB sync runs at startup when `MONGODB_URL` is set
 - `.env` shows `PDF_ENABLED=true` and `STORAGE_CHANNEL_ID=-1003987447869`
 
+---
+
+## Session: 2026-06-07 — Render deploy files, Playwright → REST API, Docker Java 21 fix, cross-platform JVM
+
+### Task: Update all deploy-related files for Render
+
+**Files changed:**
+- `Dockerfile` — added Playwright system deps (`libnss3`, `libatk-bridge`, etc.) + `python -m playwright install chromium`; later replaced with `openjdk-21-jre-headless` only
+- `render.yaml` — buildCommand includes Playwright install; later simplified to `pip install -r requirements.txt`
+- `requirements.txt` — added `lxml` (was missing), then later removed `playwright`
+- `.env.example` — removed stale `DB_PATH=data/logsheet.db`
+- `README.md` — updated test counts (226), signed carry-forward, Playwright web converter, Aspose JAR (not PyPI), Render deploy with cron-job keep-alive
+
+### Task: Implement Playwright-based bangla.plus web converter
+
+**File: `docx_generator/web_converter.py`:**
+- Used `playwright.sync_api` with headless Chromium (`channel="chrome"`)
+- Visited `https://bangla.plus/bijoy-unicode-converter/`, typed Unicode text, clicked "Bijoy" button, read result
+- Had issues: `page.type()` with delay was slow; button click timed out on multi-line input; `channel="chrome"` failed on bundled headless shell (ICU error)
+
+**Bug found:** Playwright 1.60+ on Windows uses `chromium_headless_shell` which crashed with "Invalid file descriptor to ICU data". `channel="chrome"` (system Chrome/Edge) worked but not portable.
+
+**Fix:** Added `try/except` fallback — try `channel="chrome"` first, fall back to bundled Chromium headless.
+
+### Task: Replace Playwright with REST API (user request)
+
+**User said:** "get rid of ts playwright shit. use ts api https://bijoy.converteraz.com/blog/bijoy-unicode-api instead"
+
+**New `docx_generator/web_converter.py`:**
+- Removed ALL Playwright code (sync_playwright, browser launch, page navigation, JS evaluation)
+- Replaced with single `urllib.request` POST to `https://bijoy.converteraz.com/api/convert/unicode-to-bijoy`
+- 15-line file, zero external dependencies, no browser overhead
+
+**Bug found:** `www.bijoy.converteraz.com` has a 308 redirect loop. Must use `bijoy.converteraz.com` (without www) which returns 200 OK.
+
+**Verification:** Conversion matches Playwright output: `টেস্ট` → `†U÷`, multi-line distributor names preserved correctly.
+
+**Removed Playwright from:**
+- `requirements.txt` — removed `playwright` dependency
+- `Dockerfile` — removed Playwright system deps (`libnss3`, `libatk-bridge`, etc.) and `playwright install chromium` step
+- `render.yaml` — simplified buildCommand to `pip install -r requirements.txt`
+- `README.md` — updated tech stack, install steps, Dockerfile example, Render build command, project structure
+
+### Bug: Java not installed in Docker (Render build failure)
+
+**Render Docker build failed:**
+```
+Package openjdk-17-jre-headless is not available, but is referred to by another package.
+However the following packages replace it:
+  openjdk-21-jre openjdk-21-jdk-headless
+```
+
+**Root cause:** Debian trixie (Python 3.12-slim base) dropped `openjdk-17`. Only `openjdk-21` available.
+
+**Fix:** Changed Dockerfile + README to `openjdk-21-jre-headless`. Aspose.Words 20.12 JAR works with Java 21 (backward compatible).
+
+**Commit:** `1c7ac96` — "Dockerfile: use openjdk-21-jre-headless (Debian trixie dropped openjdk-17)"
+
+### Bug: JVM not found on Render/Linux
+
+**Error:** "No JVM shared library file (jvm.dll) found" on Render deployment.
+
+**Root cause:** `_find_jvm_dll()` in `bot/handlers/report.py` only searched for `jvm.dll` (Windows) with hardcoded Windows paths. On Linux, the JVM library is `libjvm.so` at a different path structure.
+
+**Fix (`bot/handlers/report.py`):**
+- Detect `os.name` → `"nt"` uses `jvm.dll`, else uses `libjvm.so`
+- On Linux: use `readlink -f $(which java)` to resolve `/usr/bin/java` → `/etc/alternatives/java` → `/usr/lib/jvm/java-21-.../bin/java` → JDK home
+- On Linux: JVM lib is at `lib/server/libjvm.so` (not `bin/server/`)
+
+**Commit:** `911acba` — "Fix _find_jvm_dll for cross-platform (Linux/Render): search libjvm.so not jvm.dll"
+
+### Bug: Conflict error — terminated by other getUpdates request
+
+**Error:**
+```
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+```
+
+**Root cause:** Another bot instance (Render deployment, another terminal, orphaned process) was already polling the same bot token.
+
+**Fix:** Close/kill all other instances. Cannot run local bot while Render deployment is active (or vice versa).
+
+### Commits in this session
+- `dd47b03` — Update deploy files for Render: Dockerfile, render.yaml, .env.example, requirements.txt, README
+- `dd47b03` — Replace Playwright headless browser with REST API for Bijoy conversion
+- `1c7ac96` — Dockerfile: use openjdk-21-jre-headless (Debian trixie dropped openjdk-17)
+- `911acba` — Fix _find_jvm_dll for cross-platform (Linux/Render): search libjvm.so not jvm.dll
+
+### Verification
+- All **226 tests pass** (61 calc + 30 user mgmt + 135 playground), 1 xfailed
+- Unicode→Bijoy API works correctly for single and multi-line distributor names
+- Dockerfile builds without Java 17 dependency error
+- No Playwright dependencies remain anywhere in the project
+
