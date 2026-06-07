@@ -4,6 +4,9 @@ import jpype
 import jpype.imports
 from pathlib import Path
 import subprocess
+import tempfile
+import shutil
+import platform
 from telegram import Update
 from telegram.ext import ContextTypes
 from core.file_data_store import get_entries
@@ -18,6 +21,7 @@ from bot.auth import require_auth
 
 STORAGE_CHANNEL = os.getenv("STORAGE_CHANNEL_ID")
 PDF_ENABLED = os.getenv("PDF_ENABLED", "true").lower() == "true"
+SOFFICE_PATH = os.getenv("SOFFICE_PATH", "soffice")
 
 FONTS_DIR = Path(__file__).resolve().parent.parent.parent / "fonts"
 
@@ -307,7 +311,20 @@ def _find_jvm_dll() -> str:
 
 
 def _convert_to_pdf(input_path: str, pdf_path: str) -> None:
-    """Convert ODT (or DOCX) to PDF via Aspose.Words."""
+    """Convert DOCX/ODT to PDF. Tries Aspose.Words (JPype + JAR) first,
+    falls back to LibreOffice headless if JVM is unavailable."""
+    try:
+        _convert_via_jpype(input_path, pdf_path)
+        return
+    except Exception as jvm_err:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"JVM/Aspose conversion failed, falling back to LibreOffice: {jvm_err}"
+        )
+    _convert_via_libreoffice(input_path, pdf_path)
+
+
+def _convert_via_jpype(input_path: str, pdf_path: str) -> None:
     jar_path = str(Path(__file__).resolve().parent.parent.parent / 'aspose-words-20.12-jdk17-cracked.jar')
 
     if not jpype.isJVMStarted():
@@ -323,3 +340,52 @@ def _convert_to_pdf(input_path: str, pdf_path: str) -> None:
     doc = Document(input_path)
     doc.setFontSettings(font_settings)
     doc.save(pdf_path, SaveFormat.PDF)
+
+
+def _convert_via_libreoffice(input_path: str, pdf_path: str) -> None:
+    """Convert DOCX/ODT to PDF using LibreOffice headless mode."""
+    _ensure_fonts_installed()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_docx = os.path.join(tmpdir, os.path.basename(input_path))
+        shutil.copy2(input_path, tmp_docx)
+        result = subprocess.run(
+            [SOFFICE_PATH, "--headless", "--norestore", "--nofirststartwizard",
+             "--convert-to", "pdf", "--outdir", tmpdir, tmp_docx],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"soffice exited {result.returncode}: {result.stderr}")
+        tmp_pdf = os.path.join(tmpdir, os.path.basename(pdf_path))
+        if not os.path.exists(tmp_pdf):
+            raise RuntimeError("LibreOffice did not create PDF output")
+        shutil.copy2(tmp_pdf, pdf_path)
+
+
+def _ensure_fonts_installed() -> None:
+    """Install SutonnyMJ fonts so LibreOffice can find them during PDF conversion."""
+    system = platform.system()
+    if system == "Windows":
+        lo_user_fonts = Path(os.environ.get("APPDATA", "")) / "LibreOffice" / "4" / "user" / "fonts"
+    elif system == "Linux":
+        lo_user_fonts = Path.home() / ".fonts"
+    elif system == "Darwin":
+        lo_user_fonts = Path.home() / "Library" / "Fonts"
+    else:
+        return
+
+    lo_user_fonts.mkdir(parents=True, exist_ok=True)
+    installed = False
+    for ttf in FONTS_DIR.glob("*.ttf") if FONTS_DIR.is_dir() else []:
+        dest = lo_user_fonts / ttf.name
+        if dest.exists():
+            continue
+        try:
+            shutil.copy2(str(ttf), str(dest))
+            installed = True
+        except PermissionError:
+            pass
+
+    if installed and system == "Linux":
+        subprocess.run(["fc-cache", "-f"], capture_output=True, timeout=30)
+    elif installed and system == "Darwin":
+        subprocess.run(["atsutil", "databases", "-remove"], capture_output=True, timeout=30)

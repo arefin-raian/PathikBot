@@ -2320,3 +2320,37 @@ Redesign the progress system for the document generation flow:
 ### Commit
 - `433e08f` — "Redesign progress system: 5 steps, 20-block bar, files sent after 100%"
 
+---
+
+## Session: 2026-06-07 — LibreOffice fallback PDF converter + Dockerfile JAVA_HOME fix
+
+### Problem
+User reported "Java Virtual Machine is not running" error on Render deployment. Render's `env: python` doesn't use the Dockerfile, so Java isn't available. Even when Docker is used, `JAVA_HOME` wasn't set, making `_find_jvm_dll()` rely on fragile `readlink`/`which` resolution.
+
+### Fix 1: LibreOffice fallback in `_convert_to_pdf`
+`bot/handlers/report.py`:
+- Added `import tempfile`, `import shutil`, `import platform`
+- Added `SOFFICE_PATH` env var (default: `"soffice"`)
+- Refactored `_convert_to_pdf()` into two sub-functions:
+  - **`_convert_via_jpype()`** — original Aspose/JAR conversion (unchanged)
+  - **`_convert_via_libreoffice()`** — LibreOffice headless `--convert-to pdf` with temp dir, 120s timeout
+- `_convert_to_pdf()` now tries `_convert_via_jpype()` first, catches any exception, logs a warning, then falls back to `_convert_via_libreoffice()`
+- Added `_ensure_fonts_installed()` — copies SutonnyMJ TTF fonts to LibreOffice user font dir (Windows/Linux/macOS), runs `fc-cache` on Linux
+
+### Fix 2: Dockerfile JAVA_HOME
+`Dockerfile`:
+- Added `ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64` so `_find_jvm_dll()` finds `libjvm.so` immediately via the `JAVA_HOME` env var check (which runs first)
+- Added `libreoffice-writer` alongside `openjdk-21-jre-headless` (both converters available in Docker)
+- Added a `RUN` step that auto-detects and prints JAVA_HOME during build for logging
+
+### Architecture
+PDF conversion now has 2 fallback layers:
+1. **Aspose.Words (JPype + JAR)** — DOCX/ODT → PDF with SutonnyMJ font settings
+2. **LibreOffice (soffice)** — headless conversion with font installation
+
+If both fail, the inner `except` in `generate_report_handler` catches the error, logs a warning to the audit channel, sets `pdf_path = None`, and DOCX is still delivered.
+
+### Files changed
+- `bot/handlers/report.py` — LibreOffice fallback, `_ensure_fonts_installed()`, 3 new imports
+- `Dockerfile` — `JAVA_HOME` env var, `libreoffice-writer` package
+
