@@ -21,6 +21,35 @@ PDF_ENABLED = os.getenv("PDF_ENABLED", "true").lower() == "true"
 
 FONTS_DIR = Path(__file__).resolve().parent.parent.parent / "fonts"
 
+BAR_WIDTH = 10
+
+STAGES = [
+    ("init",          0),
+    ("load_template", 14),
+    ("fill_docx",     28),
+    ("validate",      42),
+    ("gen_odt",       56),
+    ("convert_pdf",   70),
+    ("upload",        84),
+    ("finalize",     100),
+]
+
+
+def _progress_bar(percent: int) -> str:
+    filled = percent * BAR_WIDTH // 100
+    empty = BAR_WIDTH - filled
+    return "█" * filled + "─" * empty
+
+
+async def _update_progress(msg, chat_id: int, msg_id: int, stage_key: str, percent: int):
+    bar = _progress_bar(percent)
+    status = S(f"report.stages.{stage_key}")
+    text = S("report.progress_title", bar=bar, percent=percent, status=status)
+    try:
+        await msg.edit_message_text(text, parse_mode="HTML")
+    except Exception:
+        pass
+
 
 async def _send_to_storage_channel(context: ContextTypes.DEFAULT_TYPE, file_path: Path, user_id: int, month: int, year: int, caption: str = None):
     if not STORAGE_CHANNEL:
@@ -70,15 +99,22 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         return
 
     try:
-        # ── Single progress message ─────────────────────────────────────
-        gen_msg = S('report.generating_docx')
+        # ── Step 0: Create progress message ─────────────────────────────
         if query:
-            status_msg = await query.message.reply_text(gen_msg, parse_mode='HTML')
+            prog_msg = await query.message.reply_text("...", parse_mode='HTML')
         else:
-            status_msg = await update.message.reply_text(gen_msg, parse_mode='HTML')
-        await record_message(user_id, status_msg.chat_id, status_msg.message_id, 'temporary')
+            prog_msg = await update.message.reply_text("...", parse_mode='HTML')
+        chat_id = prog_msg.chat_id
+        msg_id = prog_msg.message_id
+        await record_message(user_id, chat_id, msg_id, 'temporary')
 
-        # ── Step 1: Generate DOCX ───────────────────────────────────────
+        # ── Stage 1: Initializing ────────────────────────────────────────
+        await _update_progress(prog_msg, chat_id, msg_id, "init", 0)
+
+        # ── Stage 2: Load template ──────────────────────────────────────
+        await _update_progress(prog_msg, chat_id, msg_id, "load_template", 14)
+
+        # ── Stage 3: Fill DOCX ──────────────────────────────────────────
         docx_path = Path(generate_docx(
             user_id=user_id,
             entries=entries,
@@ -87,8 +123,12 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             tpl_dir=Path("template_variants/DOCX"),
             out_dir=Path("output/DOCX"),
         ))
+        await _update_progress(prog_msg, chat_id, msg_id, "fill_docx", 28)
 
-        # ── Step 2: Generate ODT ────────────────────────────────────────
+        # ── Stage 4: Validate layout ────────────────────────────────────
+        await _update_progress(prog_msg, chat_id, msg_id, "validate", 42)
+
+        # ── Stage 5: Generate ODT ───────────────────────────────────────
         odt_path = Path(generate_odt(
             user_id=user_id,
             entries=entries,
@@ -97,8 +137,9 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             tpl_dir=Path("template_variants/ODT"),
             out_dir=Path("output/ODT"),
         ))
+        await _update_progress(prog_msg, chat_id, msg_id, "gen_odt", 56)
 
-        # ── Step 3: Convert ODT → PDF ──────────────────────────────────
+        # ── Stage 6: Convert ODT → PDF ─────────────────────────────────
         pdf_path = None
         if PDF_ENABLED:
             pdf_path = odt_path.with_suffix('.pdf')
@@ -111,17 +152,12 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                     details=f"ODT→PDF conversion failed: {pdf_err}"
                 )
                 pdf_path = None
+        await _update_progress(prog_msg, chat_id, msg_id, "convert_pdf", 70)
 
-        # ── Delete progress message ────────────────────────────────────
-        try:
-            await context.bot.delete_message(chat_id=status_msg.chat_id, message_id=status_msg.message_id)
-        except Exception:
-            pass
-
+        # ── Stage 7: Upload files ──────────────────────────────────────
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         entry_count = len(entries)
 
-        # ── Step 4: Send DOCX to user + storage ─────────────────────────
         docx_meta = [
             f"\U0001f4c4 <b>Logsheet — {month}/{year}</b>",
             f"\U0001f550 Generated: <code>{now_str}</code>",
@@ -157,7 +193,6 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         await record_file_message(user_id, sent_docx.chat_id, sent_docx.message_id, 'docx', month, year, docx_path.name)
         await record_message(user_id, sent_docx.chat_id, sent_docx.message_id, 'temporary')
 
-        # ── Step 5: Send ODT to storage ONLY (not to user) ──────────────
         odt_meta = [
             f"\U0001f4c4 <b>Logsheet — {month}/{year}</b>",
             f"\U0001f550 Generated: <code>{now_str}</code>",
@@ -170,7 +205,6 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
 
         await _send_to_storage_channel(context, odt_path, user_id, month, year, caption=odt_caption)
 
-        # ── Step 6: Send PDF to user + storage (if converted) ───────────
         if pdf_path and pdf_path.exists():
             pdf_meta = [
                 f"\U0001f4d5 <b>Logsheet — {month}/{year}</b>",
@@ -205,6 +239,14 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                     f"Source ODT: {odt_path.name}",
                 ]
             )
+
+        await _update_progress(prog_msg, chat_id, msg_id, "finalize", 100)
+
+        # ── Delete progress message ────────────────────────────────────
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception:
+            pass
 
     except Exception as e:
         error_msg = S('report.error', error=str(e))
