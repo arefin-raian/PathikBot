@@ -258,17 +258,16 @@
     "generating_pdf": "পিডিএফ তৈরি হচ্ছে, একটু অপেক্ষা করুন... ⏳",
     "error": "রিপোর্ট তৈরি করতে সমস্যা হয়েছে: {error}। আবার চেষ্টা করুন।",
     "pdf_error": "PDF তৈরি করতে সমস্যা হয়েছে: {error}",
-    "progress_title": "<b>লগশীট তৈরি হচ্ছে...</b>\n\n<code>{bar}</code> <b>{percent}%</b>\n\n{status}",
-    "progress_final": "সব প্রস্তুত! ✅ ফাইল পাঠানো হচ্ছে...",
-    "stages": {
-      "init": "প্রস্তুতি নেওয়া হচ্ছে...",
-      "load_template": "টেমপ্লেট লোড করা হচ্ছে...",
-      "fill_docx": "DOCX ডেটা পূরণ করা হচ্ছে...",
-      "validate": "লেআউট যাচাই করা হচ্ছে...",
-      "gen_odt": "ODT জেনারেট করা হচ্ছে...",
-      "convert_pdf": "PDF এ রূপান্তর করা হচ্ছে...",
-      "upload": "ফাইল আপলোড করা হচ্ছে...",
-      "finalize": "চূড়ান্তকরণ..."
+    "progress": {
+      "title": "📦 রিপোর্ট তৈরি হচ্ছে...",
+      "done": "✅ কাজ সম্পন্ন হয়েছে!",
+      "steps": {
+        "1": { "name": "Initializing system",    "status": "🔄 সিস্টেম শুরু হচ্ছে..." },
+        "2": { "name": "Loading template",       "status": "📄 টেমপ্লেট লোড করা হচ্ছে..." },
+        "3": { "name": "Processing data",        "status": "⚙️ ডেটা প্রসেস করা হচ্ছে..." },
+        "4": { "name": "Generating files",       "status": "📁 DOCX + ODT তৈরি হচ্ছে..." },
+        "5": { "name": "Finalizing & uploading", "status": "🚀 ফাইল আপলোড করা হচ্ছে..." }
+      }
     }
   },
 

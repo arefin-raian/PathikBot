@@ -21,30 +21,33 @@ PDF_ENABLED = os.getenv("PDF_ENABLED", "true").lower() == "true"
 
 FONTS_DIR = Path(__file__).resolve().parent.parent.parent / "fonts"
 
-BAR_WIDTH = 10
-
-STAGES = [
-    ("init",          0),
-    ("load_template", 14),
-    ("fill_docx",     28),
-    ("validate",      42),
-    ("gen_odt",       56),
-    ("convert_pdf",   70),
-    ("upload",        84),
-    ("finalize",     100),
-]
+BAR_WIDTH = 20
 
 
 def _progress_bar(percent: int) -> str:
     filled = percent * BAR_WIDTH // 100
     empty = BAR_WIDTH - filled
-    return "█" * filled + "─" * empty
+    return "█" * filled + "░" * empty
 
 
-async def _update_progress(context, chat_id: int, msg_id: int, stage_key: str, percent: int):
+async def _update_progress(context, chat_id: int, msg_id: int, step_num: int, percent: int, done: bool = False):
+    step = S(f"report.progress.steps.{step_num}")
     bar = _progress_bar(percent)
-    status = S(f"report.stages.{stage_key}")
-    text = S("report.progress_title", bar=bar, percent=percent, status=status)
+    if done:
+        text = (
+            f"<b>{S('report.progress.title')}</b>\n\n"
+            f"<b>Step {step_num}:</b> {step['name']}\n"
+            f"[{bar}] {percent}%\n"
+            f"<i>{step['status']}</i>\n\n"
+            f"<b>{S('report.progress.done')}</b>"
+        )
+    else:
+        text = (
+            f"<b>{S('report.progress.title')}</b>\n\n"
+            f"<b>Step {step_num}:</b> {step['name']}\n"
+            f"[{bar}] {percent}%\n"
+            f"<i>{step['status']}</i>"
+        )
     await context.bot.edit_message_text(text, chat_id=chat_id, message_id=msg_id, parse_mode="HTML")
 
 
@@ -96,21 +99,20 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         return
 
     try:
-        # ── Create & send initial progress message at 0% ────────────────
-        status = S("report.stages.init")
-        text = S("report.progress_title", bar=_progress_bar(0), percent=0, status=status)
+        # ── Send initial progress message at step 1 / 20% ───────────────
         if query:
-            prog_msg = await query.message.reply_text(text, parse_mode='HTML')
+            prog_msg = await query.message.reply_text("...", parse_mode='HTML')
         else:
-            prog_msg = await update.message.reply_text(text, parse_mode='HTML')
+            prog_msg = await update.message.reply_text("...", parse_mode='HTML')
         chat_id = prog_msg.chat_id
         msg_id = prog_msg.message_id
         await record_message(user_id, chat_id, msg_id, 'temporary')
+        await _update_progress(context, chat_id, msg_id, 1, 20)
 
-        # ── Stage 2: Load template ──────────────────────────────────────
-        await _update_progress(context, chat_id, msg_id, "load_template", 14)
+        # ── Step 2 (40%): Load template ─────────────────────────────────
+        await _update_progress(context, chat_id, msg_id, 2, 40)
 
-        # ── Stage 3: Fill DOCX ──────────────────────────────────────────
+        # ── Generate DOCX (happens during step 2→3) ────────────────────
         docx_path = Path(generate_docx(
             user_id=user_id,
             entries=entries,
@@ -119,12 +121,11 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             tpl_dir=Path("template_variants/DOCX"),
             out_dir=Path("output/DOCX"),
         ))
-        await _update_progress(context, chat_id, msg_id, "fill_docx", 28)
 
-        # ── Stage 4: Validate layout ────────────────────────────────────
-        await _update_progress(context, chat_id, msg_id, "validate", 42)
+        # ── Step 3 (60%): Processing data ───────────────────────────────
+        await _update_progress(context, chat_id, msg_id, 3, 60)
 
-        # ── Stage 5: Generate ODT ───────────────────────────────────────
+        # ── Generate ODT ───────────────────────────────────────────────
         odt_path = Path(generate_odt(
             user_id=user_id,
             entries=entries,
@@ -133,9 +134,8 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             tpl_dir=Path("template_variants/ODT"),
             out_dir=Path("output/ODT"),
         ))
-        await _update_progress(context, chat_id, msg_id, "gen_odt", 56)
 
-        # ── Stage 6: Convert ODT → PDF ─────────────────────────────────
+        # ── Convert ODT → PDF ──────────────────────────────────────────
         pdf_path = None
         if PDF_ENABLED:
             pdf_path = odt_path.with_suffix('.pdf')
@@ -148,12 +148,14 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                     details=f"ODT→PDF conversion failed: {pdf_err}"
                 )
                 pdf_path = None
-        await _update_progress(context, chat_id, msg_id, "convert_pdf", 70)
 
-        # ── Stage 7: Upload files ──────────────────────────────────────
+        # ── Step 4 (80%): Generating files ──────────────────────────────
+        await _update_progress(context, chat_id, msg_id, 4, 80)
+
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         entry_count = len(entries)
 
+        # ── Send to storage channel (background, user doesn't see) ──────
         docx_meta = [
             f"\U0001f4c4 <b>Logsheet — {month}/{year}</b>",
             f"\U0001f550 Generated: <code>{now_str}</code>",
@@ -163,8 +165,50 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             f"\U0001f4c4 Type: DOCX",
         ]
         docx_caption = "\n".join(docx_meta)
-
         await _send_to_storage_channel(context, docx_path, user_id, month, year, caption=docx_caption)
+
+        odt_meta = [
+            f"\U0001f4c4 <b>Logsheet — {month}/{year}</b>",
+            f"\U0001f550 Generated: <code>{now_str}</code>",
+            f"\U0001f464 User: <code>{user_id}</code> ({user.full_name})",
+            f"\U0001f4ca Entries: <b>{entry_count}</b>",
+            f"\U0001f4c1 File: {odt_path.name}",
+            f"\U0001f4c4 Type: ODT",
+        ]
+        odt_caption = "\n".join(odt_meta)
+        await _send_to_storage_channel(context, odt_path, user_id, month, year, caption=odt_caption)
+
+        pdf_caption = None
+        if pdf_path and pdf_path.exists():
+            pdf_meta = [
+                f"\U0001f4d5 <b>Logsheet — {month}/{year}</b>",
+                f"\U0001f550 Generated: <code>{now_str}</code>",
+                f"\U0001f464 User: <code>{user_id}</code> ({user.full_name})",
+                f"\U0001f4ca Entries: <b>{entry_count}</b>",
+                f"\U0001f4c1 File: {pdf_path.name}",
+                f"\U0001f4d5 Type: PDF",
+            ]
+            pdf_caption = "\n".join(pdf_meta)
+            await _send_to_storage_channel(context, pdf_path, user_id, month, year, caption=pdf_caption)
+
+        # ── Step 5 (100%): Finalizing & uploading ───────────────────────
+        await _update_progress(context, chat_id, msg_id, 5, 100, done=True)
+
+        # ── Delete progress message ────────────────────────────────────
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception:
+            pass
+
+        # ── Send files to user (both at once, after 100%) ──────────────
+        reply_target = query.message if query else update.message
+
+        sent_docx = await reply_target.reply_document(
+            document=docx_path.open('rb'), filename=docx_path.name,
+            caption=docx_caption, parse_mode='HTML'
+        )
+        await record_file_message(user_id, sent_docx.chat_id, sent_docx.message_id, 'docx', month, year, docx_path.name)
+        await record_message(user_id, sent_docx.chat_id, sent_docx.message_id, 'temporary')
 
         await log_event(context, 'docx_generated',
             user_id=user_id, username=user.full_name,
@@ -176,56 +220,13 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             ]
         )
 
-        if query:
-            sent_docx = await query.message.reply_document(
-                document=docx_path.open('rb'), filename=docx_path.name,
-                caption=docx_caption, parse_mode='HTML'
+        if pdf_caption:
+            sent_pdf = await reply_target.reply_document(
+                document=pdf_path.open('rb'), filename=pdf_path.name,
+                caption=pdf_caption, parse_mode='HTML'
             )
-        else:
-            sent_docx = await update.message.reply_document(
-                document=docx_path.open('rb'), filename=docx_path.name,
-                caption=docx_caption, parse_mode='HTML'
-            )
-        await record_file_message(user_id, sent_docx.chat_id, sent_docx.message_id, 'docx', month, year, docx_path.name)
-        await record_message(user_id, sent_docx.chat_id, sent_docx.message_id, 'temporary')
-
-        odt_meta = [
-            f"\U0001f4c4 <b>Logsheet — {month}/{year}</b>",
-            f"\U0001f550 Generated: <code>{now_str}</code>",
-            f"\U0001f464 User: <code>{user_id}</code> ({user.full_name})",
-            f"\U0001f4ca Entries: <b>{entry_count}</b>",
-            f"\U0001f4c1 File: {odt_path.name}",
-            f"\U0001f4c4 Type: ODT",
-        ]
-        odt_caption = "\n".join(odt_meta)
-
-        await _send_to_storage_channel(context, odt_path, user_id, month, year, caption=odt_caption)
-
-        if pdf_path and pdf_path.exists():
-            pdf_meta = [
-                f"\U0001f4d5 <b>Logsheet — {month}/{year}</b>",
-                f"\U0001f550 Generated: <code>{now_str}</code>",
-                f"\U0001f464 User: <code>{user_id}</code> ({user.full_name})",
-                f"\U0001f4ca Entries: <b>{entry_count}</b>",
-                f"\U0001f4c1 File: {pdf_path.name}",
-                f"\U0001f4d5 Type: PDF",
-            ]
-            pdf_caption = "\n".join(pdf_meta)
-
-            await _send_to_storage_channel(context, pdf_path, user_id, month, year, caption=pdf_caption)
-
-            if query:
-                pdf_sent = await query.message.reply_document(
-                    document=pdf_path.open('rb'), filename=pdf_path.name,
-                    caption=pdf_caption, parse_mode='HTML'
-                )
-            else:
-                pdf_sent = await update.message.reply_document(
-                    document=pdf_path.open('rb'), filename=pdf_path.name,
-                    caption=pdf_caption, parse_mode='HTML'
-                )
-            await record_file_message(user_id, pdf_sent.chat_id, pdf_sent.message_id, 'pdf', month, year, pdf_path.name)
-            await record_message(user_id, pdf_sent.chat_id, pdf_sent.message_id, 'temporary')
+            await record_file_message(user_id, sent_pdf.chat_id, sent_pdf.message_id, 'pdf', month, year, pdf_path.name)
+            await record_message(user_id, sent_pdf.chat_id, sent_pdf.message_id, 'temporary')
             await log_event(context, 'pdf_generated',
                 user_id=user_id, username=user.full_name,
                 details=f"PDF for {month}/{year} generated from ODT",
@@ -235,14 +236,6 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                     f"Source ODT: {odt_path.name}",
                 ]
             )
-
-        await _update_progress(context, chat_id, msg_id, "finalize", 100)
-
-        # ── Delete progress message ────────────────────────────────────
-        try:
-            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
-        except Exception:
-            pass
 
     except Exception as e:
         error_msg = S('report.error', error=str(e))
