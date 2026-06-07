@@ -41,14 +41,11 @@ def _progress_bar(percent: int) -> str:
     return "█" * filled + "─" * empty
 
 
-async def _update_progress(msg, chat_id: int, msg_id: int, stage_key: str, percent: int):
+async def _update_progress(context, chat_id: int, msg_id: int, stage_key: str, percent: int):
     bar = _progress_bar(percent)
     status = S(f"report.stages.{stage_key}")
     text = S("report.progress_title", bar=bar, percent=percent, status=status)
-    try:
-        await msg.edit_message_text(text, parse_mode="HTML")
-    except Exception:
-        pass
+    await context.bot.edit_message_text(text, chat_id=chat_id, message_id=msg_id, parse_mode="HTML")
 
 
 async def _send_to_storage_channel(context: ContextTypes.DEFAULT_TYPE, file_path: Path, user_id: int, month: int, year: int, caption: str = None):
@@ -99,20 +96,19 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         return
 
     try:
-        # ── Step 0: Create progress message ─────────────────────────────
+        # ── Create & send initial progress message at 0% ────────────────
+        status = S("report.stages.init")
+        text = S("report.progress_title", bar=_progress_bar(0), percent=0, status=status)
         if query:
-            prog_msg = await query.message.reply_text("...", parse_mode='HTML')
+            prog_msg = await query.message.reply_text(text, parse_mode='HTML')
         else:
-            prog_msg = await update.message.reply_text("...", parse_mode='HTML')
+            prog_msg = await update.message.reply_text(text, parse_mode='HTML')
         chat_id = prog_msg.chat_id
         msg_id = prog_msg.message_id
         await record_message(user_id, chat_id, msg_id, 'temporary')
 
-        # ── Stage 1: Initializing ────────────────────────────────────────
-        await _update_progress(prog_msg, chat_id, msg_id, "init", 0)
-
         # ── Stage 2: Load template ──────────────────────────────────────
-        await _update_progress(prog_msg, chat_id, msg_id, "load_template", 14)
+        await _update_progress(context, chat_id, msg_id, "load_template", 14)
 
         # ── Stage 3: Fill DOCX ──────────────────────────────────────────
         docx_path = Path(generate_docx(
@@ -123,10 +119,10 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             tpl_dir=Path("template_variants/DOCX"),
             out_dir=Path("output/DOCX"),
         ))
-        await _update_progress(prog_msg, chat_id, msg_id, "fill_docx", 28)
+        await _update_progress(context, chat_id, msg_id, "fill_docx", 28)
 
         # ── Stage 4: Validate layout ────────────────────────────────────
-        await _update_progress(prog_msg, chat_id, msg_id, "validate", 42)
+        await _update_progress(context, chat_id, msg_id, "validate", 42)
 
         # ── Stage 5: Generate ODT ───────────────────────────────────────
         odt_path = Path(generate_odt(
@@ -137,7 +133,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             tpl_dir=Path("template_variants/ODT"),
             out_dir=Path("output/ODT"),
         ))
-        await _update_progress(prog_msg, chat_id, msg_id, "gen_odt", 56)
+        await _update_progress(context, chat_id, msg_id, "gen_odt", 56)
 
         # ── Stage 6: Convert ODT → PDF ─────────────────────────────────
         pdf_path = None
@@ -152,7 +148,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                     details=f"ODT→PDF conversion failed: {pdf_err}"
                 )
                 pdf_path = None
-        await _update_progress(prog_msg, chat_id, msg_id, "convert_pdf", 70)
+        await _update_progress(context, chat_id, msg_id, "convert_pdf", 70)
 
         # ── Stage 7: Upload files ──────────────────────────────────────
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -240,7 +236,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                 ]
             )
 
-        await _update_progress(prog_msg, chat_id, msg_id, "finalize", 100)
+        await _update_progress(context, chat_id, msg_id, "finalize", 100)
 
         # ── Delete progress message ────────────────────────────────────
         try:
