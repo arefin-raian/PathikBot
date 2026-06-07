@@ -100,6 +100,22 @@ def set_cell_runs(cell, bijoy_texts: list, style: str = SPAN_STYLE):
             p.append(make_span_text(t, style))
 
 
+def set_multi_paragraph_cell(cell, bijoy_texts: list, style: str = SPAN_STYLE):
+    paras = cell.findall(TAG_P)
+    old_style = None
+    for p in paras:
+        if old_style is None:
+            old_style = p.attrib.get(f"{{{NS_TEXT}}}style-name")
+        cell.remove(p)
+    for t in bijoy_texts:
+        if t:
+            attrib = {}
+            if old_style:
+                attrib[f"{{{NS_TEXT}}}style-name"] = old_style
+            p = etree.SubElement(cell, TAG_P, attrib=attrib)
+            p.append(make_span_text(t, style))
+
+
 def get_cell_text(cell):
     paras = cell.findall(TAG_P)
     parts = []
@@ -226,7 +242,7 @@ def fill_row(row, entry: dict):
     if n >= 12:
         set_cell_simple(cells[0], f"{entry['serial']:02d}")
         set_cell_simple(cells[1], entry['date_str'])
-        set_cell_runs(cells[2], entry['distributors_runs'])
+        set_multi_paragraph_cell(cells[2], entry['distributors_runs'])
         set_cell_simple(cells[3], str(entry['odo_start']))
         set_cell_simple(cells[4], str(entry['odo_end']))
         set_cell_simple(cells[5], "00" if entry['total_km'] == 0 else str(entry['total_km']))
@@ -249,7 +265,7 @@ def fill_row(row, entry: dict):
     elif n >= 10:
         set_cell_simple(cells[0], f"{entry['serial']:02d}")
         set_cell_simple(cells[1], entry['date_str'])
-        set_cell_runs(cells[2], entry['distributors_runs'])
+        set_multi_paragraph_cell(cells[2], entry['distributors_runs'])
         set_cell_simple(cells[3], "00" if entry['total_km'] == 0 else str(entry['total_km']))
 
         if entry.get('petrol_liters', 0) > 0:
