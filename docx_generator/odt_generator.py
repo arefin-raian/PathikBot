@@ -501,7 +501,18 @@ def generate_for_user(
         if summary_tbl is not None:
             fill_summary(summary_tbl, entries)
 
-        tree.write(content_path, xml_declaration=True, encoding="UTF-8", standalone=True)
+        xml_bytes = etree.tostring(
+            tree,
+            xml_declaration=True,
+            encoding="UTF-8",
+            standalone=False,
+            doctype=None,
+        )
+        # Replace lxml's single-quoted XML declaration with double-quoted version
+        declaration = b'<?xml version="1.0" encoding="UTF-8"?>\n'
+        xml_bytes = declaration + xml_bytes.split(b"?>", 1)[1].lstrip(b"\n")
+        with open(content_path, "wb") as f:
+            f.write(xml_bytes)
 
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -511,8 +522,14 @@ def generate_for_user(
             output_path.unlink()
 
         with zipfile.ZipFile(str(output_path), "w", zipfile.ZIP_DEFLATED) as zout:
+            # mimetype must be first, stored uncompressed (ODF spec)
+            mimetype_path = os.path.join(work_dir, "mimetype")
+            if os.path.exists(mimetype_path):
+                zout.write(mimetype_path, "mimetype", compress_type=zipfile.ZIP_STORED)
             for dirpath, _, files in os.walk(work_dir):
                 for fname in files:
+                    if fname == "mimetype":
+                        continue
                     fpath = os.path.join(dirpath, fname)
                     arcname = os.path.relpath(fpath, work_dir)
                     zout.write(fpath, arcname)
