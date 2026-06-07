@@ -1,15 +1,15 @@
 """
 docx_generator/logsheet_generator.py — lxml-based DOCX logsheet generator
 ==============================================================
-Populates pre-built templates from generated_logsheets/ with
-real entry data. All Bengali text is converted to Bijoy encoding
+Populates pre-built DOCX template variants from generated_logsheets/DOCX/
+with real entry data. All Bengali text is converted to Bijoy encoding
 (SutonnyMJ font). Zero python-docx dependency.
 
 Usage from bot:
     from docx_generator.logsheet_generator import generate_for_user
     out_path = generate_for_user(user_id, entries, month, year,
-                                 tpl_dir=Path("generated_logsheets"),
-                                 out_dir=Path("outputs"))
+                                 tpl_dir=Path("generated_logsheets/DOCX"),
+                                 out_dir=Path("generated_logsheets/DOCX"))
 
 Standalone CLI:
     python -m docx_generator.logsheet_generator
@@ -419,8 +419,8 @@ def generate_for_user(
     entries: list,
     month: int,
     year: int,
-    tpl_dir: Path = Path("generated_logsheets"),
-    out_dir: Path = Path("outputs"),
+    tpl_dir: Path = Path("generated_logsheets/DOCX"),
+    out_dir: Path = Path("generated_logsheets/DOCX"),
 ) -> str:
     n = len(entries)
     if n < 3:
@@ -524,11 +524,11 @@ def main():
     print("  Logsheet Generator — Bot Data")
     print("=" * 60)
 
-    script_dir = Path(__file__).parent
-    tpl_dir = script_dir / "generated_logsheets"
+    script_dir = Path(__file__).resolve().parent.parent
+    tpl_dir = script_dir / "generated_logsheets" / "DOCX"
 
     if not tpl_dir.exists():
-        print(f"ERROR: 'generated_logsheets/' not found at:\n  {tpl_dir}")
+        print(f"ERROR: 'generated_logsheets/DOCX/' not found at:\n  {tpl_dir}")
         sys.exit(1)
 
     user_file = script_dir / "data" / "entries_6161189904.json"
@@ -569,7 +569,7 @@ def main():
         print(f"\n  Template not found: {tpl_path}")
         sys.exit(1)
 
-    out_dir = script_dir / "outputs"
+    out_dir = script_dir / "generated_logsheets" / "DOCX"
     out_dir.mkdir(parents=True, exist_ok=True)
     output_path = str(out_dir / f"Logsheet - {MONTHS_EN[month]}'{year}.docx")
 
@@ -585,7 +585,8 @@ def main():
             year=year,
             tpl_dir=tpl_dir,
             out_dir=out_dir,
-        )
+            )
+        print(f"  Generated: {out}")
         print(f"  Generated: {out}")
     except Exception as e:
         print(f"  Error: {e}")

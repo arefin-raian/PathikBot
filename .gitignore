@@ -27,6 +27,8 @@ Thumbs.db
 # Output files
 outputs/*.docx
 outputs/*.pdf
+generated_logsheets/DOCX/Logsheet*
+generated_logsheets/ODT/Logsheet*
 
 # User data files
 data/user_prefs.json

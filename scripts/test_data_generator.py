@@ -542,11 +542,11 @@ def main():
     print("=" * 60)
 
     script_dir = Path(__file__).resolve().parent.parent
-    tpl_dir    = script_dir / "generated_logsheets"
+    tpl_dir    = script_dir / "generated_logsheets" / "DOCX"
 
     if not tpl_dir.exists():
-        print(f"\nERROR: 'generated_logsheets/' not found at:\n  {tpl_dir}")
-        print("Run generate_logsheets.py first.")
+        print(f"\nERROR: 'generated_logsheets/DOCX/' not found at:\n  {tpl_dir}")
+        print("Run scripts/template_variant_generator.py first.")
         sys.exit(1)
 
     data_dir  = script_dir / "data"

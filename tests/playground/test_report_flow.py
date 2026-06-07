@@ -110,48 +110,59 @@ class TestReportFlow:
              'distributors_raw': [], 'venue': '', 'transport_fee': 0,
              'others_designation': ''}
 
-    @patch('bot.handlers.report.generate_for_user')
-    async def test_generate_report_command_no_entries(self, mock_gen, clean_data):
+    @patch('bot.handlers.report.generate_docx')
+    @patch('bot.handlers.report.generate_odt')
+    async def test_generate_report_command_no_entries(self, mock_odt, mock_docx, clean_data):
         """No entries — should not try to generate."""
         await add_user(TEST_USER)
-        mock_gen.return_value = None
+        mock_docx.return_value = ''
+        mock_odt.return_value = ''
         ctx = make_context()
         upd = make_text_update(TEST_USER, TEST_CHAT, "/generate")
         result = await generate_report_handler(upd, ctx)
         assert result is None
 
-    @patch('bot.handlers.report.generate_for_user')
-    async def test_generate_report_command_with_entries(self, mock_gen, clean_data):
+    @patch('bot.handlers.report.generate_docx')
+    @patch('bot.handlers.report.generate_odt')
+    async def test_generate_report_command_with_entries(self, mock_odt, mock_docx, clean_data):
         """Generate report via command with entries."""
         await add_user(TEST_USER)
         await add_entry(TEST_USER, self.ENTRY)
-        mock_gen.return_value = 'dummy_output.docx'
+        mock_docx.return_value = 'dummy_output.docx'
+        mock_odt.return_value = 'dummy_output.odt'
         ctx = make_context()
         upd = make_text_update(TEST_USER, TEST_CHAT, "/generate")
         result = await generate_report_handler(upd, ctx)
         assert result is None
-        mock_gen.assert_called_once()
+        mock_docx.assert_called_once()
+        mock_odt.assert_called_once()
 
-    @patch('bot.handlers.report.generate_for_user')
-    async def test_generate_report_callback(self, mock_gen, clean_data):
+    @patch('bot.handlers.report.generate_docx')
+    @patch('bot.handlers.report.generate_odt')
+    async def test_generate_report_callback(self, mock_odt, mock_docx, clean_data):
         """Generate report via callback."""
         await add_user(TEST_USER)
         await add_entry(TEST_USER, self.ENTRY)
-        mock_gen.return_value = 'dummy_output.docx'
+        mock_docx.return_value = 'dummy_output.docx'
+        mock_odt.return_value = 'dummy_output.odt'
         ctx = make_context()
         upd = make_callback_update(TEST_USER, TEST_CHAT, "generate_report")
         result = await generate_report_handler(upd, ctx)
         assert result is None
-        mock_gen.assert_called_once()
+        mock_docx.assert_called_once()
+        mock_odt.assert_called_once()
 
-    @patch('bot.handlers.report.generate_for_user')
-    async def test_generate_report_specific_month(self, mock_gen, clean_data):
+    @patch('bot.handlers.report.generate_docx')
+    @patch('bot.handlers.report.generate_odt')
+    async def test_generate_report_specific_month(self, mock_odt, mock_docx, clean_data):
         """Generate report for specific month."""
         await add_user(TEST_USER)
         await add_entry(TEST_USER, self.ENTRY)
-        mock_gen.return_value = 'dummy_output.docx'
+        mock_docx.return_value = 'dummy_output.docx'
+        mock_odt.return_value = 'dummy_output.odt'
         ctx = make_context()
         upd = make_callback_update(TEST_USER, TEST_CHAT, "generate_2026_6")
         result = await generate_report_handler(upd, ctx)
         assert result is None
-        mock_gen.assert_called_once()
+        mock_docx.assert_called_once()
+        mock_odt.assert_called_once()

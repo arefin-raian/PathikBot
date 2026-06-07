@@ -9,7 +9,8 @@ from telegram.ext import ContextTypes
 from core.file_data_store import get_entries
 from core.message_store import record_message, record_file_message
 from core.audit_logger import log_event
-from docx_generator.logsheet_generator import generate_for_user
+from docx_generator.logsheet_generator import generate_for_user as generate_docx
+from docx_generator.odt_generator import generate_for_user as generate_odt
 from datetime import datetime
 from bot.inline_keyboards import to_bn_number
 from bot.text_resources import S
@@ -65,6 +66,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         return
 
     try:
+        # ── Step 1: Generate DOCX ───────────────────────────────────────
         gen_msg = S('report.generating_docx')
         if query:
             status_msg = await query.message.reply_text(gen_msg, parse_mode='HTML')
@@ -72,27 +74,47 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             status_msg = await update.message.reply_text(gen_msg, parse_mode='HTML')
         await record_message(user_id, status_msg.chat_id, status_msg.message_id, 'temporary')
 
-        output_path = generate_for_user(
+        docx_path = Path(generate_docx(
             user_id=user_id,
             entries=entries,
             month=month,
             year=year,
-            tpl_dir=Path("generated_logsheets"),
-            out_dir=Path("outputs"),
-        )
+            tpl_dir=Path("generated_logsheets/DOCX"),
+            out_dir=Path("generated_logsheets/DOCX"),
+        ))
 
         try:
             await context.bot.delete_message(chat_id=status_msg.chat_id, message_id=status_msg.message_id)
         except Exception:
             pass
 
-        docx_path = Path(output_path)
+        # ── Step 2: Generate ODT ────────────────────────────────────────
+        gen_odt_msg = S('report.generating_docx')  # reuse msg (repurposed: "generating alternate format")
+        if query:
+            odt_status = await query.message.reply_text(gen_odt_msg, parse_mode='HTML')
+        else:
+            odt_status = await update.message.reply_text(gen_odt_msg, parse_mode='HTML')
+        await record_message(user_id, odt_status.chat_id, odt_status.message_id, 'temporary')
 
+        odt_path = Path(generate_odt(
+            user_id=user_id,
+            entries=entries,
+            month=month,
+            year=year,
+            tpl_dir=Path("generated_logsheets/ODT"),
+            out_dir=Path("generated_logsheets/ODT"),
+        ))
+
+        try:
+            await context.bot.delete_message(chat_id=odt_status.chat_id, message_id=odt_status.message_id)
+        except Exception:
+            pass
+
+        # ── Step 3: Send DOCX to user ──────────────────────────────────
         await _send_to_storage_channel(context, docx_path, user_id, month, year)
 
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         entry_count = len(entries)
-        file_type = "DOCX"
         filename_short = docx_path.name
         metadata_lines = [
             f"\U0001f4c4 <b>Logsheet — {month}/{year}</b>",
@@ -100,9 +122,9 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             f"\U0001f464 User: <code>{user_id}</code> ({user.full_name})",
             f"\U0001f4ca Entries: <b>{entry_count}</b>",
             f"\U0001f4c1 File: {filename_short}",
-            f"\U0001f4c4 Type: {file_type}",
+            f"\U0001f4c4 Type: DOCX",
         ]
-        caption = "\n".join(metadata_lines)
+        docx_caption = "\n".join(metadata_lines)
 
         await log_event(context, 'docx_generated',
             user_id=user_id, username=user.full_name,
@@ -115,21 +137,21 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         )
 
         if query:
-            sent = await query.message.reply_document(
+            sent_docx = await query.message.reply_document(
                 document=docx_path.open('rb'), filename=docx_path.name,
-                caption=caption, parse_mode='HTML'
+                caption=docx_caption, parse_mode='HTML'
             )
         else:
-            sent = await update.message.reply_document(
+            sent_docx = await update.message.reply_document(
                 document=docx_path.open('rb'), filename=docx_path.name,
-                caption=caption, parse_mode='HTML'
+                caption=docx_caption, parse_mode='HTML'
             )
-        await record_file_message(user_id, sent.chat_id, sent.message_id, 'docx', month, year, docx_path.name)
-        await record_message(user_id, sent.chat_id, sent.message_id, 'temporary')
+        await record_file_message(user_id, sent_docx.chat_id, sent_docx.message_id, 'docx', month, year, docx_path.name)
+        await record_message(user_id, sent_docx.chat_id, sent_docx.message_id, 'temporary')
 
-        # PDF conversion (toggle with PDF_ENABLED env var)
+        # ── Step 4: Convert ODT → PDF ──────────────────────────────────
         if PDF_ENABLED:
-            pdf_path = docx_path.with_suffix('.pdf')
+            pdf_path = odt_path.with_suffix('.pdf')
             gen_pdf_msg = S('report.generating_pdf')
             if query:
                 pdf_status = await query.message.reply_text(gen_pdf_msg, parse_mode='HTML')
@@ -138,7 +160,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             await record_message(user_id, pdf_status.chat_id, pdf_status.message_id, 'temporary')
             try:
                 loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, _convert_to_pdf, str(docx_path), str(pdf_path))
+                await loop.run_in_executor(None, _convert_to_pdf, str(odt_path), str(pdf_path))
                 try:
                     await context.bot.delete_message(chat_id=pdf_status.chat_id, message_id=pdf_status.message_id)
                 except Exception:
@@ -167,24 +189,50 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                 await record_message(user_id, pdf_sent.chat_id, pdf_sent.message_id, 'temporary')
                 await log_event(context, 'pdf_generated',
                     user_id=user_id, username=user.full_name,
-                    details=f"PDF for {month}/{year} generated",
+                    details=f"PDF for {month}/{year} generated from ODT",
                     changes=[
                         f"Entries: <b>{entry_count}</b>",
                         f"File: {pdf_path.name}",
+                        f"Source ODT: {odt_path.name}",
                     ]
                 )
             except Exception as pdf_err:
                 await pdf_status.edit_text(S('report.pdf_error', error=str(pdf_err)), parse_mode='HTML')
                 await log_event(context, 'warning',
                     user_id=user_id, username=user.full_name,
-                    details=f"PDF conversion failed: {pdf_err}"
+                    details=f"ODT→PDF conversion failed: {pdf_err}"
                 )
+
+        # ── Step 5: Send ODT to user ───────────────────────────────────
+        await _send_to_storage_channel(context, odt_path, user_id, month, year)
+
+        odt_caption = "\n".join([
+            f"\U0001f4c4 <b>Logsheet — {month}/{year} (ODT)</b>",
+            f"\U0001f550 Generated: <code>{now_str}</code>",
+            f"\U0001f464 User: <code>{user_id}</code> ({user.full_name})",
+            f"\U0001f4ca Entries: <b>{entry_count}</b>",
+            f"\U0001f4c1 File: {odt_path.name}",
+            f"\U0001f4c4 Type: ODT",
+        ])
+
+        if query:
+            sent_odt = await query.message.reply_document(
+                document=odt_path.open('rb'), filename=odt_path.name,
+                caption=odt_caption, parse_mode='HTML'
+            )
+        else:
+            sent_odt = await update.message.reply_document(
+                document=odt_path.open('rb'), filename=odt_path.name,
+                caption=odt_caption, parse_mode='HTML'
+            )
+        await record_file_message(user_id, sent_odt.chat_id, sent_odt.message_id, 'odt', month, year, odt_path.name)
+        await record_message(user_id, sent_odt.chat_id, sent_odt.message_id, 'temporary')
 
     except Exception as e:
         error_msg = S('report.error', error=str(e))
         await log_event(context, 'critical_error',
             user_id=user_id, username=user.full_name,
-            details=f"DOCX generation failed: {e}"
+            details=f"Logsheet generation failed: {e}"
         )
         if query:
             await query.edit_message_text(error_msg, parse_mode='HTML')
@@ -249,7 +297,8 @@ def _find_jvm_dll() -> str:
     )
 
 
-def _convert_to_pdf(docx_path: str, pdf_path: str) -> None:
+def _convert_to_pdf(input_path: str, pdf_path: str) -> None:
+    """Convert ODT (or DOCX) to PDF via Aspose.Words."""
     jar_path = str(Path(__file__).resolve().parent.parent.parent / 'aspose-words-20.12-jdk17-cracked.jar')
 
     if not jpype.isJVMStarted():
@@ -262,6 +311,6 @@ def _convert_to_pdf(docx_path: str, pdf_path: str) -> None:
     if FONTS_DIR.is_dir():
         font_settings.setFontsFolder(str(FONTS_DIR), True)
 
-    doc = Document(docx_path)
+    doc = Document(input_path)
     doc.setFontSettings(font_settings)
     doc.save(pdf_path, SaveFormat.PDF)
