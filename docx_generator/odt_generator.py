@@ -527,6 +527,14 @@ def generate_for_user(
         # Replace lxml's single-quoted XML declaration with double-quoted version
         declaration = b'<?xml version="1.0" encoding="UTF-8"?>\n'
         xml_bytes = declaration + xml_bytes.split(b"?>", 1)[1].lstrip(b"\n")
+        # Strip loext namespace (Aspose.Words parser can't handle it)
+        import re as _re
+        xml_str = xml_bytes.decode("UTF-8")
+        # Remove xmlns:loext="..." declaration
+        xml_str = _re.sub(r'\s+xmlns:loext="[^"]*"', "", xml_str)
+        # Remove any loext:attr="..." on elements
+        xml_str = _re.sub(r'\s+loext:[a-zA-Z_-]+="[^"]*"', "", xml_str)
+        xml_bytes = xml_str.encode("UTF-8")
         with open(content_path, "wb") as f:
             f.write(xml_bytes)
 
