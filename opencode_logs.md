@@ -2276,3 +2276,47 @@ telegram.error.Conflict: Conflict: terminated by other getUpdates request; make 
 - DOCX generation still works (unchanged path: template_variants/DOCX/)
 - Bot starts cleanly
 
+---
+
+## Session: 2026-06-07 — Progress system redesign: 5 steps, 20-block bar, files sent after 100%
+
+### User request
+Redesign the progress system for the document generation flow:
+- Replace 8-stage system (init→finalize, 10-block bar) with a cleaner 5-step system (20-block bar)
+- Format: `📦 রিপোর্ট তৈরি হচ্ছে...` → `Step N: Name` → `[███████░░░░░░░░░░░] N%` → status text
+- Files must ONLY be sent AFTER progress reaches 100%
+- Both DOCX and PDF sent together at the end (not scattered throughout the flow)
+- Remove old progress strings (`progress_title`, `progress_final`, 8-stage `stages` dict)
+
+### Changes
+
+**`bot/text_resources.json`:**
+- Removed: `report.progress_title`, `report.progress_final`, `report.stages.*` (8 keys)
+- Added: `report.progress` block with:
+  - `title` — `"📦 রিপোর্ট তৈরি হচ্ছে..."`
+  - `done` — `"✅ কাজ সম্পন্ন হয়েছে!"`
+  - `steps` — 5 entries with English `name` + Bangla `status`:
+    1. Initializing system — 🔄 সিস্টেম শুরু হচ্ছে...
+    2. Loading template — 📄 টেমপ্লেট লোড করা হচ্ছে...
+    3. Processing data — ⚙️ ডেটা প্রসেস করা হচ্ছে...
+    4. Generating files — 📁 DOCX + ODT তৈরি হচ্ছে...
+    5. Finalizing & uploading — 🚀 ফাইল আপলোড করা হচ্ছে...
+
+**`bot/handlers/report.py`:**
+- `BAR_WIDTH`: 10 → 20
+- Removed `STAGES` list (8-stage map with per-stage percentage)
+- `_progress_bar`: uses `░` (light shade) instead of `─` for empty blocks
+- `_update_progress`: new signature `(context, chat_id, msg_id, step_num, percent, done=False)` — takes step number (1-5) instead of stage key string; renders formatted message with step name from `S()`, bar, percent, and status; `done=True` adds a completion line
+- **Flow restructured** — the handler now calls `_update_progress` exactly 5 times at 20%, 40%, 60%, 80%, 100%:
+  - Step 1 (20%): Send initial message
+  - Step 2 (40%): Load template (generate DOCX happens here)
+  - Step 3 (60%): Processing data (generate ODT + PDF conversion happens here)
+  - Step 4 (80%): Generating files (storage channel uploads happen here)
+  - Step 5 (100% + done=True): Finalizing → delete progress message → **then** send files to user
+- **Files now sent AFTER 100%**: Progress message is shown at 100% with `done=True`, deleted, then DOCX + PDF are sent to user using `reply_target = query.message if query else update.message` (the original reply target, not the progress message)
+- **ODT removed from user delivery**: ODT is sent to storage channel only (not to user chat)
+- Removed unused `STEPS` constant
+
+### Commit
+- `433e08f` — "Redesign progress system: 5 steps, 20-block bar, files sent after 100%"
+
