@@ -315,10 +315,13 @@ PathikBot/
 │   ├── entries_{user_id}.json      # Per-user entries (file backend)
 │   └── user_prefs/{user_id}.json   # Per-user preferences (file backend)
 ├── templates/                      # Aspose-compatible DOCX templates
-├── generated_logsheets/            # Logsheet template variants
+├── template_variants/               # Logsheet template variants
 │   ├── DOCX/                       #   Pre-generated DOCX templates (lxml-based)
 │   └── ODT/                        #   Pre-generated ODT templates
-├── outputs/                        # Generated DOCX/PDF output (legacy, now uses generated_logsheets/DOCX/ and ODT/)
+├── output/                          # Generated DOCX/ODT/PDF output
+│   ├── DOCX/
+│   ├── ODT/
+│   └── PDF/
 ├── tests/
 │   ├── conftest.py                 # Forces file-based backend for tests
 │   ├── test_calculations.py        # 61 calculation tests

@@ -29,6 +29,9 @@ outputs/*.docx
 outputs/*.pdf
 generated_logsheets/DOCX/Logsheet*
 generated_logsheets/ODT/Logsheet*
+template_variants/DOCX/Logsheet*
+template_variants/ODT/Logsheet*
+output/
 
 # User data files
 data/user_prefs.json

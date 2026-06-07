@@ -14,9 +14,9 @@ Template files (from project root):
     templates/Logsheet_Template.odt
 
 Generated files (28 each, n4e = 0..6, T = 1..4):
-  DOCX → generated_logsheets/DOCX/3HE_3PET{T}_0EST.docx    (and variants)
-  ODT  → generated_logsheets/ODT/3HE_3PET{T}_0EST.odt      (and variants)
+    DOCX → template_variants/DOCX/3HE_3PET{T}_0EST.docx    (and variants)
 
+    ODT  → template_variants/ODT/3HE_3PET{T}_0EST.odt      (and variants)
 ──────────────────────────────────────────────────────────────────────────────
 DOCX approach (unchanged from v3)
 ──────────────────────────────────────────────────────────────────────────────
@@ -355,32 +355,51 @@ def _strip_odt_bookmark(para: str) -> str:
 
 
 def _is_total_row_odt(row: str) -> bool:
-    """Total row uses text style T17 (fo:font-size="30pt")."""
-    return 'T17' in row
+    """Total row cells all use Table3.A1 style; data rows use per-column
+    styles (Table3.C*, Table3.D*, etc.). Check that no cell uses a
+    column-specific style. Exclude header (Table3.1) and sub-header (Table3.2)
+    rows which also use only Table3.A1."""
+    if re.search(r'table:style-name="Table3\.[12]"', row):
+        return False
+    return not re.search(r'table:style-name="Table3\.[C-L]\d"', row)
 
 
 def _reorder_total_row_odt(tbl: str, target_pos: int) -> str:
     """
     Reorder data rows in the ODT 3PET table (Table3) so the Total row is at
-    target_pos (1-based within the 4 data rows, i.e. rows 3–6 overall).
+    target_pos (1-based within the 3 data rows, i.e. rows 3–5 overall).
+    ODT 3PET has 6 rows: row 0 = table-header-rows (Table3.1),
+    row 1 = sub-header (Table3.2), rows 2-4 = data, row 5 = total.
     """
     parts = tbl.split('<table:table-row')
     # parts[0] = preamble before first row
-    # parts[1..N] = each row (starting with ' ' or attributes after the tag name)
-    if len(parts) < 7: return tbl   # not 6 rows — leave unchanged
+    # parts[1..N] = each row (starting with ' ' or attributes)
+    if len(parts) < 7: return tbl   # need preamble + 6 rows
 
-    header_parts = parts[:3]           # preamble + rows 1,2
-    data_parts   = parts[3:7]          # rows 3,4,5,6  (the 4 data rows)
+    # The last part contains the total row content followed by </table:table>
+    # (and possibly trailing whitespace). Extract the closing tag so it
+    # stays at the end after reordering.
+    last_part = parts[-1]
+    ci = last_part.rfind('</table:table>')
+    if ci == -1:
+        return tbl
+    table_close = last_part[ci:]
+    parts[-1] = last_part[:ci]
+
+    header_parts = parts[:3]           # preamble + rows 0 & 1 (header, sub-header)
+    data_parts   = parts[3:7]          # rows 2,3,4,5 (data1, data2, data3, total)
     total_idx = next((i for i, r in enumerate(data_parts) if _is_total_row_odt(r)), None)
-    if total_idx is None: return tbl
+    if total_idx is None:
+        return tbl
 
     target_idx = target_pos - 1
-    if total_idx == target_idx: return tbl
+    if total_idx == target_idx:
+        return '<table:table-row'.join(header_parts + data_parts) + table_close
 
     total_row = data_parts.pop(total_idx)
     data_parts.insert(target_idx, total_row)
 
-    return '<table:table-row'.join(header_parts + data_parts)
+    return '<table:table-row'.join(header_parts + data_parts) + table_close
 
 
 def _clone_4e_frame(frame_para: str, auto_styles: str, copy_index: int) -> tuple:
@@ -567,8 +586,8 @@ def main():
     fmt = ask_format()
     print()
 
-    docx_out = root_dir / "generated_logsheets" / "DOCX"
-    odt_out  = root_dir / "generated_logsheets" / "ODT"
+    docx_out = root_dir / "template_variants" / "DOCX"
+    odt_out  = root_dir / "template_variants" / "ODT"
 
     if fmt in ('docx', 'both'):
         docx_out.mkdir(parents=True, exist_ok=True)

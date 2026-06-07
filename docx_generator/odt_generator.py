@@ -1,15 +1,15 @@
 """
 docx_generator/odt_generator.py — lxml-based ODT logsheet generator
 ============================================================
-Populates pre-built ODT template variants from generated_logsheets/ODT/
+Populates pre-built ODT template variants from template_variants/ODT/
 with real entry data. All Bengali text is converted to Bijoy encoding
 (SutonnyMJ font). Used as intermediate format for PDF conversion.
 
 Usage from bot:
     from docx_generator.odt_generator import generate_for_user
     out_path = generate_for_user(user_id, entries, month, year,
-                                 tpl_dir=Path("generated_logsheets/ODT"),
-                                 out_dir=Path("generated_logsheets/ODT"))
+                                  tpl_dir=Path("template_variants/ODT"),
+                                  out_dir=Path("output/ODT"))
 """
 
 import calendar
@@ -162,15 +162,20 @@ def get_data_rows(tbl, header_count):
         xml_str = etree.tostring(row, encoding="unicode")
         if ("‡gvU" in xml_str or "†gvU" in xml_str) and "=" in xml_str:
             continue
+        # ODT marks total rows with text:style-name="T17" (30pt font)
+        if "T17" in xml_str:
+            continue
         result.append(row)
     return result
 
 
-def get_total_row(tbl, skip=2):
+def get_total_row(tbl, skip=1):
     rows = tbl.findall(TAG_TR)
     for row in rows[skip:]:
         xml_str = etree.tostring(row, encoding="unicode")
         if ("‡gvU" in xml_str or "†gvU" in xml_str) and "=" in xml_str:
+            return row
+        if "T17" in xml_str:
             return row
     return None
 
@@ -179,13 +184,13 @@ def get_total_row_across(data_tbls, max_idx=None):
     if max_idx is None:
         max_idx = len(data_tbls) - 1
     for ti in range(max_idx, -1, -1):
-        skip = 5 if ti == 0 else 2
+        skip = 5 if ti == 0 else 1
         tr = get_total_row(data_tbls[ti], skip)
         if tr is not None:
             return tr
     if max_idx != len(data_tbls) - 1:
         for ti in range(len(data_tbls) - 1, max_idx, -1):
-            skip = 5 if ti == 0 else 2
+            skip = 5 if ti == 0 else 1
             tr = get_total_row(data_tbls[ti], skip)
             if tr is not None:
                 return tr
@@ -214,21 +219,20 @@ def fill_header(tbl0, month: int, year: int):
     last_day = calendar.monthrange(year, month)[1]
     rows = tbl0.findall(TAG_TR)
 
-    # Row 0, Cell 1 — month/year (in the company name area)
+    # Row 0, Cell 2 — month/year ("gv‡mi bvg: */**** Bs")
     r0c = rows[0].findall(f".//{TAG_TC}")
-    spans = r0c[1].findall(f".//{TAG_SPAN}")
+    spans = r0c[2].findall(f".//{TAG_SPAN}")
     for s in spans:
         if s.text and s.text.strip():
-            s.text = f" {BIJOY_MONTHS[month]}/{year}"
+            s.text = f" gv‡mi bvg: {BIJOY_MONTHS[month]}/{year} Bs "
             break
 
-    # Row 1, Cell 2 — date range area
+    # Row 1, Cell 3 — date ("ZvwiL: **/**/**** Bs")
     r1c = rows[1].findall(f".//{TAG_TC}")
-    spans2 = r1c[2].findall(f".//{TAG_SPAN}")
+    spans2 = r1c[3].findall(f".//{TAG_SPAN}")
     for s in spans2:
-        if s.text and s.text.strip() and "/" not in s.text:
-            # Replace the 00/00/00 placeholder
-            s.text = f"{last_day:02d}/{month:02d}/{year}"
+        if s.text and s.text.strip():
+            s.text = f"ZvwiL: {last_day:02d}/{month:02d}/{year} Bs "
             break
 
 
@@ -434,8 +438,8 @@ def generate_for_user(
     entries: list,
     month: int,
     year: int,
-    tpl_dir: Path = Path("generated_logsheets/ODT"),
-    out_dir: Path = Path("generated_logsheets/ODT"),
+    tpl_dir: Path = Path("template_variants/ODT"),
+    out_dir: Path = Path("output/ODT"),
 ) -> str:
     n = len(entries)
     if n < 3:
@@ -494,17 +498,24 @@ def generate_for_user(
 
         fill_header(data_tbls[0], month, year)
 
+        # Compute dynamic capacities from actual table structures
+        caps = []
+        for pi, tbl in enumerate(data_tbls):
+            hdr = 5 if pi == 0 else 1
+            data_rows = get_data_rows(tbl, hdr)
+            caps.append(len(data_rows))
+
+        # Split entries by capacities
         remaining = list(conv_entries)
         pages = []
-        pages.append(remaining[:3]); remaining = remaining[3:]
-        for _ in range(len(data_tbls) - 2):
-            pages.append(remaining[:4]); remaining = remaining[4:]
-        pages.append(remaining)
+        for cap in caps:
+            pages.append(remaining[:cap])
+            remaining = remaining[cap:]
 
         for pi, page_entries in enumerate(pages):
             tbl = data_tbls[pi]
-            hdr_count = 5 if pi == 0 else 2
-            data_rows = get_data_rows(tbl, hdr_count)
+            hdr = 5 if pi == 0 else 1
+            data_rows = get_data_rows(tbl, hdr)
             for i, entry in enumerate(page_entries):
                 if i < len(data_rows):
                     fill_row(data_rows[i], entry)
