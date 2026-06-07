@@ -2134,3 +2134,145 @@ telegram.error.Conflict: Conflict: terminated by other getUpdates request; make 
 - Dockerfile builds without Java 17 dependency error
 - No Playwright dependencies remain anywhere in the project
 
+---
+
+## Session: 2026-06-07 (continued) — ODT logsheet generation, PDF via ODT, template restructuring
+
+### Task: Dual-format (DOCX + ODT) logsheet generation with ODT-based PDF
+
+**User requirement:** Generate both DOCX and ODT logsheets, use ODT as intermediate format for PDF conversion via Aspose.Words (Aspose parses ODT better than DOCX for layout preservation), offer BOTH option.
+
+**Commits (newest first):**
+| Hash | Description |
+|------|-------------|
+| `6324197` | Fix ODT XML validity, restructure folders, simplify report flow |
+| `7955426` | Strip loext namespace from ODT output to fix Aspose.Words parser bug |
+| `473e194` | Fix ODT line breaks: distributor names and transport fee on separate paragraphs |
+| `45277f3` | Fix ODT→PDF conversion: lxml standalone/single-quote fix and ODF-compliant ZIP |
+| `2835e9c` | Refactor logsheet generation: dual-format, ODT-based PDF, restructured templates |
+
+---
+
+### Commit 1: `2835e9c` — Refactor logsheet generation (65 files, +1135/-381)
+
+**New file `docx_generator/odt_generator.py` (523 lines):**
+- lxml-based ODT generator, populates pre-built ODT template variants
+- Same architecture as DOCX generator: template selection via `template_stem()`, `fill_header()`, `fill_row()`, `fill_total_row()`, `fill_summary()`
+- ODF namespaces (`urn:oasis:names:tc:opendocument:xmlns:*`), lxml `etree` parsing
+- Bijoy-encoded Bengali text via `convert_to_bijoy()`
+- Generates valid ODT (ZIP with `content.xml`, `styles.xml`, `meta.xml`, `manifest.xml`, `mimetype`)
+- Footer with page number, generator metadata
+
+**Template restructuring:**
+- `generated_logsheets/` split into `generated_logsheets/DOCX/` and `generated_logsheets/ODT/`
+- All 28 DOCX variants moved to subfolder, 28 ODT variants added (24KB–28KB each)
+- New `templates/Logsheet_Template.odt` — ODT base template (24KB)
+- `scripts/template_variant_generator.py` — added `BOTH` option (generates DOCX + ODT simultaneously), fixed template paths to `templates/`, output to `generated_logsheets/DOCX/` and `ODT/`
+- `scripts/test_data_generator.py` — updated template path to DOCX subfolder
+
+**`bot/handlers/report.py` — dual-format generation flow:**
+- Import both generators: `generate_for_user as generate_docx` and `generate_for_user as generate_odt`
+- First generates DOCX → sends to user and storage channel
+- Then generates ODT → converts ODT → PDF via Aspose.Words (instead of DOCX → PDF)
+- ODT sent to storage channel only (not to user)
+- Updated all template/output directory paths
+- PDF conversion now uses `/output/ODT/` → `/output/PDF/`
+
+**`docx_generator/logsheet_generator.py`:**
+- Updated default template path: `generated_logsheets/` → `generated_logsheets/DOCX/`
+- Output path updated for new directory structure
+
+**`tests/playground/test_report_flow.py`:**
+- Fixed mocks for renamed imports (`generate_for_user as generate_docx`)
+
+**`README.md`, `.gitignore`:**
+- Updated directory structure, ignore rules for output folders
+
+---
+
+### Commit 2: `45277f3` — Fix ODT→PDF conversion (1 file, +18/-1)
+
+**Three bugs fixed in `odt_generator.py`:**
+
+1. **`standalone=True` in lxml write** — `tree.write(xml_bytes, standalone=True)` produced `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` which Aspose.Words couldn't parse. Removed `standalone=True`.
+
+2. **lxml single-quoted XML declaration** — lxml outputs `<?xml version='1.0' encoding='UTF-8'?>` (single quotes). Aspose.Words requires double quotes. Added regex post-processing: `re.sub(rb"<\?xml [^>]+\?>", DOCTYPE_DECLARATION, ...)` to replace lxml's declaration with a standard double-quoted version.
+
+3. **ODF-compliant ZIP for mimetype** — ODF specification §1.4 requires `mimetype` to be the first entry in the ZIP archive, stored with **no compression** (ZIP_STORED, not ZIP_DEFLATED). Changed ZIP creation to write `mimetype` first with `ZIP_STORED`, then all other files with `ZIP_DEFLATED`.
+
+---
+
+### Commit 3: `473e194` — Fix ODT line breaks (1 file + 28 ODT templates, +18/-2)
+
+**Problem:** Distributor names were concatenated inline in the same `<text:p>` paragraph; meeting venue + transport fee appeared on the same line.
+
+**Fix in `odt_generator.py`:**
+- Added `set_multi_paragraph_cell()` — creates one `<text:p>` per list item (analogous to DOCX generator's multi-paragraph cell function)
+- Changed `fill_row` to use `set_multi_paragraph_cell()` for the distributor-name cell (`cells[2]`) in both 12-cell and 10-cell layouts
+- Result: each distributor gets their own line; meeting venue + transport fee on separate paragraphs
+
+**28 ODT template variants** updated (binary: 23585–27997 → 23930–27997 bytes) — content.xml in each regenerated with multi-paragraph distributor cell placeholders.
+
+---
+
+### Commit 4: `7955426` — Strip loext namespace (1 file, +8/-0)
+
+**Bug:** Aspose.Words throws `Undeclared namespace prefix loext` error even when `xmlns:loext` is properly declared in the ODT XML.
+
+**Root cause:** Aspose.Words 20.12 has a bug where it rejects `loext:` prefixed attributes (like `loext:may-break-between-pages`, `loext:hyphenation`, `loext:word-spacing`, `loext:marker-style-name`) regardless of valid namespace declaration. These are LibreOffice-specific extensions and are optional.
+
+**Fix in `odt_generator.py`:**
+- Post-process `content.xml` with regex: remove all `loext:\w+="[^"]*"` attribute occurrences
+- Remove the `xmlns:loext="..."` declaration from `<office:document>` root
+- Safe because these are styling hints only — data integrity unaffected
+
+---
+
+### Commit 5: `6324197` — Fix ODT XML validity, restructure folders, simplify report flow (91 files, +165/-151)
+
+**Bug 1: `_reorder_total_row_odt()` wrong slice**
+- `parts[2:6]` was used to partition total row cells but the correct range is `parts[3:7]` — cells 3-6 contain merged total-row data (total_km, petrol, mobile, DA). Wrong slice caused `<table:table-cell>` elements to be misordered, producing XML with `</table:table-cell>` mismatch.
+- **Fix:** Changed to `parts[3:7]`.
+
+**Bug 2: `_is_total_row_odt()` false positive on Table3 header rows**
+- The summary table (Table3) has rows with labels like "‡gvU †Uwj" (header row 1) and "†gvU wK:wg:" (header row 2) — both containing `gvU`/`wK:wg` patterns that triggered total-row detection. This caused false positives when searching for the data table's total row.
+- **Fix:** Added `skip` parameter and more precise pattern matching.
+
+**Bug 3: `</table:table>` extracted before reorder**
+- The total row reorder was modifying the table tree while iterating, causing `etree.tostring` to include partial/mismatched closing tags. Extracted `</table:table>` separately before reordering, then re-inserted it after the modified table.
+- **Fix:** Extract end tag before modification, re-insert after.
+
+**Folder restructuring:**
+- `generated_logsheets/` → `template_variants/` (clearer name: these are templates, not generated output)
+- Created `output/DOCX/`, `output/ODT/`, `output/PDF/` for generated files
+- All path references updated across 8 files (odt_generator.py, logsheet_generator.py, report.py, template_variant_generator.py, test_data_generator.py, test_report_flow.py, README.md, .gitignore)
+
+**report.py cleanup:**
+- Removed duplicate 'generating' progress message (was showing twice — once for DOCX, once for ODT)
+- ODT no longer sent to user chat (only to storage channel) — reduces message clutter
+- Simplified flow: generate DOCX → send to user + storage → generate ODT → convert to PDF → send PDF to user + storage → send ODT to storage
+
+**All 28 ODT variants regenerated** (valid XML verified, correct T1-T4 paragraph style positions). 28 old variants in `generated_logsheets/` deleted, 28 new variants in `template_variants/ODT/`.
+
+### Files changed in this batch:
+- `docx_generator/odt_generator.py` — new (523 lines) in commit 2835e9c; incremental fixes in 45277f3, 473e194, 7955426, 6324197
+- `docx_generator/logsheet_generator.py` — updated paths
+- `bot/handlers/report.py` — dual-format generation, ODT→PDF, simplified flow
+- `scripts/template_variant_generator.py` — BOTH option, fixed paths
+- `scripts/test_data_generator.py` — updated DOCX subfolder path
+- `templates/Logsheet_Template.odt` — new ODT base template
+- `generated_logsheets/` → `template_variants/` (renamed)
+- `template_variants/ODT/` — 28 ODT variants
+- `template_variants/DOCX/` — 28 DOCX variants (moved from generated_logsheets/)
+- `output/DOCX/`, `output/ODT/`, `output/PDF/` — output directories
+- `tests/playground/test_report_flow.py` — updated mocks
+- `README.md`, `.gitignore` — updated for new structure
+
+### Verification
+- All **226 tests pass** (61 calc + 30 user mgmt + 135 playground), 1 xfailed
+- ODT XML valid (no tag mismatch, no undeclared prefixes)
+- ODF-compliant ZIP (mimetype first, STORED, no compression)
+- Aspose.Words parses ODT successfully, converts to PDF with correct layout
+- DOCX generation still works (unchanged path: template_variants/DOCX/)
+- Bot starts cleanly
+
