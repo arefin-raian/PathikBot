@@ -59,18 +59,16 @@ async def _send_to_storage_channel(context: ContextTypes.DEFAULT_TYPE, file_path
     if not STORAGE_CHANNEL:
         return
     try:
-        kwargs = dict(
+        msg = await context.bot.send_document(
             chat_id=STORAGE_CHANNEL,
             document=file_path.open("rb"),
             filename=file_path.name,
         )
-        if caption:
-            kwargs['caption'] = caption
-            kwargs['parse_mode'] = 'HTML'
-        msg = await context.bot.send_document(**kwargs)
         file_id = msg.document.file_id
         from core.file_data_store import save_logsheet_file_id
         await save_logsheet_file_id(user_id, month, year, file_id, file_path.name)
+        if caption:
+            await msg.reply_text(caption, parse_mode='HTML')
     except Exception:
         pass
 

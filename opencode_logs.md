@@ -2354,3 +2354,55 @@ If both fail, the inner `except` in `generate_report_handler` catches the error,
 - `bot/handlers/report.py` — LibreOffice fallback, `_ensure_fonts_installed()`, 3 new imports
 - `Dockerfile` — `JAVA_HOME` env var, `libreoffice-writer` package
 
+---
+
+## Session: 2026-06-11 — Log channel file ordering + /clean rewrite
+
+### Task 1: Improve log channel file logging
+
+**Problem:** Storage channel sent files with captions attached. User wanted each file sent first, then the log message as a reply to the file — making it visually clear which log belongs to which file.
+
+**Order (for each file):**
+1. Send the file (no caption)
+2. Reply to that file message with the log message (metadata) as a separate message
+
+**Applied to:** DOCX, PDF, and ODT files in the storage channel.
+
+**Change in `bot/handlers/report.py` — `_send_to_storage_channel()`:**
+- Removed `caption` and `parse_mode` from `send_document()` kwargs
+- After sending the file, calls `msg.reply_text(caption, parse_mode='HTML')` to send the log message as a reply
+- All existing captions (docx_caption, odt_caption, pdf_caption) preserved — just sent as reply instead of attached caption
+
+### Task 2: Fix /clean command
+
+**Problem:** The clean command either did nothing or didn't provide a meaningful cleanup. It skipped file messages and left a permanent confirmation message.
+
+**New behavior (approximates Telegram's "Clear History" as closely as the Bot API allows):**
+1. **Delete the user's `/clean` command message** — removes the trigger message itself
+2. **Delete all tracked temporary messages** — bot prompts, status messages, results (from any chat, by tracked chat_id)
+3. **Delete all tracked file messages** — previously "protected", now deleted too since user wants full cleanup
+4. **Wipe the message store** — clears both `temporary` and `files` lists for the user
+5. **Brute-force scan** — tries to delete every message in the chat from `cmd_msg_id` down to `cmd_msg_id - 500` (covers both bot and user messages since Telegram Bot API allows deleting any message in private chats)
+6. **Self-destructing confirmation** — sends "🧹 N messages deleted" that auto-deletes after 3 seconds
+7. **No permanent message remains** — chat appears clean
+
+**API limitation note:** The Bot API doesn't provide a way to enumerate all messages in a chat. The brute-force scan by message_id range is the closest approximation. Messages older than 48 hours cannot be deleted by bots (Telegram API limitation).
+
+**Change in `bot/handlers/cleanup.py`:**
+- Rewrote entirely: removed `to_bn_number`, `clear_all_except_files` imports; added `get_log`, `save_log` imports
+- New 5-phase flow: command msg → tracked temps → tracked files → brute-force → self-destruct
+- Added `asyncio.sleep(3)` for self-destruct timer
+- No permanent reply message
+
+**Change in `bot/text_resources.json`:**
+- Updated `clean.done` from "ফাইল মেসেজগুলো অক্ষত রাখা হয়েছে" to "চ্যাট সম্পূর্ণ পরিষ্কার করা হয়েছে"
+
+### Verification
+- All **226 tests pass** (61 calc + 30 user mgmt + 135 playground), 1 xfailed
+- Bot imports cleanly (no module errors)
+
+### Files changed
+- `bot/handlers/report.py` — `_send_to_storage_channel`: file first, reply with caption
+- `bot/handlers/cleanup.py` — rewritten: 5-phase cleanup, self-destructing confirmation
+- `bot/text_resources.json` — updated `clean.done` text
+
