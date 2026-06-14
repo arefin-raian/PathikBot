@@ -118,8 +118,10 @@ def main():
     application.add_handler(clean_handler)
 
     # Start health HTTP server for Render port binding
-    hs = threading.Thread(target=_start_health_server, daemon=True)
-    hs.start()
+    # Skipped when running under web_api/launcher.py (uvicorn binds $PORT instead)
+    if os.getenv("SKIP_HEALTH_SERVER") != "1":
+        hs = threading.Thread(target=_start_health_server, daemon=True)
+        hs.start()
 
     logging.info("Bot is starting...")
     application.run_polling()

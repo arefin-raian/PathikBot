@@ -11,3 +11,6 @@ jpype1
 
 # lxml is used by docx_generator/logsheet_generator.py
 # Java 17+ required for Aspose.Words JAR (aspose-words-20.12-jdk17-cracked.jar)
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.0
