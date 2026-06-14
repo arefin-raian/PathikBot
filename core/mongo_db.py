@@ -302,14 +302,20 @@ async def get_entries(user_id: int, month=None, year=None):
             ]
         }
     cursor = db.entries.find(query).sort("date", 1)
-    return await cursor.to_list(length=None)
+    docs = await cursor.to_list(length=None)
+    for d in docs:
+        d.pop("_id", None)
+    return docs
 
 
 async def get_entry_by_id(user_id: int, entry_id: int):
     db = await get_db()
     if db is None:
         return None
-    return await db.entries.find_one({"user_id": user_id, "id": entry_id})
+    doc = await db.entries.find_one({"user_id": user_id, "id": entry_id})
+    if doc is not None:
+        doc.pop("_id", None)
+    return doc
 
 
 async def update_entry(user_id: int, entry_id: int, updated_data: dict) -> bool:
