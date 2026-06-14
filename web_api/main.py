@@ -28,14 +28,8 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
-async def _startup():
-    try:
-        from core.file_data_store import init_db
-        await init_db()
-    except Exception as e:
-        logging.warning("init_db failed (file backend fallback): %s", e)
-
+# Note: init_db() is invoked by the bot's post_init in bot/main.py.
+# Calling it again here closes the shared Mongo client and breaks the bot.
 
 @app.get("/api/health")
 async def health():
