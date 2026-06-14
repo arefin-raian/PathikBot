@@ -3,8 +3,8 @@ services:
     name: pathikbot
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m bot.main
-    healthCheckPath: /
+    startCommand: python -m web_api.launcher
+    healthCheckPath: /api/health
     envVars:
       - key: BOT_TOKEN
         sync: false
@@ -25,4 +25,11 @@ services:
       - key: MOTORCYCLE_BRAND
         sync: false
       - key: DEPO_NAME
+        sync: false
+      # Web API additions
+      - key: WEB_JWT_SECRET
+        sync: false
+      - key: WEB_ALLOWED_ORIGINS
+        sync: false
+      - key: OWNER_TELEGRAM_ID
         sync: false
