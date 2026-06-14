@@ -1,6 +1,7 @@
 """Async MongoDB storage backend for PathikBot."""
 import os
 import json
+import asyncio
 from urllib.parse import quote_plus
 from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
@@ -21,40 +22,55 @@ if MONGO_URL and '@' in MONGO_URL:
         MONGO_URL = f"{prefix}@{rest}"
     except Exception:
         pass  # fall through to original on parse errors
-_client: AsyncIOMotorClient = None
-_db: AsyncIOMotorDatabase = None
-_connected = False
+_clients_by_loop = {}
+_dbs_by_loop = {}
+_connected_loops = set()
+
+
+def _loop_key():
+    """Motor clients are bound to the asyncio loop that creates them."""
+    return id(asyncio.get_running_loop())
 
 
 async def get_db() -> AsyncIOMotorDatabase:
-    global _client, _db, _connected
     if not MONGO_URL:
         return None
-    if _db is None:
-        _client = AsyncIOMotorClient(
+
+    key = _loop_key()
+    client = _clients_by_loop.get(key)
+    db = _dbs_by_loop.get(key)
+
+    if db is None:
+        client = AsyncIOMotorClient(
             MONGO_URL,
             serverSelectionTimeoutMS=5000,
             tlsAllowInvalidCertificates=True,
         )
-        _db = _client[MONGO_DB]
-    if not _connected:
+        db = client[MONGO_DB]
+        _clients_by_loop[key] = client
+        _dbs_by_loop[key] = db
+
+    if key not in _connected_loops:
         try:
-            await _client.admin.command("ping")
-            _connected = True
+            await client.admin.command("ping")
+            _connected_loops.add(key)
         except Exception:
-            _client.close()
-            _client = None
-            _db = None
+            client.close()
+            _clients_by_loop.pop(key, None)
+            _dbs_by_loop.pop(key, None)
+            _connected_loops.discard(key)
             return None
-    return _db
+
+    return db
 
 
 async def close():
-    global _client, _connected
-    if _client:
-        _client.close()
-        _client = None
-        _connected = False
+    key = _loop_key()
+    client = _clients_by_loop.pop(key, None)
+    _dbs_by_loop.pop(key, None)
+    _connected_loops.discard(key)
+    if client:
+        client.close()
 
 
 # ── Indexes ──────────────────────────────────────────────────
@@ -149,12 +165,12 @@ async def init_db():
 
     await init_user_storage(6161189904)
 
-    await _migrate_legacy_if_needed()
+    await _migrate_legacy_if_needed(db)
 
 
-async def _migrate_legacy_if_needed():
+async def _migrate_legacy_if_needed(db):
     """One-time migration from JSON files to MongoDB."""
-    entry_count = await _db["entries"].count_documents({})
+    entry_count = await db["entries"].count_documents({})
     if entry_count > 0:
         return
 
@@ -175,7 +191,7 @@ async def _migrate_legacy_if_needed():
             e["user_id"] = uid
             e.pop("_id", None)
         if entries:
-            await _db["entries"].insert_many(entries, ordered=False)
+            await db["entries"].insert_many(entries, ordered=False)
 
     users_path = "data/users.json"
     if os.path.exists(users_path):
@@ -185,9 +201,9 @@ async def _migrate_legacy_if_needed():
         except Exception:
             users = {}
         for uid_str, info in users.items():
-            existing = await _db["users"].find_one({"_id": uid_str})
+            existing = await db["users"].find_one({"_id": uid_str})
             if not existing:
-                await _db["users"].insert_one({
+                await db["users"].insert_one({
                     "_id": uid_str,
                     "role": info.get("role", "user"),
                     "added_at": info.get("added_at", datetime.now().isoformat())
@@ -201,9 +217,9 @@ async def _migrate_legacy_if_needed():
         except Exception:
             dists = []
         if dists:
-            await _db["distributors"].delete_many({})
+            await db["distributors"].delete_many({})
             for name in dists:
-                await _db["distributors"].insert_one({"name": name})
+                await db["distributors"].insert_one({"name": name})
 
     prefs_dir = "data/user_prefs"
     if os.path.exists(prefs_dir):
@@ -215,7 +231,7 @@ async def _migrate_legacy_if_needed():
                 continue
             if prefs:
                 uid = fpath.split("\\")[-1].replace(".json", "")
-                await _db["user_prefs"].update_one(
+                await db["user_prefs"].update_one(
                     {"_id": uid},
                     {"$set": prefs},
                     upsert=True
