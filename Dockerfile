@@ -20,4 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "-m", "bot.main"]
+# Runs the Telegram bot in a background thread AND the FastAPI web API
+# (uvicorn) in the foreground bound to $PORT. To run only the bot
+# (no web API), override the command with: python -m bot.main
+CMD ["python", "-m", "web_api.launcher"]
