@@ -124,7 +124,11 @@ def main():
         hs.start()
 
     logging.info("Bot is starting...")
-    application.run_polling()
+    # Background thread under web_api/launcher.py can't install signal handlers.
+    if os.getenv("SKIP_HEALTH_SERVER") == "1":
+        application.run_polling(stop_signals=None)
+    else:
+        application.run_polling()
 
 if __name__ == '__main__':
     main()
