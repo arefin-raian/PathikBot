@@ -20,6 +20,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{S('start.welcome_title', user_name=user.first_name)} 👋\n\n"
         f"{S('start.menu_header', month_name=month_name, year=year)}\n"
         f"{S('start.bot_info')}\n\n"
+        f"{S('start.website_link')}\n\n"
         f"{S('start.menu_prompt')}"
     )
     msg = await update.message.reply_text(welcome_text, reply_markup=get_main_menu(), parse_mode='HTML')
@@ -81,6 +82,7 @@ async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         text = (
             f"{S('start.menu_header', month_name=month_name, year=year)}\n"
             f"{S('start.bot_info')}\n\n"
+            f"{S('start.website_link')}\n\n"
             f"{S('start.menu_prompt')}"
         )
         await query.edit_message_text(text, reply_markup=get_main_menu(), parse_mode='HTML')
