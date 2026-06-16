@@ -61,6 +61,7 @@ def get_edit_fields_keyboard(entry_id):
         [InlineKeyboardButton(b['dist'], callback_data=f"edit_field_dist_{entry_id}")],
         [InlineKeyboardButton(b['petrol'], callback_data=f"edit_field_petrol_{entry_id}")],
         [InlineKeyboardButton(b['mobil'], callback_data=f"edit_field_mobil_{entry_id}")],
+        [InlineKeyboardButton(b['desig'], callback_data=f"edit_field_desig_{entry_id}")],
         [InlineKeyboardButton(b['back'], callback_data="edit_entry")]
     ]
     return InlineKeyboardMarkup(keyboard)

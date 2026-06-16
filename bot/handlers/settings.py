@@ -124,7 +124,8 @@ async def start_field_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "start": S('settings.prompt_edit_start'),
         "end": S('settings.prompt_edit_end'),
         "petrol": S('settings.prompt_edit_petrol'),
-        "mobil": S('settings.prompt_edit_mobil')
+        "mobil": S('settings.prompt_edit_mobil'),
+        "desig": S('settings.prompt_edit_desig'),
     }
     
     if field == "dist":
@@ -232,11 +233,33 @@ async def handle_new_distributor_name(update: Update, context: ContextTypes.DEFA
 
 async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    field = context.user_data.get('editing_field')
+    entry_id = context.user_data.get('editing_id')
+
+    # Text-only fields (no numeric parsing, no odometer cascade prompt).
+    if field == "desig":
+        raw = (update.message.text or "").strip()
+        new_desig = "" if raw in ("-", "—", "–") else raw
+        entry = await get_entry_by_id(user_id, entry_id)
+        if not entry:
+            sent_msg = await update.message.reply_text(S('settings.entry_not_found'), reply_markup=BACK_TO_MENU)
+            await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
+            return ConversationHandler.END
+        old_desig = entry.get('others_designation', '')
+        await update_entry_and_cascade(user_id, entry_id, {'others_designation': new_desig})
+        user = update.effective_user
+        await log_event(context, 'entry_edited',
+            user_id=user_id, username=user.full_name,
+            details=f"Entry #{entry_id} — Designation changed",
+            changes=[f"Designation: <b>{old_desig or '∅'}</b> \u2192 <b>{new_desig or '∅'}</b>"]
+        )
+        sent_msg = await update.message.reply_text(S('settings.edit_desig_success'))
+        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
+        return await start_edit_entry(update, context)
+
     from bot.handlers.new_entry import normalize_number
     try:
         val = float(normalize_number(update.message.text))
-        field = context.user_data['editing_field']
-        entry_id = context.user_data['editing_id']
         
         entry = await get_entry_by_id(user_id, entry_id)
         if not entry:
