@@ -1,4 +1,4 @@
-"""Telegram Login Widget verification + JWT issuance."""
+"""JWT issuance/verification for the PathikBot web API."""
 import os
 import hmac
 import hashlib
@@ -7,37 +7,8 @@ import json
 import base64
 from typing import Optional
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 JWT_SECRET = os.getenv("WEB_JWT_SECRET", "change-me")
 JWT_TTL = 60 * 60 * 24 * 30  # 30 days
-MAX_AUTH_AGE = 60 * 60 * 24  # 1 day for Telegram auth_date
-
-
-def verify_telegram_login(data: dict) -> bool:
-    """Verify the HMAC of a Telegram Login Widget payload.
-
-    See https://core.telegram.org/widgets/login#checking-authorization
-    """
-    if not BOT_TOKEN:
-        return False
-    recv_hash = data.get("hash")
-    if not recv_hash:
-        return False
-    pairs = sorted(
-        f"{k}={v}" for k, v in data.items() if k != "hash" and v is not None
-    )
-    check_string = "\n".join(pairs)
-    secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
-    computed = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(computed, recv_hash):
-        return False
-    try:
-        auth_date = int(data.get("auth_date", 0))
-    except (TypeError, ValueError):
-        return False
-    if time.time() - auth_date > MAX_AUTH_AGE:
-        return False
-    return True
 
 
 def _b64url(b: bytes) -> str:

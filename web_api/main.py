@@ -8,7 +8,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from web_api.auth import verify_telegram_login, issue_jwt
+from web_api.auth import issue_jwt
+from core.credentials import verify_login
 from web_api.routes import entries, summary, settings, distributors, generate, admin
 
 logging.basicConfig(level=logging.INFO)
@@ -17,7 +18,7 @@ ALLOWED_ORIGINS = [
     o.strip() for o in os.getenv("WEB_ALLOWED_ORIGINS", "*").split(",") if o.strip()
 ] or ["*"]
 
-app = FastAPI(title="PathikBot Web API", version="1.0")
+app = FastAPI(title="PathikBot Web API", version="1.1")
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,40 +29,54 @@ app.add_middleware(
 )
 
 
-# Note: init_db() is invoked by the bot's post_init in bot/main.py.
-# Calling it again here closes the shared Mongo client and breaks the bot.
-
 @app.get("/api/health")
 async def health():
     return {"ok": True}
 
 
-@app.post("/api/auth/telegram")
-async def auth_telegram(req: Request):
-    data = await req.json()
+@app.post("/api/auth/login")
+async def auth_login(req: Request):
+    """Email + password login.
+
+    Credentials are issued by the bot's /credentials command. The bot stores
+    a PBKDF2 hash; this endpoint verifies it and returns a JWT plus the
+    minimal user metadata the web UI needs to render its dashboard.
+    """
+    try:
+        data = await req.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
     if not isinstance(data, dict):
         raise HTTPException(400, "Invalid payload")
-    # Telegram Login Widget sends string values; normalize for HMAC
-    norm = {k: str(v) for k, v in data.items()}
-    if not verify_telegram_login(norm):
-        raise HTTPException(401, "Invalid Telegram signature")
-    try:
-        uid = int(norm["id"])
-    except (KeyError, ValueError):
-        raise HTTPException(400, "Missing user id")
-    username = norm.get("username") or norm.get("first_name") or ""
 
-    # Ensure user is registered (mirrors bot /start behavior)
+    email = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    if not email or not password:
+        raise HTTPException(400, "Email and password required")
+
+    info = await verify_login(email, password)
+    if not info:
+        raise HTTPException(401, "Invalid email or password")
+
+    # Make sure the user still has registered storage. Owner is always allowed.
     try:
-        from core.file_data_store import is_registered, add_user, init_user_storage
-        if not await is_registered(uid):
-            # Owner is allow-listed; others require admin to add them
-            await init_user_storage(uid)
+        from core.file_data_store import is_registered, init_user_storage
+        if not await is_registered(info["user_id"]):
+            raise HTTPException(403, "User is no longer registered")
+        await init_user_storage(info["user_id"])
+    except HTTPException:
+        raise
     except Exception as e:
-        logging.warning("user init failed: %s", e)
+        logging.warning("user check failed: %s", e)
 
-    token = issue_jwt(uid, username)
-    return {"token": token, "user_id": uid, "username": username}
+    token = issue_jwt(info["user_id"], info.get("username") or "")
+    return {
+        "token": token,
+        "user_id": info["user_id"],
+        "username": info.get("username") or "",
+        "name": info.get("display_name") or info.get("username") or info["email"].split("@")[0],
+        "email": info["email"],
+    }
 
 
 app.include_router(entries.router, prefix="/api")
