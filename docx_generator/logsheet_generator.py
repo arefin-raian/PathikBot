@@ -409,7 +409,8 @@ def _convert_entry(entry: dict, serial: int) -> dict:
             result['distributors_runs'] = bijoy_runs
 
         mgr = entry.get('others_designation', '')
-        result['manager_bijoy'] = convert_to_bijoy(mgr) if mgr else ""
+        from docx_generator.english_transliteration import transliterate_english_to_bangla
+        result['manager_bijoy'] = convert_to_bijoy(transliterate_english_to_bangla(mgr)) if mgr else ""
 
     return result
 

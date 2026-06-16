@@ -5,6 +5,7 @@ import calendar
 from dotenv import load_dotenv
 from core.expense_calculations import calculate_summary
 from docx_generator.bijoy_converter import convert_to_bijoy
+from docx_generator.english_transliteration import transliterate_english_to_bangla
 from docx_generator.docx_xml_helpers import set_cell_text
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -208,7 +209,7 @@ class LogsheetGenerator:
             set_cell_text(row.cells[10], f"{entry['total_cost']}/-")
             
             if entry.get('others_designation'):
-                set_cell_text(row.cells[11], convert_to_bijoy(entry['others_designation']))
+                set_cell_text(row.cells[11], convert_to_bijoy(transliterate_english_to_bangla(entry['others_designation'])))
 
     def _fill_total_row(self, row, summary):
         set_cell_text(row.cells[2], "‡gvU=")
