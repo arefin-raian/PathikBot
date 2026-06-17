@@ -100,6 +100,16 @@ def fmt_taka(amount) -> str:
     return f"{int(amount):,}/-"
 
 
+def fmt_num(value) -> str:
+    if isinstance(value, float):
+        return str(int(value)) if value.is_integer() else format(value, "f").rstrip("0").rstrip(".")
+    return str(value)
+
+
+def fmt_amount(value) -> str:
+    return f"{int(value):,}" if isinstance(value, float) and value.is_integer() else f"{value:,}"
+
+
 def template_stem(n: int) -> str:
     if not (3 <= n <= 30):
         raise ValueError(f"Entry count {n} out of range 3-30")
@@ -201,9 +211,9 @@ def fill_row(row, entry: dict):
         set_cell(cells[0],  f"{entry['serial']:02d}")
         set_cell(cells[1],  entry['date_str'])
         set_multi_paragraph_cell(cells[2],  entry['distributors_runs'])
-        set_cell(cells[3],  str(entry['odo_start']))
-        set_cell(cells[4],  str(entry['odo_end']))
-        set_cell(cells[5],  "00" if entry['total_km'] == 0 else str(entry['total_km']))
+        set_cell(cells[3],  fmt_num(entry['odo_start']))
+        set_cell(cells[4],  fmt_num(entry['odo_end']))
+        set_cell(cells[5],  "00" if entry['total_km'] == 0 else fmt_num(entry['total_km']))
 
         if entry.get('petrol_liters', 0) > 0:
             set_runs(cells[6], [str(int(entry['petrol_liters'])), " wjUvi"])
@@ -225,7 +235,7 @@ def fill_row(row, entry: dict):
         set_cell(cells[0],  f"{entry['serial']:02d}")
         set_cell(cells[1],  entry['date_str'])
         set_multi_paragraph_cell(cells[2],  entry['distributors_runs'])
-        set_cell(cells[3],  "00" if entry['total_km'] == 0 else str(entry['total_km']))
+        set_cell(cells[3],  "00" if entry['total_km'] == 0 else fmt_num(entry['total_km']))
 
         if entry.get('petrol_liters', 0) > 0:
             set_runs(cells[4], [str(int(entry['petrol_liters'])), " wjUvi"])
@@ -256,14 +266,14 @@ def fill_total_row(total_row, entries):
     grand     = total_pet + total_mob + total_da + total_oth
 
     if len(cells) >= 12:
-        set_runs(cells[5],  [str(total_km), " wK:wg:"])
+        set_runs(cells[5],  [fmt_num(total_km), " wK:wg:"])
         set_runs(cells[6],  [str(int(total_l)), " wjUvi"])
         set_cell(cells[7],  fmt_taka(total_pet))
         set_cell(cells[8],  fmt_taka(total_mob))
         set_cell(cells[9],  fmt_taka(total_da))
-        set_cell(cells[10], f"{grand:,}/-")
+        set_cell(cells[10], f"{fmt_amount(grand)}/-")
     else:
-        set_runs(cells[4], [str(total_km), " wK:wg:"])
+        set_runs(cells[4], [fmt_num(total_km), " wK:wg:"])
         lparts = []
         if total_l:  lparts += [str(int(total_l)), " wjUvi"]
         ps = fmt_taka(total_pet)
@@ -271,7 +281,7 @@ def fill_total_row(total_row, entries):
         if lparts:   set_runs(cells[5], lparts)
         set_cell(cells[6], fmt_taka(total_mob))
         set_cell(cells[7], fmt_taka(total_da))
-        set_cell(cells[8], f"{grand:,}/-")
+        set_cell(cells[8], f"{fmt_amount(grand)}/-")
 
 
 def fill_summary(summary_tbl, entries):
@@ -298,12 +308,12 @@ def fill_summary(summary_tbl, entries):
         return rows[ri].findall(f".//{{{W}}}tc")
 
     c = vc(0); set_runs(c[1], [f"{total_tours:02d}", " wU"]);  set_runs(c[4], [str(int(total_l)), " wjUvi"])
-    c = vc(1); set_cell(c[1], fri_txt);                         set_cell(c[4], f"({last_odo}-{first_odo}) wKwg")
-    c = vc(2); set_runs(c[1], [f"{meeting_count:02d}", " wU"]); set_runs(c[4], [f"{total_pet:,}", " UvKv"])
-    c = vc(3); set_runs(c[1], [f"{mgr_tours:02d}", " wU"]);     set_runs(c[4], [f"{total_mob:,}", " UvKv"])
-    c = vc(4); set_cell(c[1], f"{under50:02d} wU");             set_runs(c[4], [f"{total_da:,}", " UvKv"])
-    c = vc(5); set_runs(c[1], [f"{net_tours:02d}", " wU"]);     set_runs(c[4], [f"{total_oth:,}", " UvKv"])
-    c = vc(6); set_runs(c[4], [f"{grand:,}", " UvKv"])
+    c = vc(1); set_cell(c[1], fri_txt);                         set_cell(c[4], f"({fmt_num(last_odo)}-{fmt_num(first_odo)}) wKwg")
+    c = vc(2); set_runs(c[1], [f"{meeting_count:02d}", " wU"]); set_runs(c[4], [fmt_amount(total_pet), " UvKv"])
+    c = vc(3); set_runs(c[1], [f"{mgr_tours:02d}", " wU"]);     set_runs(c[4], [fmt_amount(total_mob), " UvKv"])
+    c = vc(4); set_cell(c[1], f"{under50:02d} wU");             set_runs(c[4], [fmt_amount(total_da), " UvKv"])
+    c = vc(5); set_runs(c[1], [f"{net_tours:02d}", " wU"]);     set_runs(c[4], [fmt_amount(total_oth), " UvKv"])
+    c = vc(6); set_runs(c[4], [fmt_amount(grand), " UvKv"])
 
 
 def _fix_namespace_header(xml_bytes: bytes) -> bytes:
