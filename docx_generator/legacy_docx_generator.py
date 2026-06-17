@@ -19,6 +19,11 @@ MONTHS_BN = {
     9: "†m‡Þ¤^i", 10: "A‡±vei", 11: "b‡f¤^i", 12: "wW‡m¤^i"
 }
 
+def fmt_num(value):
+    if isinstance(value, float):
+        return str(int(value)) if value.is_integer() else format(value, "f").rstrip("0").rstrip(".")
+    return str(value)
+
 class LogsheetGenerator:
     def __init__(self, template_path="templates/Logsheet Template.docx"):
         self.template_path = template_path
@@ -178,12 +183,12 @@ class LogsheetGenerator:
             # Special formatting for meeting
             venue = convert_to_bijoy(entry.get('venue', ''))
             fee = entry.get('transport_fee', 0)
-            text = f"{venue}│\n†Wvgvi nB‡Z {venue} evm I A‡Uv‡Z hvZvqvZ fvov={fee}/-"
+            text = f"{venue}│\n†Wvgvi nB‡Z {venue} evm I A‡Uv‡Z hvZvqvZ fvov={fmt_num(fee)}/-"
             set_cell_text(row.cells[2], text)
-            set_cell_text(row.cells[3], f"{entry['odo_start']}")
-            set_cell_text(row.cells[4], f"{entry['odo_end']}")
+            set_cell_text(row.cells[3], fmt_num(entry['odo_start']))
+            set_cell_text(row.cells[4], fmt_num(entry['odo_end']))
             set_cell_text(row.cells[5], "00")
-            set_cell_text(row.cells[10], f"{fee}/-")
+            set_cell_text(row.cells[10], f"{fmt_num(fee)}/-")
             set_cell_text(row.cells[11], "gvwmK wgwUs") # "মাসিক মিটিং"
         else:
             # Format names: strip brackets for DOCX
@@ -194,31 +199,31 @@ class LogsheetGenerator:
             
             dists = convert_to_bijoy(dists_text)
             set_cell_text(row.cells[2], dists)
-            set_cell_text(row.cells[3], f"{entry['odo_start']}")
-            set_cell_text(row.cells[4], f"{entry['odo_end']}")
-            set_cell_text(row.cells[5], f"{entry['total_km']}")
+            set_cell_text(row.cells[3], fmt_num(entry['odo_start']))
+            set_cell_text(row.cells[4], fmt_num(entry['odo_end']))
+            set_cell_text(row.cells[5], fmt_num(entry['total_km']))
             
             if entry.get('petrol_liters'):
-                set_cell_text(row.cells[6], f"{entry['petrol_liters']}")
-                set_cell_text(row.cells[7], f"{entry['petrol_cost']}/-")
+                set_cell_text(row.cells[6], fmt_num(entry['petrol_liters']))
+                set_cell_text(row.cells[7], f"{fmt_num(entry['petrol_cost'])}/-")
             
             if entry.get('mobil_liters'):
-                set_cell_text(row.cells[8], f"{entry['mobil_cost']}/-")
+                set_cell_text(row.cells[8], f"{fmt_num(entry['mobil_cost'])}/-")
             
-            set_cell_text(row.cells[9], f"{entry['da_amount']}/-")
-            set_cell_text(row.cells[10], f"{entry['total_cost']}/-")
+            set_cell_text(row.cells[9], f"{fmt_num(entry['da_amount'])}/-")
+            set_cell_text(row.cells[10], f"{fmt_num(entry['total_cost'])}/-")
             
             if entry.get('others_designation'):
                 set_cell_text(row.cells[11], convert_to_bijoy(transliterate_english_to_bangla(entry['others_designation'])))
 
     def _fill_total_row(self, row, summary):
         set_cell_text(row.cells[2], "‡gvU=")
-        set_cell_text(row.cells[5], f"{summary['total_km']} wK:wg:")
-        set_cell_text(row.cells[6], f"{summary['total_liters_petrol']} wjUvi")
-        set_cell_text(row.cells[7], f"{summary['total_petrol_cost']}/-")
-        set_cell_text(row.cells[8], f"{summary['total_mobil_cost']}/-")
-        set_cell_text(row.cells[9], f"{summary['total_da']}/-")
-        set_cell_text(row.cells[10], f"{summary['grand_total']}/")
+        set_cell_text(row.cells[5], f"{fmt_num(summary['total_km'])} wK:wg:")
+        set_cell_text(row.cells[6], f"{fmt_num(summary['total_liters_petrol'])} wjUvi")
+        set_cell_text(row.cells[7], f"{fmt_num(summary['total_petrol_cost'])}/-")
+        set_cell_text(row.cells[8], f"{fmt_num(summary['total_mobil_cost'])}/-")
+        set_cell_text(row.cells[9], f"{fmt_num(summary['total_da'])}/-")
+        set_cell_text(row.cells[10], f"{fmt_num(summary['grand_total'])}/")
 
     def _fill_summary(self, table, summary):
         # Left column (labels and values)
@@ -230,10 +235,10 @@ class LogsheetGenerator:
         set_cell_text(table.cell(5, 1), f"{summary['net_tours']} wU")
 
         # Right column (financials)
-        set_cell_text(table.cell(0, 4), f"{summary['total_liters_petrol']} wjUvi")
-        set_cell_text(table.cell(1, 4), f"{summary['total_km']} wKwg")
-        set_cell_text(table.cell(2, 4), f"{summary['total_petrol_cost']} UvKv")
-        set_cell_text(table.cell(3, 4), f"{summary['total_mobil_cost']} UvKv")
-        set_cell_text(table.cell(4, 4), f"{summary['total_da']} UvKv")
-        set_cell_text(table.cell(5, 4), f"{summary['total_others']} UvKv")
-        set_cell_text(table.cell(6, 4), f"{summary['grand_total']} UvKv")
+        set_cell_text(table.cell(0, 4), f"{fmt_num(summary['total_liters_petrol'])} wjUvi")
+        set_cell_text(table.cell(1, 4), f"{fmt_num(summary['total_km'])} wKwg")
+        set_cell_text(table.cell(2, 4), f"{fmt_num(summary['total_petrol_cost'])} UvKv")
+        set_cell_text(table.cell(3, 4), f"{fmt_num(summary['total_mobil_cost'])} UvKv")
+        set_cell_text(table.cell(4, 4), f"{fmt_num(summary['total_da'])} UvKv")
+        set_cell_text(table.cell(5, 4), f"{fmt_num(summary['total_others'])} UvKv")
+        set_cell_text(table.cell(6, 4), f"{fmt_num(summary['grand_total'])} UvKv")
