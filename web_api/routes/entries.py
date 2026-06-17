@@ -47,6 +47,13 @@ def _eval_distance(value) -> float:
     return total
 
 
+def _compact_number(value):
+    """Store whole-number floats as ints so bot output does not show 10.0."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
+
+
 @router.get("")
 async def list_entries(
     month: Optional[int] = None,
@@ -91,21 +98,21 @@ async def create_entry(body: EntryIn, user=Depends(current_user)):
     payload = {
         "entry_type": body.entry_type,
         "date": body.date,
-        "odo_start": body.odo_start,
-        "odo_end": body.odo_end,
-        "total_km": total_km,
-        "petrol_liters": body.petrol_liters,
-        "petrol_cost": petrol_cost,
-        "petrol_overflow": petrol_overflow,
-        "mobil_liters": body.mobil_liters,
-        "mobil_cost": mobil_cost,
-        "mobil_overflow": mobil_overflow,
-        "da_amount": body.da_amount,
-        "transport_fee": body.transport_fee,
+        "odo_start": _compact_number(body.odo_start),
+        "odo_end": _compact_number(body.odo_end),
+        "total_km": _compact_number(total_km),
+        "petrol_liters": _compact_number(body.petrol_liters),
+        "petrol_cost": _compact_number(petrol_cost),
+        "petrol_overflow": _compact_number(petrol_overflow),
+        "mobil_liters": _compact_number(body.mobil_liters),
+        "mobil_cost": _compact_number(mobil_cost),
+        "mobil_overflow": _compact_number(mobil_overflow),
+        "da_amount": _compact_number(body.da_amount),
+        "transport_fee": _compact_number(body.transport_fee),
         "others_designation": body.others_designation,
         "venue": body.venue,
         "distributors_raw": body.distributors_raw,
-        "total_cost": total_cost,
+        "total_cost": _compact_number(total_cost),
     }
     entry_id = await store.add_entry(uid, payload)
     return {"id": entry_id, **payload}
