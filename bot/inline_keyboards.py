@@ -1,5 +1,6 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 import calendar
+import re
 from datetime import datetime
 from bot.text_resources import S
 
@@ -11,8 +12,20 @@ MONTHS_BN_FULL = {
 
 BN_DIGITS = {'0':'০', '1':'১', '2':'২', '3':'৩', '4':'৪', '5':'৫', '6':'৬', '7':'৭', '8':'৮', '9':'৯'}
 
+def _clean_number_for_display(number):
+    if isinstance(number, float):
+        return str(int(number)) if number.is_integer() else format(number, "f").rstrip("0").rstrip(".")
+    if isinstance(number, int):
+        return str(number)
+    text = str(number)
+    stripped = text.strip()
+    if re.fullmatch(r"-?\d+\.\d+", stripped):
+        cleaned = stripped.rstrip("0").rstrip(".")
+        return cleaned if cleaned not in ("", "-") else "0"
+    return text
+
 def to_bn_number(number):
-    return "".join(BN_DIGITS.get(d, d) for d in str(number))
+    return "".join(BN_DIGITS.get(d, d) for d in _clean_number_for_display(number))
 
 BACK_TO_MENU = InlineKeyboardMarkup([[InlineKeyboardButton(S('common.back_to_menu'), callback_data="main_menu")]])
 
