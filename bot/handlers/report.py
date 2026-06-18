@@ -9,7 +9,7 @@ import shutil
 import platform
 from telegram import Update
 from telegram.ext import ContextTypes
-from core.file_data_store import get_entries
+from core.file_data_store import get_entries, get_user_prefs
 from core.message_store import record_message, record_file_message
 from core.audit_logger import log_event
 from docx_generator.logsheet_generator import generate_for_user as generate_docx
@@ -115,6 +115,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         await _update_progress(context, chat_id, msg_id, 2, 40)
 
         # ── Generate DOCX (happens during step 2→3) ────────────────────
+        prefs = await get_user_prefs(user_id)
         docx_path = Path(generate_docx(
             user_id=user_id,
             entries=entries,
@@ -122,6 +123,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             year=year,
             tpl_dir=Path("template_variants/DOCX"),
             out_dir=Path("output/DOCX"),
+            prefs=prefs,
         ))
 
         # ── Step 3 (60%): Processing data ───────────────────────────────
@@ -135,6 +137,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             year=year,
             tpl_dir=Path("template_variants/ODT"),
             out_dir=Path("output/ODT"),
+            prefs=prefs,
         ))
 
         # ── Convert ODT → PDF ──────────────────────────────────────────
