@@ -43,6 +43,45 @@ TAG_IMG    = f"{{{NS_DRAW}}}image"
 
 SPAN_STYLE = "T2"
 
+# Bijoy-encoded labels prefixed to each header cell (parallel to docx_generator).
+HEADER_LABELS = {
+    "company":     "‡Kv¤úvbxi bvg: ",
+    "depot":       "wW‡cvi bvg: ",
+    "motorcycle":  "gvUi mvB‡K‡ji eªvÛ: ",
+    "name":        "Awdmv‡ii bvg: ",
+    "designation": "c`ex: ",
+}
+
+
+def _set_odt_header_cell(cell, label_bijoy: str, value_unicode):
+    """Overlay a header cell with `<label><bijoy(value)>` while preserving the
+    paragraph style. No-op when value is empty so the template default survives.
+    Uses the web converter when available (matches distributor handling)."""
+    if not value_unicode:
+        return
+    try:
+        from docx_generator.web_converter import convert_unicode_to_bijoy
+        value_bijoy = convert_unicode_to_bijoy(value_unicode)
+    except Exception:
+        value_bijoy = convert_to_bijoy(value_unicode)
+    paras = cell.findall(TAG_P)
+    if not paras:
+        return
+    p = paras[0]
+    # Capture existing span style so the font (SutonnyMJ) is preserved.
+    style = SPAN_STYLE
+    existing = p.findall(TAG_SPAN)
+    if existing:
+        s0 = existing[0].attrib.get(f"{{{NS_TEXT}}}style-name")
+        if s0:
+            style = s0
+    for s in existing:
+        p.remove(s)
+    if p.text:
+        p.text = ""
+    p.append(make_span_text(f"{label_bijoy}{value_bijoy}", style))
+
+
 BIJOY_MONTHS = {
     1:"Rvbyqvwi", 2:"†deªæqvwi", 3:"gvP©", 4:"GwcÖj",
     5:"†g",       6:"Ryb",       7:"RyjvB", 8:"AvMó",
@@ -225,7 +264,7 @@ def template_stem(n: int) -> str:
     return f"3HE_4E.{n4e}_3PET{total_pos}_0EST"
 
 
-def fill_header(tbl0, month: int, year: int):
+def fill_header(tbl0, month: int, year: int, prefs: dict | None = None):
     last_day = calendar.monthrange(year, month)[1]
     rows = tbl0.findall(TAG_TR)
 
@@ -244,6 +283,19 @@ def fill_header(tbl0, month: int, year: int):
         if s.text and s.text.strip():
             s.text = f"ZvwiL: {last_day:02d}/{month:02d}/{year} Bs "
             break
+
+    # ── Per-user header overrides. Missing prefs keep the template defaults.
+    p = prefs or {}
+    if len(r0c) >= 1:
+        _set_odt_header_cell(r0c[0], HEADER_LABELS["company"], p.get("header_company"))
+    if len(r1c) >= 2:
+        _set_odt_header_cell(r1c[0], HEADER_LABELS["depot"], p.get("header_depot"))
+        _set_odt_header_cell(r1c[1], HEADER_LABELS["motorcycle"], p.get("header_motorcycle"))
+    if len(rows) >= 3:
+        r2c = rows[2].findall(f".//{TAG_TC}")
+        if len(r2c) >= 2:
+            _set_odt_header_cell(r2c[0], HEADER_LABELS["name"], p.get("header_name"))
+            _set_odt_header_cell(r2c[1], HEADER_LABELS["designation"], p.get("header_designation"))
 
 
 def fill_row(row, entry: dict):
@@ -451,6 +503,7 @@ def generate_for_user(
     year: int,
     tpl_dir: Path = Path("template_variants/ODT"),
     out_dir: Path = Path("output/ODT"),
+    prefs: dict | None = None,
 ) -> str:
     n = len(entries)
     if n < 3:
@@ -507,7 +560,7 @@ def generate_for_user(
 
         conv_entries = [_convert_entry(e, i + 1) for i, e in enumerate(entries)]
 
-        fill_header(data_tbls[0], month, year)
+        fill_header(data_tbls[0], month, year, prefs)
 
         # Compute dynamic capacities from actual table structures
         caps = []
