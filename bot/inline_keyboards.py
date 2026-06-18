@@ -248,6 +248,13 @@ def get_settings_keyboard(show_back_to_menu=True):
         [InlineKeyboardButton(b['mobil'], callback_data="set_mobil_price")],
         [InlineKeyboardButton(b['da'], callback_data="set_da_rate")],
         [InlineKeyboardButton(b['transport'], callback_data="set_transport_fee")],
+        [InlineKeyboardButton(b['petrol_threshold'], callback_data="set_petrol_threshold")],
+        [InlineKeyboardButton(b['mobil_threshold'], callback_data="set_mobil_threshold")],
+        [InlineKeyboardButton(b['header_company'], callback_data="set_header_company")],
+        [InlineKeyboardButton(b['header_depot'], callback_data="set_header_depot")],
+        [InlineKeyboardButton(b['header_motorcycle'], callback_data="set_header_motorcycle")],
+        [InlineKeyboardButton(b['header_name'], callback_data="set_header_name")],
+        [InlineKeyboardButton(b['header_designation'], callback_data="set_header_designation")],
         [InlineKeyboardButton(b['distributors'], callback_data="manage_distributors")],
     ]
     if show_back_to_menu:
