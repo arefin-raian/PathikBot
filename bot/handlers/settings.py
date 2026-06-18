@@ -529,13 +529,28 @@ async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mobil = prefs.get('mobil_price', '560.0')
     da = prefs.get('da_amount', '200')
     transport = prefs.get('transport_fee', '460')
-    
+    pth = prefs.get('petrol_threshold', PETROL_THRESHOLD_KM)
+    mth = prefs.get('mobil_threshold', MOBIL_THRESHOLD_KM)
+    unset = S('settings.config_display_header_unset')
+    h_company = prefs.get('header_company') or unset
+    h_depot = prefs.get('header_depot') or unset
+    h_moto = prefs.get('header_motorcycle') or unset
+    h_name = prefs.get('header_name') or unset
+    h_desig = prefs.get('header_designation') or unset
+
     text = (
         f"{S('settings.config_display_title')}\n\n"
         f"{S('settings.config_display_petrol', petrol=to_bn_number(petrol))}\n"
         f"{S('settings.config_display_mobil', mobil=to_bn_number(mobil))}\n"
         f"{S('settings.config_display_da', da=to_bn_number(da))}\n"
         f"{S('settings.config_display_transport', transport=to_bn_number(transport))}\n\n"
+        f"{S('settings.config_display_petrol_th', v=to_bn_number(pth))}\n"
+        f"{S('settings.config_display_mobil_th', v=to_bn_number(mth))}\n\n"
+        f"{S('settings.config_display_header_company', v=h_company)}\n"
+        f"{S('settings.config_display_header_depot', v=h_depot)}\n"
+        f"{S('settings.config_display_header_motorcycle', v=h_moto)}\n"
+        f"{S('settings.config_display_header_name', v=h_name)}\n"
+        f"{S('settings.config_display_header_designation', v=h_desig)}\n\n"
         f"{S('settings.config_display_action')}"
     )
     
@@ -577,7 +592,14 @@ async def start_setting_change(update: Update, context: ContextTypes.DEFAULT_TYP
         "set_petrol_price": ("petrol_price", S('settings.prompt_petrol')),
         "set_mobil_price": ("mobil_price", S('settings.prompt_mobil')),
         "set_da_rate": ("da_amount", S('settings.prompt_da')),
-        "set_transport_fee": ("transport_fee", S('settings.prompt_transport'))
+        "set_transport_fee": ("transport_fee", S('settings.prompt_transport')),
+        "set_petrol_threshold": ("petrol_threshold", S('settings.prompt_petrol_threshold')),
+        "set_mobil_threshold": ("mobil_threshold", S('settings.prompt_mobil_threshold')),
+        "set_header_company": ("header_company", S('settings.prompt_header_company')),
+        "set_header_depot": ("header_depot", S('settings.prompt_header_depot')),
+        "set_header_motorcycle": ("header_motorcycle", S('settings.prompt_header_motorcycle')),
+        "set_header_name": ("header_name", S('settings.prompt_header_name')),
+        "set_header_designation": ("header_designation", S('settings.prompt_header_designation')),
     }
     
     prefs_key, prompt = setting_map[query.data]
@@ -597,18 +619,29 @@ async def handle_setting_value(update: Update, context: ContextTypes.DEFAULT_TYP
     user = update.effective_user
     prefs_before = await get_user_prefs(user_id)
     old_val = prefs_before.get(key, '')
-    try:
-        if key in ('da_amount', 'transport_fee'):
-            value = int(value)
-        elif key in ('petrol_price', 'mobil_price'):
-            value = float(value)
-    except ValueError:
-        sent_msg = await update.message.reply_text(S('settings.error_invalid_number'))
-        await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
-        return SETTING_VALUE
+    TEXT_KEYS = {'header_company', 'header_depot', 'header_motorcycle', 'header_name', 'header_designation'}
+    if key in TEXT_KEYS:
+        value = (value or '').strip()
+    else:
+        try:
+            if key in ('da_amount', 'transport_fee', 'petrol_threshold', 'mobil_threshold'):
+                value = int(value)
+            elif key in ('petrol_price', 'mobil_price'):
+                value = float(value)
+        except ValueError:
+            sent_msg = await update.message.reply_text(S('settings.error_invalid_number'))
+            await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
+            return SETTING_VALUE
     prefs_before[key] = value
     await set_user_prefs(user_id, prefs_before)
-    setting_labels = {'petrol_price': 'Petrol Price', 'mobil_price': 'Mobil Price', 'da_amount': 'DA Amount', 'transport_fee': 'Transport Fee'}
+    setting_labels = {
+        'petrol_price': 'Petrol Price', 'mobil_price': 'Mobil Price',
+        'da_amount': 'DA Amount', 'transport_fee': 'Transport Fee',
+        'petrol_threshold': 'Petrol Threshold (km)', 'mobil_threshold': 'Mobil Threshold (km)',
+        'header_company': 'Header Company', 'header_depot': 'Header Depot',
+        'header_motorcycle': 'Header Motorcycle', 'header_name': 'Header Officer Name',
+        'header_designation': 'Header Designation',
+    }
     await log_event(context, 'settings_changed',
         user_id=user_id, username=user.full_name,
         details=f"{setting_labels.get(key, key)} changed",
