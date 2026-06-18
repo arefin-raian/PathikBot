@@ -42,10 +42,10 @@ async def generate_logsheet(
             path = Path(generate_docx(uid, entries, month, year, Path("template_variants/DOCX"), out, prefs=prefs))
         elif fmt == "odt":
             out = Path("output/ODT"); out.mkdir(parents=True, exist_ok=True)
-            path = Path(generate_odt(uid, entries, month, year, Path("template_variants/ODT"), out))
+            path = Path(generate_odt(uid, entries, month, year, Path("template_variants/ODT"), out, prefs=prefs))
         else:  # pdf
             out = Path("output/ODT"); out.mkdir(parents=True, exist_ok=True)
-            odt_path = Path(generate_odt(uid, entries, month, year, Path("template_variants/ODT"), out))
+            odt_path = Path(generate_odt(uid, entries, month, year, Path("template_variants/ODT"), out, prefs=prefs))
             pdf_path = odt_path.with_suffix(".pdf")
             # Reuse the bot's converter (Aspose via JPype, then LibreOffice fallback).
             from bot.handlers.report import _convert_to_pdf  # local import to avoid telegram import at module load
