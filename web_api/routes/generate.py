@@ -29,6 +29,7 @@ async def generate_logsheet(
 ):
     uid = user["user_id"]
     entries = await store.get_entries(uid, month, year)
+    prefs = await store.get_user_prefs(uid)
     if len(entries) < 3:
         raise HTTPException(400, f"Need at least 3 entries (have {len(entries)})")
     if len(entries) > 30:
@@ -38,7 +39,7 @@ async def generate_logsheet(
     try:
         if fmt == "docx":
             out = Path("output/DOCX"); out.mkdir(parents=True, exist_ok=True)
-            path = Path(generate_docx(uid, entries, month, year, Path("template_variants/DOCX"), out))
+            path = Path(generate_docx(uid, entries, month, year, Path("template_variants/DOCX"), out, prefs=prefs))
         elif fmt == "odt":
             out = Path("output/ODT"); out.mkdir(parents=True, exist_ok=True)
             path = Path(generate_odt(uid, entries, month, year, Path("template_variants/ODT"), out))

@@ -102,6 +102,24 @@ def calculate_summary(entries):
 PETROL_THRESHOLD_KM = 480
 MOBIL_THRESHOLD_KM = 1000
 
+def _coerce_threshold(value, default: int) -> int:
+    """Accept ints/floats/numeric strings; fall back to the default for anything
+    unparseable or non-positive."""
+    try:
+        n = int(float(value))
+        return n if n > 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+def get_thresholds(prefs: dict | None) -> tuple[int, int]:
+    """Return (petrol_threshold, mobil_threshold) with per-user overrides."""
+    p = prefs or {}
+    return (
+        _coerce_threshold(p.get('petrol_threshold'), PETROL_THRESHOLD_KM),
+        _coerce_threshold(p.get('mobil_threshold'),  MOBIL_THRESHOLD_KM),
+    )
+
 def _refill_status(entries, liters_field, overflow_field, threshold):
     """
     Compute distance since last refill and whether a refill is due.
@@ -146,14 +164,16 @@ def _refill_status(entries, liters_field, overflow_field, threshold):
     }
 
 
-def get_petrol_status(entries):
+def get_petrol_status(entries, threshold: int | None = None):
     """Get petrol refill tracking status based on stored entries."""
-    return _refill_status(entries, 'petrol_liters', 'petrol_overflow', PETROL_THRESHOLD_KM)
+    return _refill_status(entries, 'petrol_liters', 'petrol_overflow',
+                          threshold if threshold else PETROL_THRESHOLD_KM)
 
 
-def get_mobil_status(entries):
+def get_mobil_status(entries, threshold: int | None = None):
     """Get mobil refill tracking status based on stored entries."""
-    return _refill_status(entries, 'mobil_liters', 'mobil_overflow', MOBIL_THRESHOLD_KM)
+    return _refill_status(entries, 'mobil_liters', 'mobil_overflow',
+                          threshold if threshold else MOBIL_THRESHOLD_KM)
 
 
 def calc_carry_forward(entries, new_entry_km, liters_field, overflow_field, threshold):

@@ -167,7 +167,33 @@ def get_data_rows(tbl, header_count):
     return result
 
 
-def fill_header(tbl0, month: int, year: int):
+# Bijoy-encoded labels that prefix each header cell in the template. The cell
+# row/col map matches the master template; legacy hard-coded values after the
+# colon are wiped and replaced with the per-user pref (if set).
+HEADER_LABELS = {
+    "company":     "‡Kv¤úvbxi bvg: ",
+    "depot":       "wW‡cvi bvg: ",
+    "motorcycle":  "gvUi mvB‡K‡ji eªvÛ: ",
+    "name":        "Awdmv‡ii bvg: ",
+    "designation": "c`ex: ",
+}
+
+
+def _set_header_cell(cell, label_bijoy: str, value_unicode: str | None):
+    """Replace the first paragraph of a header cell with `<label><bijoy(value)>`.
+    If value is empty/None the cell is left untouched so the template default
+    survives (don't wipe the depot/officer when only company is configured)."""
+    if not value_unicode:
+        return
+    para = cell.find(f"{{{W}}}p")
+    if para is None:
+        return
+    for r in para.findall(f"{{{W}}}r"):
+        para.remove(r)
+    para.append(make_run(f"{label_bijoy}{convert_to_bijoy(value_unicode)}"))
+
+
+def fill_header(tbl0, month: int, year: int, prefs: dict | None = None):
     import calendar
     last_day = calendar.monthrange(year, month)[1]
     rows = tbl0.findall(f"{{{W}}}tr")
@@ -194,6 +220,20 @@ def fill_header(tbl0, month: int, year: int):
         remaining[0].addnext(new_run)
     else:
         para2.append(new_run)
+
+    # ── Per-user header overrides (company / depot / motorcycle / officer /
+    # designation). Each is optional; missing prefs keep the template value.
+    p = prefs or {}
+    if len(rows) >= 1 and len(r0c) >= 1:
+        _set_header_cell(r0c[0], HEADER_LABELS["company"],     p.get("header_company"))
+    if len(rows) >= 2 and len(r1c) >= 2:
+        _set_header_cell(r1c[0], HEADER_LABELS["depot"],       p.get("header_depot"))
+        _set_header_cell(r1c[1], HEADER_LABELS["motorcycle"],  p.get("header_motorcycle"))
+    if len(rows) >= 3:
+        r2c = rows[2].findall(f".//{{{W}}}tc")
+        if len(r2c) >= 2:
+            _set_header_cell(r2c[0], HEADER_LABELS["name"],        p.get("header_name"))
+            _set_header_cell(r2c[1], HEADER_LABELS["designation"], p.get("header_designation"))
 
 
 def fill_row(row, entry: dict):
@@ -432,6 +472,7 @@ def generate_for_user(
     year: int,
     tpl_dir: Path = Path("template_variants/DOCX"),
     out_dir: Path = Path("output/DOCX"),
+    prefs: dict | None = None,
 ) -> str:
     n = len(entries)
     if n < 3:
@@ -461,7 +502,7 @@ def generate_for_user(
         summary_tbl = all_tbls[-1]
         conv_entries = [_convert_entry(e, i + 1) for i, e in enumerate(entries)]
 
-        fill_header(data_tbls[0], month, year)
+        fill_header(data_tbls[0], month, year, prefs)
 
         remaining = list(conv_entries)
         pages = []
