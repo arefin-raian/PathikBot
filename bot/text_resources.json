@@ -114,7 +114,14 @@
       "da": "💰 DA রেট নির্ধারণ",
       "transport": "🚌 পরিবহন ভাড়া নির্ধারণ",
       "distributors": "🤝 পরিবেশকের তালিকা ব্যবস্থাপনা",
-      "back_to_menu": "🔙 মূল মেনুতে ফিরে যান"
+      "back_to_menu": "🔙 মূল মেনুতে ফিরে যান",
+      "petrol_threshold": "⛽ পেট্রোলের থ্রেশহোল্ড (কিমি)",
+      "mobil_threshold": "🛢 মবিলের থ্রেশহোল্ড (কিমি)",
+      "header_company": "🏢 কোম্পানির নাম",
+      "header_depot": "🏭 ডিপোর নাম",
+      "header_motorcycle": "🏍 মোটরসাইকেলের ব্র্যান্ড",
+      "header_name": "👤 অফিসারের নাম",
+      "header_designation": "🪪 পদবি"
     },
     "distributor_mgmt": {
       "add": "➕ নতুন পরিবেশক যোগ করুন",
@@ -272,7 +279,22 @@
     "recalc_done": "পেট্রোল ও মবিলের হিসাব পুনরায় সমন্বয় করা হয়েছে। ✅",
     "recalc_skipped": "কোনো পরিবর্তন করা হয়নি। পেট্রোল ও মবিলের হিসাব পূর্ববর্তী অবস্থাতেই থাকবে।",
     "cancelled": "কার্যক্রম বাতিল করা হয়েছে। ❌",
-    "error_invalid_number": "সঠিক সংখ্যা লিখুন (যেমন: ২০০ বা ১৪০.৭):"
+    "error_invalid_number": "সঠিক সংখ্যা লিখুন (যেমন: ২০০ বা ১৪০.৭):",
+    "prompt_petrol_threshold": "পেট্রোল রিফিলের পর কত কিমি পর্যন্ত চলে? সংখ্যাটি লিখুন (যেমন: ৪৮০):",
+    "prompt_mobil_threshold": "মবিল রিফিলের পর কত কিমি পর্যন্ত চলে? সংখ্যাটি লিখুন (যেমন: ১০০০):",
+    "prompt_header_company": "কোম্পানির নাম ইউনিকোড বাংলায় লিখুন (যেমন: এসিআই লিমিটেড):",
+    "prompt_header_depot": "ডিপোর নাম ইউনিকোড বাংলায় লিখুন (যেমন: রাজশাহী):",
+    "prompt_header_motorcycle": "মোটরসাইকেলের ব্র্যান্ড ও মডেল লিখুন (যেমন: ডিসকভার ১২৫):",
+    "prompt_header_name": "অফিসারের পুরো নাম ইউনিকোড বাংলায় লিখুন:",
+    "prompt_header_designation": "পদবি লিখুন (যেমন: TSO, RMM):",
+    "config_display_petrol_th": "⛽ পেট্রোল থ্রেশহোল্ড: <b>{v}</b> কিমি",
+    "config_display_mobil_th": "🛢 মবিল থ্রেশহোল্ড: <b>{v}</b> কিমি",
+    "config_display_header_company": "🏢 কোম্পানি: <b>{v}</b>",
+    "config_display_header_depot": "🏭 ডিপো: <b>{v}</b>",
+    "config_display_header_motorcycle": "🏍 মোটরসাইকেল: <b>{v}</b>",
+    "config_display_header_name": "👤 অফিসার: <b>{v}</b>",
+    "config_display_header_designation": "🪪 পদবি: <b>{v}</b>",
+    "config_display_header_unset": "<i>সেট করা হয়নি</i>"
   },
   "archive": {
     "no_entries": "এই মাসের জন্য এখনো কোনো এন্ট্রি পাওয়া যায়নি।",
