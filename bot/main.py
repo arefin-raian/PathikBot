@@ -27,6 +27,7 @@ from bot.handlers.settings import settings_handler, get_settings_conv_handler, g
 from bot.handlers.archive import get_archive_handler
 from bot.handlers.admin import get_admin_conv_handler, listusers_handler
 from bot.text_resources import bot_commands
+from bot.restart_scheduler import handle_post_restart, scheduled_restart_loop
 from core.file_data_store import init_db
 
 TOKEN = os.getenv("BOT_TOKEN")
@@ -63,6 +64,12 @@ async def post_init(application):
     except Exception as e:
         logging.error("init_db failed (continuing with file backend): %s", e)
     await application.bot.set_my_commands(bot_commands())
+    try:
+        await handle_post_restart(application.bot)
+    except Exception as e:
+        logging.warning("handle_post_restart error: %s", e)
+    import asyncio as _asyncio
+    _asyncio.create_task(scheduled_restart_loop(application.bot))
     try:
         await log_event(application.bot, 'bot_started',
             details="PathikBot started successfully",
