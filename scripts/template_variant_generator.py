@@ -46,37 +46,36 @@ Template DOCX body layout (12 children):
   [11] sectPr
 
 ──────────────────────────────────────────────────────────────────────────────
-ODT approach (new in v4)
+ODT approach (v5 — inline tables)
 ──────────────────────────────────────────────────────────────────────────────
-Work at the string level on content.xml:
-  • Tables 2 (4E), 3 (3PET), and 4 (dummy) are FLOATING — each is wrapped
-    in a <draw:frame> inside a <text:p> anchor paragraph.
-  • Tables 1 (3HE) and 5 (0EST summary) are inline <table:table> elements.
+The updated ODT template lays out all five tables INLINE (no draw:frame
+floating tables and no _GoBack bookmark), separated by empty spacer
+paragraphs — structurally identical to the DOCX template. Work at the
+string level on content.xml.
 
-Template ODT office:text layout (9 children):
+Template ODT office:text layout (12 children):
   [0]  text:sequence-decls   (keep verbatim)
   [1]  text:p                heading
   [2]  table:table           Table1 = 3HE   (8 rows, inline)
-  [3]  text:p                bookmark paragraph (_GoBack — used exactly once)
-  [4]  text:p                Frame1 → Table2 = 4E     (floating draw:frame)
-  [5]  text:p                Frame2 → Table3 = 3PET   (floating draw:frame)
-  [6]  text:p                Frame3 → Table4 = dummy  (floating draw:frame)
-  [7]  table:table           Table5 = 0EST summary (7 rows, inline)
-  [8]  text:p                trailing paragraph
+  [3]  text:p                spacer (P15)
+  [4]  table:table           Table2 = 4E    (inline)
+  [5]  text:p                spacer (P15)
+  [6]  table:table           Table3 = 3PET  (6 rows, inline)
+  [7]  text:p                spacer (P19)
+  [8]  table:table           Table4 = dummy (inline)
+  [9]  text:p                spacer (P19)
+  [10] table:table           Table5 = 0EST summary (7 rows, inline)
+  [11] text:p                trailing (P23)
 
-When n4e > 1, each extra 4E copy needs unique identifiers:
-  • table:name  — e.g. "E2", "E3", … (original "Table2" is kept for copy 1)
-  • draw:name   — e.g. "FrE2", "FrE3", …
-  • draw:z-index — increment per copy
-  • The 112 auto-style definitions with "Table2" prefix are cloned and
-    renamed for each additional copy (e.g. "E2", "E2.A", "E2.C3", …).
+When n4e > 1, each extra 4E copy is the Table2 element duplicated with a
+unique table:name (Table2_2, Table2_3, …). All table:style-name
+references are shared with the original — a single auto-style definition
+may be referenced by any number of tables in ODF, so no style cloning is
+required.
 
-The _GoBack bookmark paragraph is used exactly once (between 3HE and the
-first 4E copy); when n4e == 0 it is omitted entirely.
-
-The Total row in Table3 (3PET) is identified by its use of text style T17
-(fo:font-size="30pt") and reordered by swapping raw <table:table-row>
-string slices.
+The Total row in Table3 (3PET) is identified by the absence of any
+column-specific cell style (Table3.C–L) and reordered by swapping raw
+<table:table-row> string slices.
 """
 
 import re
@@ -349,11 +348,6 @@ def _extract_odt_text_children(xml: str) -> list:
     return children
 
 
-def _strip_odt_bookmark(para: str) -> str:
-    """Remove <text:bookmark .../> elements from a paragraph string."""
-    return re.sub(r'<text:bookmark\b[^/]*/>', '', para)
-
-
 def _is_total_row_odt(row: str) -> bool:
     """Total row cells all use Table3.A1 style; data rows use per-column
     styles (Table3.C*, Table3.D*, etc.). Check that no cell uses a
@@ -402,112 +396,86 @@ def _reorder_total_row_odt(tbl: str, target_pos: int) -> str:
     return '<table:table-row'.join(header_parts + data_parts) + table_close
 
 
-def _clone_4e_frame(frame_para: str, auto_styles: str, copy_index: int) -> tuple:
+def _clone_4e_table(tbl_4e: str, copy_index: int) -> str:
     """
-    Clone the 4E frame paragraph for copy number `copy_index` (2-based: 2 = second copy).
-    Returns (new_frame_para, new_style_defs_str).
+    Clone the inline 4E table (Table2) for copy number `copy_index`
+    (2-based: 2 = second copy).
 
-    Renaming scheme:
-      table:name   "Table2"    → f"E{copy_index}"
-      draw:name    "Frame1"    → f"FrE{copy_index}"
-      draw:z-index "0"         → f"{9 + copy_index}"
-      style prefix "Table2"   → f"E{copy_index}"
+    Only the table's own identifier (table:name) is made unique so that
+    multiple 4E copies don't collide. All table:style-name references
+    (Table2, Table2.A, Table2.A1, …) are shared with the original copy —
+    a single auto-style definition may be referenced by any number of
+    tables in ODF, so no style cloning is required.
+
+    table:name appears exactly once per table (on the <table:table>
+    element itself), so a single targeted replace is sufficient.
     """
-    new_tbl   = f"E{copy_index}"
-    new_frame = f"FrE{copy_index}"
-    new_z     = str(9 + copy_index)
-
-    def rename_table2(text: str) -> str:
-        # Replace "Table2" prefix in attribute values.
-        # Match "Table2" followed by end-of-value ('"'), dot, or nothing else.
-        # Use negative look-behind/ahead isn't needed — just replace occurrences
-        # that are immediately followed by '"', '.', or end-of-word characters.
-        return re.sub(r'(?<=["\s=])Table2(?=[".>])', new_tbl, text)
-
-    # Rename the frame paragraph
-    new_para = rename_table2(frame_para)
-    new_para = re.sub(r'draw:name="Frame1"', f'draw:name="{new_frame}"', new_para)
-    new_para = re.sub(r'draw:z-index="\d+"', f'draw:z-index="{new_z}"', new_para)
-
-    # Clone all Table2 style definitions in auto_styles
-    table2_defs = re.findall(
-        r'<style:style style:name="Table2[^"]*"[^>]*>(?:.*?</style:style>|[^<]*/>)',
-        auto_styles, re.DOTALL)
-    # Also match self-closing style:style
-    table2_defs = re.findall(
-        r'<style:style\b[^>]*style:name="Table2[^"]*"[^>]*/?>(?:.*?</style:style>)?',
-        auto_styles, re.DOTALL)
-
-    new_defs = rename_table2('\n'.join(table2_defs))
-    return new_para, new_defs
+    return tbl_4e.replace(
+        'table:name="Table2"', f'table:name="Table2_{copy_index}"', 1)
 
 
 def build_odt(tpl_content: str, n4e: int, total_pos: int) -> str:
-    """Return new content.xml string for the given variant."""
+    """Return new content.xml string for the given variant.
+
+    The updated ODT template lays out all five tables INLINE (no
+    draw:frame floating tables), separated by empty spacer paragraphs —
+    structurally identical to the DOCX template. The 12 office:text
+    children are:
+
+      [0]  text:sequence-decls
+      [1]  text:p      heading
+      [2]  table:table Table1 = 3HE   (inline)
+      [3]  text:p      spacer (P15)
+      [4]  table:table Table2 = 4E    (inline)
+      [5]  text:p      spacer (P15)
+      [6]  table:table Table3 = 3PET  (inline)
+      [7]  text:p      spacer (P19)
+      [8]  table:table Table4 = dummy (inline)
+      [9]  text:p      spacer (P19)
+      [10] table:table Table5 = 0EST summary (inline)
+      [11] text:p      trailing (P23)
+    """
     children = _extract_odt_text_children(tpl_content)
-    assert len(children) == 9, (
-        f"Expected 9 office:text children, got {len(children)}. Template may have changed.")
+    assert len(children) == 12, (
+        f"Expected 12 office:text children, got {len(children)}. "
+        f"Template may have changed.")
 
-    seq_decls   = children[0][1]   # text:sequence-decls
-    heading     = children[1][1]   # text:p heading
-    tbl_3HE     = children[2][1]   # table:table Table1
-    para_bm     = children[3][1]   # text:p _GoBack bookmark
-    para_4E     = children[4][1]   # text:p Frame1 (Table2 = 4E)
-    para_3PET   = children[5][1]   # text:p Frame2 (Table3 = 3PET)
-    para_dummy  = children[6][1]   # text:p Frame3 (Table4 = dummy)
-    tbl_0EST    = children[7][1]   # table:table Table5
-    trailing    = children[8][1]   # text:p trailing
+    seq_decls = children[0][1]    # text:sequence-decls
+    heading   = children[1][1]    # text:p heading
+    tbl_3HE   = children[2][1]    # table:table Table1
+    spacer_a  = children[3][1]    # text:p spacer (3HE ↔ 4E area)
+    tbl_4E    = children[4][1]    # table:table Table2
+    spacer_b  = children[5][1]    # text:p spacer (4E ↔ 3PET)
+    tbl_3PET  = children[6][1]    # table:table Table3
+    spacer_c  = children[7][1]    # text:p spacer (3PET ↔ dummy)
+    tbl_dummy = children[8][1]    # table:table Table4
+    spacer_d  = children[9][1]    # text:p spacer (dummy ↔ 0EST)
+    tbl_0EST  = children[10][1]   # table:table Table5
+    trailing  = children[11][1]   # text:p trailing
 
-    # Reorder Total row in 3PET
-    para_3PET_fixed = re.sub(
-        r'<table:table table:name="Table3".*?</table:table>',
-        lambda m: _reorder_total_row_odt(m.group(), total_pos),
-        para_3PET, flags=re.DOTALL)
+    # Reorder the Total row inside the 3PET table to the target position.
+    tbl_3PET_fixed = _reorder_total_row_odt(tbl_3PET, total_pos)
 
-    # Extract the auto-styles block (we may need to inject cloned style defs)
-    auto_open  = '<office:automatic-styles>'
-    auto_close = '</office:automatic-styles>'
-    auto_start = tpl_content.find(auto_open)
-    auto_end   = tpl_content.find(auto_close) + len(auto_close)
-    auto_block = tpl_content[auto_start:auto_end]
-
-    # For each extra 4E copy (copies 2..n4e), clone style defs and frame
-    extra_frame_paras = []
-    extra_style_defs  = []
-    for copy_idx in range(2, n4e + 1):
-        new_para, new_defs = _clone_4e_frame(para_4E, auto_block, copy_idx)
-        extra_frame_paras.append(new_para)
-        extra_style_defs.append(new_defs)
-
-    # Inject extra style definitions before </office:automatic-styles>
-    if extra_style_defs:
-        injection = '\n' + '\n'.join(extra_style_defs) + '\n'
-        new_auto_block = auto_block[:-len(auto_close)] + injection + auto_close
-        new_content = tpl_content[:auto_start] + new_auto_block + tpl_content[auto_end:]
-    else:
-        new_content = tpl_content
-
-    # Build new office:text inner content
-    text_parts = [seq_decls, heading, tbl_3HE]
+    # Assemble office:text inner content (mirrors the DOCX body layout).
+    parts = [seq_decls, heading, tbl_3HE]
     if n4e == 0:
-        # No 4E copies — omit bookmark paragraph too
-        pass
+        parts.append(spacer_a)                       # one spacer, no 4E table
     else:
-        text_parts.append(para_bm)            # bookmark used exactly once
-        text_parts.append(para_4E)            # first 4E copy (original "Table2")
-        text_parts.extend(extra_frame_paras)  # extra copies with renamed tables
+        parts += [spacer_a, tbl_4E]                  # first 4E copy (Table2)
+        for copy_idx in range(2, n4e + 1):           # extra copies, unique names
+            parts += [spacer_a, _clone_4e_table(tbl_4E, copy_idx)]
+        parts.append(spacer_b)                       # spacer before 3PET
+    parts += [tbl_3PET_fixed, spacer_c, tbl_dummy, spacer_d, tbl_0EST, trailing]
 
-    text_parts += [para_3PET_fixed, para_dummy, tbl_0EST, trailing]
+    new_text_inner = ''.join(parts)
 
-    new_text_inner = ''.join(text_parts)
-
-    # Splice new office:text into new_content
-    ot_tag_start   = new_content.find('<office:text')
-    ot_inner_start = new_content.find('>', ot_tag_start) + 1
-    ot_inner_end   = new_content.find('</office:text>')
-    return (new_content[:ot_inner_start]
+    # Splice the rebuilt inner content back into office:text.
+    ot_tag_start   = tpl_content.find('<office:text')
+    ot_inner_start = tpl_content.find('>', ot_tag_start) + 1
+    ot_inner_end   = tpl_content.find('</office:text>')
+    return (tpl_content[:ot_inner_start]
             + new_text_inner
-            + new_content[ot_inner_end:])
+            + tpl_content[ot_inner_end:])
 
 
 def generate_odt(template_path: Path, out_dir: Path):
