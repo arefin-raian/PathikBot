@@ -131,11 +131,6 @@ def set_cell_runs(cell, bijoy_texts: list, style: str = SPAN_STYLE):
         spans = p.findall(TAG_SPAN)
         for s in spans:
             p.remove(s)
-        # Clear any direct paragraph text (placeholders like "00 wU" live here,
-        # not in spans). Without this the new runs are appended beside the old
-        # placeholder instead of replacing it (e.g. "00 wU" -> "00 wU12 wU").
-        if p.text:
-            p.text = ""
     if not paras:
         return
     p = paras[0]
@@ -442,42 +437,6 @@ def fill_summary(summary_tbl, entries):
         set_cell_runs(c[3], [fmt_amount(grand), " UvKv"])
 
 
-def _enforce_keep_together(root):
-    """Make every table behave as an unbreakable block and every row stay
-    intact across page boundaries.
-
-    The pre-built template variants apply these properties inconsistently — the
-    main data table style (e.g. ``Table1``) is missing
-    ``style:may-break-between-rows="false"`` and its tall data rows lack
-    ``fo:keep-together="always"``, so the PDF renderer (Aspose/LibreOffice)
-    splits rows and tables across pages even though the ODT viewer keeps them
-    together. Normalising the automatic styles here guarantees the PDF page flow
-    matches the ODT layout for every variant, without regenerating templates.
-    """
-    auto = root.find(f"{{{NS_OFFICE}}}automatic-styles")
-    if auto is None:
-        return
-
-    FAMILY    = f"{{{NS_STYLE}}}family"
-    TBL_PROPS = f"{{{NS_STYLE}}}table-properties"
-    ROW_PROPS = f"{{{NS_STYLE}}}table-row-properties"
-    MAY_BREAK = f"{{{NS_STYLE}}}may-break-between-rows"
-    KEEP      = f"{{{NS_FO}}}keep-together"
-
-    for st in auto.findall(f"{{{NS_STYLE}}}style"):
-        fam = st.attrib.get(FAMILY)
-        if fam == "table":
-            props = st.find(TBL_PROPS)
-            if props is None:
-                props = etree.SubElement(st, TBL_PROPS)
-            props.attrib[MAY_BREAK] = "false"
-        elif fam == "table-row":
-            props = st.find(ROW_PROPS)
-            if props is None:
-                props = etree.SubElement(st, ROW_PROPS)
-            props.attrib[KEEP] = "always"
-
-
 def _convert_entry(entry: dict, serial: int) -> dict:
     d = datetime.strptime(entry['date'], '%Y-%m-%d')
     date_str = f"{d.day:02d}/{d.month:02d}/{str(d.year)[2:]}"
@@ -632,10 +591,6 @@ def generate_for_user(
 
         if summary_tbl is not None:
             fill_summary(summary_tbl, entries)
-
-        # Keep rows/tables from splitting across pages so the PDF matches the
-        # ODT page flow.
-        _enforce_keep_together(root)
 
         xml_bytes = etree.tostring(
             tree,
