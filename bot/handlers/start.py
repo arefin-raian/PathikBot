@@ -23,7 +23,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{S('start.website_link')}\n\n"
         f"{S('start.menu_prompt')}"
     )
-    msg = await update.message.reply_text(welcome_text, reply_markup=get_main_menu(), parse_mode='HTML')
+    msg = await update.message.reply_text(welcome_text, reply_markup=get_main_menu(), parse_mode='HTML', disable_web_page_preview=True)
     await record_message(user_id, msg.chat_id, msg.message_id, 'temporary')
 
     # Delete all previous bot messages (tracked temps + files).
@@ -85,4 +85,4 @@ async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f"{S('start.website_link')}\n\n"
             f"{S('start.menu_prompt')}"
         )
-        await query.edit_message_text(text, reply_markup=get_main_menu(), parse_mode='HTML')
+        await query.edit_message_text(text, reply_markup=get_main_menu(), parse_mode='HTML', disable_web_page_preview=True)
