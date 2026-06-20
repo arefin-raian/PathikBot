@@ -11,7 +11,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from core.file_data_store import get_entries, get_user_prefs
 from core.message_store import record_message, record_file_message
-from core.audit_logger import log_event
+from core.audit_logger import log_event, build_event_message
 from docx_generator.logsheet_generator import generate_for_user as generate_docx
 from docx_generator.odt_generator import generate_for_user as generate_odt
 from datetime import datetime
@@ -55,7 +55,10 @@ async def _update_progress(context, chat_id: int, msg_id: int, step_num: int, pe
     await context.bot.edit_message_text(text, chat_id=chat_id, message_id=msg_id, parse_mode="HTML")
 
 
-async def _send_to_storage_channel(context: ContextTypes.DEFAULT_TYPE, file_path: Path, user_id: int, month: int, year: int, caption: str = None):
+async def _send_to_storage_channel(context: ContextTypes.DEFAULT_TYPE, file_path: Path, user_id: int, month: int, year: int, caption: str = None, gen_event: str = None, gen_kw: dict = None):
+    """Send a file to the storage channel with the detailed logsheet info as the
+    file caption, then post the corresponding "Generated" log message as a reply
+    to that file message."""
     if not STORAGE_CHANNEL:
         return
     try:
@@ -63,12 +66,17 @@ async def _send_to_storage_channel(context: ContextTypes.DEFAULT_TYPE, file_path
             chat_id=STORAGE_CHANNEL,
             document=file_path.open("rb"),
             filename=file_path.name,
+            caption=caption,
+            parse_mode='HTML' if caption else None,
         )
         file_id = msg.document.file_id
         from core.file_data_store import save_logsheet_file_id
         await save_logsheet_file_id(user_id, month, year, file_id, file_path.name)
-        if caption:
-            await msg.reply_text(caption, parse_mode='HTML')
+        if gen_event:
+            await msg.reply_text(
+                build_event_message(gen_event, **(gen_kw or {})),
+                parse_mode='HTML',
+            )
     except Exception:
         pass
 
@@ -170,7 +178,19 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             f"\U0001f4c4 Type: DOCX",
         ]
         docx_caption = "\n".join(docx_meta)
-        await _send_to_storage_channel(context, docx_path, user_id, month, year, caption=docx_caption)
+        await _send_to_storage_channel(
+            context, docx_path, user_id, month, year, caption=docx_caption,
+            gen_event='docx_generated',
+            gen_kw=dict(
+                user_id=user_id, username=user.full_name,
+                details=f"Logsheet for {month}/{year} generated",
+                changes=[
+                    f"Entries: <b>{entry_count}</b>",
+                    f"File: {docx_path.name}",
+                    f"Path: {docx_path}",
+                ],
+            ),
+        )
 
         odt_meta = [
             f"\U0001f4c4 <b>Logsheet — {month}/{year}</b>",
@@ -181,7 +201,19 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             f"\U0001f4c4 Type: ODT",
         ]
         odt_caption = "\n".join(odt_meta)
-        await _send_to_storage_channel(context, odt_path, user_id, month, year, caption=odt_caption)
+        await _send_to_storage_channel(
+            context, odt_path, user_id, month, year, caption=odt_caption,
+            gen_event='odt_generated',
+            gen_kw=dict(
+                user_id=user_id, username=user.full_name,
+                details=f"Logsheet for {month}/{year} generated",
+                changes=[
+                    f"Entries: <b>{entry_count}</b>",
+                    f"File: {odt_path.name}",
+                    f"Path: {odt_path}",
+                ],
+            ),
+        )
 
         pdf_caption = None
         if pdf_path and pdf_path.exists():
@@ -194,7 +226,19 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
                 f"\U0001f4d5 Type: PDF",
             ]
             pdf_caption = "\n".join(pdf_meta)
-            await _send_to_storage_channel(context, pdf_path, user_id, month, year, caption=pdf_caption)
+            await _send_to_storage_channel(
+                context, pdf_path, user_id, month, year, caption=pdf_caption,
+                gen_event='pdf_generated',
+                gen_kw=dict(
+                    user_id=user_id, username=user.full_name,
+                    details=f"PDF for {month}/{year} generated from ODT",
+                    changes=[
+                        f"Entries: <b>{entry_count}</b>",
+                        f"File: {pdf_path.name}",
+                        f"Source ODT: {odt_path.name}",
+                    ],
+                ),
+            )
 
         # ── Step 5 (100%): Finalizing & uploading ───────────────────────
         await _update_progress(context, chat_id, msg_id, 5, 100, done=True)
@@ -215,16 +259,6 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         await record_file_message(user_id, sent_docx.chat_id, sent_docx.message_id, 'docx', month, year, docx_path.name)
         await record_message(user_id, sent_docx.chat_id, sent_docx.message_id, 'temporary')
 
-        await log_event(context, 'docx_generated',
-            user_id=user_id, username=user.full_name,
-            details=f"Logsheet for {month}/{year} generated",
-            changes=[
-                f"Entries: <b>{entry_count}</b>",
-                f"File: {docx_path.name}",
-                f"Path: {docx_path}",
-            ]
-        )
-
         if pdf_caption:
             sent_pdf = await reply_target.reply_document(
                 document=pdf_path.open('rb'), filename=pdf_path.name,
@@ -232,15 +266,6 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             )
             await record_file_message(user_id, sent_pdf.chat_id, sent_pdf.message_id, 'pdf', month, year, pdf_path.name)
             await record_message(user_id, sent_pdf.chat_id, sent_pdf.message_id, 'temporary')
-            await log_event(context, 'pdf_generated',
-                user_id=user_id, username=user.full_name,
-                details=f"PDF for {month}/{year} generated from ODT",
-                changes=[
-                    f"Entries: <b>{entry_count}</b>",
-                    f"File: {pdf_path.name}",
-                    f"Source ODT: {odt_path.name}",
-                ]
-            )
 
     except Exception as e:
         error_msg = S('report.error', error=str(e))
