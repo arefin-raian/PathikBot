@@ -2,7 +2,7 @@ services:
   - type: web
     name: pathikbot
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python -m playwright install --with-deps chromium
     startCommand: python -m web_api.launcher
     healthCheckPath: /api/health
     envVars:
