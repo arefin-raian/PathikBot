@@ -64,19 +64,22 @@ def _uptime_payload() -> dict:
     }
 
 
-@router.get("/ping", response_class=PlainTextResponse)
+# NOTE: every keep-alive route accepts both GET *and* HEAD. UptimeRobot (and
+# most uptime monitors) probe with HEAD by default; a GET-only route returns
+# 405 Method Not Allowed, which monitors read as DOWN.
+@router.api_route("/ping", methods=["GET", "HEAD"], response_class=PlainTextResponse)
 async def ping() -> str:
     """Bare-minimum keep-alive endpoint for uptime monitors."""
     return "pong"
 
 
-@router.get("/status")
+@router.api_route("/status", methods=["GET", "HEAD"])
 async def status() -> JSONResponse:
     """JSON uptime payload. Monitor on keyword `online` if you like."""
     return JSONResponse(_uptime_payload())
 
 
-@router.get("/", response_class=HTMLResponse)
+@router.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def landing() -> str:
     """Terminal-styled status page served at the service root (HTTP 200)."""
     data = _uptime_payload()
