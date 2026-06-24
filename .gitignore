@@ -50,3 +50,5 @@ ref_repos/
 # Template lock files
 templates/~$*
 outputs/~$*
+.aider*
+.nanocoder/
