@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from web_api.auth import issue_jwt
+from web_api.landing import router as landing_router
 from core.credentials import verify_login
 from web_api.routes import entries, summary, settings, distributors, generate, admin
 
@@ -27,6 +28,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Public root landing page + uptime endpoints (/, /ping, /status).
+# Registered first so the bare onrender.com URL returns 200 for monitors.
+app.include_router(landing_router)
 
 
 @app.get("/api/health")
