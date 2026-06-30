@@ -682,8 +682,9 @@ async def handle_update_old_confirm(update: Update, context: ContextTypes.DEFAUL
         cost_field = 'petrol_cost' if key == 'petrol_price' else 'mobil_cost'
         liters_field = 'petrol_liters' if key == 'petrol_price' else 'mobil_liters'
         
-        now = datetime.now()
-        entries = await get_entries(user_id, now.month, now.year)
+        # Apply across ALL entries, not just the current month — the user
+        # confirmed they want the new price propagated to the full log sheet.
+        entries = await get_entries(user_id)
         updated_count = 0
         for entry in entries:
             liters = entry.get(liters_field, 0)
