@@ -8,6 +8,7 @@ import re
 import glob
 from pathlib import Path
 from datetime import datetime
+from core.timezone import dhaka_iso_now
 from bot.inline_keyboards import to_bn_number
 
 OWNER_ID = 6161189904
@@ -70,7 +71,7 @@ async def add_user(user_id: int, role: str = 'user') -> bool:
         return False
     users[key] = {
         'role': role,
-        'added_at': datetime.now().isoformat()
+        'added_at': dhaka_iso_now()
     }
     _save_users_raw(users)
     await init_user_storage(user_id)
@@ -233,7 +234,7 @@ async def add_entry(user_id: int, entry_data):
     entries = await _read_entries(user_id)
     entry_id = 1 if not entries else max(e.get('id', 0) for e in entries) + 1
     entry_data['id'] = entry_id
-    entry_data['created_at'] = datetime.now().isoformat()
+    entry_data['created_at'] = dhaka_iso_now()
     entries.append(entry_data)
     entries.sort(key=lambda x: x['date'])
     await _write_entries(user_id, entries)
@@ -265,7 +266,7 @@ async def update_entry(user_id: int, entry_id, updated_data):
     for i, e in enumerate(entries):
         if e['id'] == entry_id:
             entries[i].update(updated_data)
-            entries[i]['updated_at'] = datetime.now().isoformat()
+            entries[i]['updated_at'] = dhaka_iso_now()
             entries.sort(key=lambda x: x['date'])
             await _write_entries(user_id, entries)
             return True
@@ -296,7 +297,7 @@ async def _recalculate_odometers(entries, start_idx):
         prev_entry = entries[i-1]
         entries[i]['odo_start'] = prev_entry['odo_end']
         entries[i]['odo_end'] = entries[i]['odo_start'] + entries[i].get('total_km', 0)
-        entries[i]['updated_at'] = datetime.now().isoformat()
+        entries[i]['updated_at'] = dhaka_iso_now()
 
 
 async def update_entry_and_cascade(user_id: int, entry_id, updated_data):
@@ -315,7 +316,7 @@ async def update_entry_and_cascade(user_id: int, entry_id, updated_data):
     elif 'total_km' in updated_data:
         updated_data['odo_end'] = entries[target_idx]['odo_start'] + updated_data['total_km']
     entries[target_idx].update(updated_data)
-    entries[target_idx]['updated_at'] = datetime.now().isoformat()
+    entries[target_idx]['updated_at'] = dhaka_iso_now()
     if target_idx + 1 < len(entries):
         await _recalculate_odometers(entries, target_idx + 1)
     await _write_entries(user_id, entries)
