@@ -2,6 +2,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 import calendar
 import re
 from datetime import datetime
+from core.timezone import now_dhaka
 from bot.text_resources import S
 
 MONTHS_BN_FULL = {
@@ -89,7 +90,7 @@ def get_entry_type_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def get_month_selection_keyboard(include_more=True):
-    now = datetime.now()
+    now = now_dhaka()
     keyboard = []
     m1, y1 = now.month, now.year
 
