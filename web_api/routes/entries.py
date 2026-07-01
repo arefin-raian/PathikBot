@@ -9,6 +9,7 @@ from core.expense_calculations import (
     calculate_total_entry_cost, calc_carry_forward,
 )
 from web_api.deps import current_user
+from core.timezone import current_month_year
 
 router = APIRouter(prefix="/entries", tags=["entries"])
 
@@ -58,8 +59,11 @@ def _compact_number(value):
 async def list_entries(
     month: Optional[int] = None,
     year: Optional[int] = None,
+    all: bool = False,
     user=Depends(current_user),
 ):
+    if not all and (month is None or year is None):
+        month, year = current_month_year()
     rows = await store.get_entries(user["user_id"], month, year)
     return {"entries": rows}
 
@@ -102,9 +106,11 @@ async def create_entry(body: EntryIn, user=Depends(current_user)):
         "odo_end": _compact_number(body.odo_end),
         "total_km": _compact_number(total_km),
         "petrol_liters": _compact_number(body.petrol_liters),
+        "petrol_price": _compact_number(body.petrol_price),
         "petrol_cost": _compact_number(petrol_cost),
         "petrol_overflow": _compact_number(petrol_overflow),
         "mobil_liters": _compact_number(body.mobil_liters),
+        "mobil_price": _compact_number(body.mobil_price),
         "mobil_cost": _compact_number(mobil_cost),
         "mobil_overflow": _compact_number(mobil_overflow),
         "da_amount": _compact_number(body.da_amount),
@@ -121,6 +127,27 @@ async def create_entry(body: EntryIn, user=Depends(current_user)):
 @router.patch("/{entry_id}")
 async def patch_entry(entry_id: int, body: dict, user=Depends(current_user)):
     uid = user["user_id"]
+    current = await store.get_entry_by_id(uid, entry_id)
+    if not current:
+        raise HTTPException(404, "Entry not found")
+
+    merged = {**current, **body}
+    petrol_price = merged.get("petrol_price")
+    mobil_price = merged.get("mobil_price")
+    petrol_liters = float(merged.get("petrol_liters") or 0)
+    mobil_liters = float(merged.get("mobil_liters") or 0)
+    body["petrol_cost"] = _compact_number(calculate_petrol_cost(petrol_liters, petrol_price))
+    body["mobil_cost"] = _compact_number(calculate_mobil_cost(mobil_liters, mobil_price))
+    body["total_cost"] = _compact_number(calculate_total_entry_cost(
+        merged.get("entry_type", "REGULAR"),
+        petrol_liters,
+        mobil_liters,
+        merged.get("da_amount"),
+        merged.get("transport_fee", 0),
+        petrol_price,
+        mobil_price,
+    ))
+
     # Use cascade update to keep odometers consistent
     ok = await store.update_entry_and_cascade(uid, entry_id, body)
     if not ok:
