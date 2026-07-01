@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes
 from bot.inline_keyboards import get_main_menu, BACK_TO_MENU, MONTHS_BN_FULL, to_bn_number
 from bot.text_resources import S
 from bot.auth import require_auth
-from datetime import datetime
+from core.timezone import now_dhaka
 from core.message_store import get_all_temporary, get_all_files, clear_all_except_files, record_message
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -12,7 +12,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     user = update.effective_user
-    now = datetime.now()
+    now = now_dhaka()
     month_name = MONTHS_BN_FULL[now.month]
     year = to_bn_number(now.year)
     today = to_bn_number(now.strftime('%d/%m/%y'))
@@ -76,7 +76,7 @@ async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer()
 
     if query.data == "main_menu":
-        now = datetime.now()
+        now = now_dhaka()
         month_name = MONTHS_BN_FULL[now.month]
         year = to_bn_number(now.year)
         text = (
