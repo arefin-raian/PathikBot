@@ -10,6 +10,7 @@ from telegram.ext import (
     filters
 )
 from datetime import datetime
+from core.timezone import now_dhaka
 from core.file_data_store import add_entry, get_entries, get_last_odo, get_last_day_in_month, get_distributors, get_user_prefs
 from core.message_store import record_message
 from core.audit_logger import log_event
@@ -195,7 +196,7 @@ async def handle_month_selection(update: Update, context: ContextTypes.DEFAULT_T
         return CHOOSING_TYPE
 
     if query.data == "show_more_months":
-        year = datetime.now().year
+        year = now_dhaka().year
         await query.edit_message_text(S('keyboards.month_selection.all_months_title'), reply_markup=get_all_months_keyboard(year))
         return SELECT_MONTH
     elif query.data.startswith("select_month_"):
@@ -896,6 +897,10 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             overflow = calc_carry_forward(all_entries, total_km, 'mobil_liters', 'mobil_overflow', 1000)
             context.user_data['mobil_overflow'] = overflow
 
+        prefs = await get_user_prefs(user_id)
+        petrol_price = float(prefs.get('petrol_price', DEFAULT_PETROL_PRICE))
+        mobil_price = float(prefs.get('mobil_price', DEFAULT_MOBIL_PRICE))
+
         entry_id = await add_entry(user_id, {
             'entry_type': context.user_data.get('entry_type'),
             'date': context.user_data.get('date'),
@@ -903,8 +908,10 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             'odo_end': context.user_data.get('odo_end', 0),
             'total_km': context.user_data.get('total_km', 0),
             'petrol_liters': context.user_data.get('petrol_liters', 0),
+            'petrol_price': petrol_price,
             'petrol_cost': context.user_data.get('petrol_cost', 0),
             'mobil_liters': context.user_data.get('mobil_liters', 0),
+            'mobil_price': mobil_price,
             'mobil_cost': context.user_data.get('mobil_cost', 0),
             'da_amount': context.user_data.get('da_amount', 0),
             'others_designation': context.user_data.get('others_designation', ''),
