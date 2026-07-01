@@ -7,6 +7,7 @@ from bot.inline_keyboards import to_bn_number, BACK_TO_MENU, FILTER_KEYS, get_li
 from bot.text_resources import S
 from bot.auth import require_auth
 from datetime import datetime
+from core.timezone import current_month_year
 
 def matches_filter(entry, selected):
     if not any(selected.get(k, False) for k in FILTER_KEYS):
@@ -131,9 +132,10 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             await show_filter_choice(update, context, query)
             return
 
-        # 3. All entries
+        # 3. Current-month entries
         if data == "list_entries_all":
-            entries = await get_entries(user_id)
+            month, year = current_month_year()
+            entries = await get_entries(user_id, month, year)
             if not entries:
                 await query.edit_message_text(S('summary.no_entries'), reply_markup=BACK_TO_MENU)
                 return
@@ -144,7 +146,8 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         if data == "list_entries_last_filter":
             prefs = await get_user_prefs(user_id)
             filters = prefs.get('list_filters', {})
-            entries = await get_entries(user_id)
+            month, year = current_month_year()
+            entries = await get_entries(user_id, month, year)
             filtered = [e for e in entries if matches_filter(e, filters)]
             if not filtered:
                 await query.edit_message_text(S('list_entries.no_matches'), reply_markup=BACK_TO_MENU)
@@ -176,7 +179,8 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             prefs = await get_user_prefs(user_id)
             prefs['list_filters'] = state
             await set_user_prefs(user_id, prefs)
-            entries = await get_entries(user_id)
+            month, year = current_month_year()
+            entries = await get_entries(user_id, month, year)
             filtered = [e for e in entries if matches_filter(e, state)]
             if not filtered:
                 await query.edit_message_text(S('list_entries.no_matches'), reply_markup=BACK_TO_MENU)
@@ -191,7 +195,8 @@ async def list_entries_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     else:
         # Slash command: /listentries
-        entries = await get_entries(user_id)
+        month, year = current_month_year()
+        entries = await get_entries(user_id, month, year)
         if not entries:
             await update.message.reply_text(S('summary.no_entries'))
             return
@@ -208,6 +213,8 @@ async def summary_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parts = query.data.split("_")
             year, month = int(parts[1]), int(parts[2])
     
+    if month is None or year is None:
+        month, year = current_month_year()
     entries = await get_entries(user_id, month, year)
     if not entries:
         msg = S('summary.no_entries')
