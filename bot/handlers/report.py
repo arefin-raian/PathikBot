@@ -15,6 +15,7 @@ from core.audit_logger import log_event, build_event_message
 from docx_generator.logsheet_generator import generate_for_user as generate_docx
 from docx_generator.odt_generator import generate_for_user as generate_odt
 from datetime import datetime
+from core.timezone import now_dhaka, dhaka_timestamp
 from bot.inline_keyboards import to_bn_number
 from bot.text_resources import S
 from bot.auth import require_auth
@@ -94,7 +95,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
             year, month = int(parts[1]), int(parts[2])
 
     if not month or not year:
-        now = datetime.now()
+        now = now_dhaka()
         month, year = now.month, now.year
 
     user_id = update.effective_user.id
@@ -165,7 +166,7 @@ async def generate_report_handler(update: Update, context: ContextTypes.DEFAULT_
         # ── Step 4 (80%): Generating files ──────────────────────────────
         await _update_progress(context, chat_id, msg_id, 4, 80)
 
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now_str = dhaka_timestamp()
         entry_count = len(entries)
 
         # ── Send to storage channel (background, user doesn't see) ──────
