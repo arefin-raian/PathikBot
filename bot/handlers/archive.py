@@ -6,6 +6,7 @@ from bot.text_resources import S
 from bot.auth import require_auth
 from core.message_store import record_message
 from datetime import datetime
+from core.timezone import now_dhaka
 
 # States
 SELECTING_ARCHIVE_MONTH = 1
@@ -25,11 +26,25 @@ async def months_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
         return ConversationHandler.END
 
+    cur_month, cur_year = now_dhaka().month, now_dhaka().year
+
     months_data = set()
     for e in entries:
         dt = datetime.strptime(e['date'], '%Y-%m-%d')
-        months_data.add((dt.year, dt.month))
+        # Only include completed months — exclude the current month
+        if dt.year < cur_year or (dt.year == cur_year and dt.month < cur_month):
+            months_data.add((dt.year, dt.month))
     
+    if not months_data:
+        no_entries_msg = S('archive.no_entries')
+        if update.callback_query:
+            await update.callback_query.edit_message_text(no_entries_msg, reply_markup=BACK_TO_MENU)
+            await record_message(user_id, update.callback_query.message.chat_id, update.callback_query.message.message_id, 'temporary')
+        else:
+            sent_msg = await update.message.reply_text(no_entries_msg)
+            await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
+        return ConversationHandler.END
+
     sorted_months = sorted(list(months_data), reverse=True)
     
     keyboard = []
@@ -49,6 +64,9 @@ async def months_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         sent_msg = await update.message.reply_text(prompt_msg, reply_markup=InlineKeyboardMarkup(keyboard))
         await record_message(user_id, sent_msg.chat_id, sent_msg.message_id, 'temporary')
+    
+    # CRITICAL: Transition to SELECTING_ARCHIVE_MONTH state so subsequent button clicks work
+    return SELECTING_ARCHIVE_MONTH
 
 async def archive_month_selection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id

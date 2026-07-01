@@ -196,8 +196,11 @@ class TestSettingsFlow:
 
     async def test_update_old_yes(self, clean_data):
         await add_user(TEST_USER)
+        from core.timezone import now_dhaka
+        now = now_dhaka()
+        test_date = f'{now.year}-{now.month:02d}-01'
         eid = await add_entry(TEST_USER, {
-            'date': '2026-06-01', 'total_km': 64, 'petrol_liters': 5.0,
+            'date': test_date, 'total_km': 64, 'petrol_liters': 5.0,
             'petrol_cost': 703.5, 'total_cost': 903.5,
             'odo_start': 0, 'odo_end': 64, 'entry_type': 'REGULAR'
         })

@@ -79,13 +79,17 @@ async def get_entry(entry_id: int, user=Depends(current_user)):
 @router.post("")
 async def create_entry(body: EntryIn, user=Depends(current_user)):
     uid = user["user_id"]
+    prefs = await store.get_user_prefs(uid)
+    # Fallback to user prefs when price not explicitly provided
+    petrol_price = body.petrol_price if body.petrol_price is not None else float(prefs.get("petrol_price", 140.7))
+    mobil_price = body.mobil_price if body.mobil_price is not None else float(prefs.get("mobil_price", 560.0))
     total_km = _eval_distance(body.total_km) if body.total_km not in (None, 0) else \
         calculate_km(body.odo_start, body.odo_end)
-    petrol_cost = calculate_petrol_cost(body.petrol_liters, body.petrol_price)
-    mobil_cost = calculate_mobil_cost(body.mobil_liters, body.mobil_price)
+    petrol_cost = calculate_petrol_cost(body.petrol_liters, petrol_price)
+    mobil_cost = calculate_mobil_cost(body.mobil_liters, mobil_price)
     total_cost = calculate_total_entry_cost(
         body.entry_type, body.petrol_liters, body.mobil_liters,
-        body.da_amount, body.transport_fee, body.petrol_price, body.mobil_price,
+        body.da_amount, body.transport_fee, petrol_price, mobil_price,
     )
 
     all_entries = await store.get_entries(uid)
@@ -132,10 +136,16 @@ async def patch_entry(entry_id: int, body: dict, user=Depends(current_user)):
         raise HTTPException(404, "Entry not found")
 
     merged = {**current, **body}
+    prefs = await store.get_user_prefs(uid)
+    # Use the entry's stored price if available, otherwise fallback to user prefs or defaults
     petrol_price = merged.get("petrol_price")
+    if petrol_price is None:
+        petrol_price = float(prefs.get("petrol_price", 140.7))
     mobil_price = merged.get("mobil_price")
-    petrol_liters = float(merged.get("petrol_liters") or 0)
-    mobil_liters = float(merged.get("mobil_liters") or 0)
+    if mobil_price is None:
+        mobil_price = float(prefs.get("mobil_price", 560.0))
+    petrol_liters = float(merged.get("petrol_liters") if merged.get("petrol_liters") is not None else 0)
+    mobil_liters = float(merged.get("mobil_liters") if merged.get("mobil_liters") is not None else 0)
     body["petrol_cost"] = _compact_number(calculate_petrol_cost(petrol_liters, petrol_price))
     body["mobil_cost"] = _compact_number(calculate_mobil_cost(mobil_liters, mobil_price))
     body["total_cost"] = _compact_number(calculate_total_entry_cost(

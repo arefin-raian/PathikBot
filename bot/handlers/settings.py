@@ -691,6 +691,7 @@ async def handle_update_old_confirm(update: Update, context: ContextTypes.DEFAUL
         # Historical months must remain frozen unless edited directly.
         month, year = current_month_year()
         entries = await get_entries(user_id, month, year)
+        prefs = await get_user_prefs(user_id)
         updated_count = 0
         for entry in entries:
             liters = entry.get(liters_field, 0)
@@ -703,14 +704,19 @@ async def handle_update_old_confirm(update: Update, context: ContextTypes.DEFAUL
                 updated_entry = entry.copy()
                 updated_entry[key] = value_float
                 updated_entry[cost_field] = new_cost
+                # Use the stored entry price if available, otherwise fallback to prefs
+                stored_petrol = updated_entry.get('petrol_price')
+                stored_mobil = updated_entry.get('mobil_price')
+                petrol_price = float(stored_petrol) if stored_petrol is not None else float(prefs.get('petrol_price', DEFAULT_PETROL_PRICE))
+                mobil_price = float(stored_mobil) if stored_mobil is not None else float(prefs.get('mobil_price', DEFAULT_MOBIL_PRICE))
                 total_cost = calculate_total_entry_cost(
                     updated_entry.get('entry_type', 'REGULAR'),
                     updated_entry.get('petrol_liters', 0),
                     updated_entry.get('mobil_liters', 0),
                     updated_entry.get('da_amount'),
                     updated_entry.get('transport_fee', 0),
-                    petrol_price=updated_entry.get('petrol_price'),
-                    mobil_price=updated_entry.get('mobil_price'),
+                    petrol_price=petrol_price,
+                    mobil_price=mobil_price,
                 )
                 
                 await update_entry_and_cascade(user_id, entry['id'], {

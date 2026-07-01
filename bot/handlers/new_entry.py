@@ -128,6 +128,16 @@ async def start_new_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     context.user_data.update(kept_data)
     context.user_data['_user_id'] = update.effective_user.id
+
+    # If sticky month is in the past (new month has started), auto-advance to current month
+    cur_m, cur_y = now_dhaka().month, now_dhaka().year
+    if 'selected_month' in context.user_data:
+        sm = context.user_data['selected_month']
+        sy = context.user_data['selected_year']
+        if sy < cur_y or (sy == cur_y and sm < cur_m):
+            # Auto-advance to current month instead of just clearing
+            context.user_data['selected_month'] = cur_m
+            context.user_data['selected_year'] = cur_y
     
     query = update.callback_query
     msg = S('new_entry.type_prompt')
