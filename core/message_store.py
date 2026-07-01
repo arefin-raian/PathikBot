@@ -1,5 +1,5 @@
 import json, os, aiofiles
-from datetime import datetime
+from core.timezone import dhaka_iso_now
 
 MSG_LOG_BASE = 'data/message_log'
 MAX_TEMP = 300
@@ -31,7 +31,7 @@ async def save_log(user_id, data):
 
 async def record_message(user_id, chat_id, message_id, msg_type='temporary'):
     log = await get_log(user_id)
-    entry = {'chat_id': chat_id, 'msg_id': message_id, 'type': msg_type, 'ts': datetime.now().isoformat()}
+    entry = {'chat_id': chat_id, 'msg_id': message_id, 'type': msg_type, 'ts': dhaka_iso_now()}
     if msg_type.startswith('file:'):
         log['files'].append(entry)
     else:
@@ -45,7 +45,7 @@ async def record_file_message(user_id, chat_id, message_id, file_type, month, ye
     log['files'].append({
         'chat_id': chat_id, 'msg_id': message_id, 'type': f'file:{file_type}',
         'month': month, 'year': year, 'filename': filename,
-        'ts': datetime.now().isoformat()
+        'ts': dhaka_iso_now()
     })
     await save_log(user_id, log)
 
