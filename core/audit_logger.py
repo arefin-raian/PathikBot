@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from core.timezone import dhaka_timestamp
 
 EVENT_EMOJI = {
     'user_added': '\U0001f464',
@@ -37,7 +37,7 @@ def _indent(text, prefix="  \u2022 "):
 def build_event_message(event_type, **kw) -> str:
     """Render an event into the channel-formatted HTML message string."""
     emoji = EVENT_EMOJI.get(event_type, '\U0001f4cb')
-    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    ts = dhaka_timestamp()
     title = event_type.replace('_', ' ').title()
 
     parts = [f"{emoji} <b>{title}</b>", f"\U0001f550 <code>{ts}</code>"]
