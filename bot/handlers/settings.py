@@ -38,6 +38,7 @@ from core.file_data_store import (
 )
 from core.expense_calculations import calculate_petrol_cost, calculate_mobil_cost, calculate_total_entry_cost, calculate_fuel_since_refill, calc_carry_forward, PETROL_THRESHOLD_KM, MOBIL_THRESHOLD_KM, DEFAULT_PETROL_PRICE, DEFAULT_MOBIL_PRICE
 from datetime import datetime
+from core.timezone import current_month_year
 
 # States for settings and edit/delete
 SETTING_VALUE = 1
@@ -268,8 +269,8 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
             
         prefs = await get_user_prefs(user_id)
-        petrol_price = float(prefs.get('petrol_price', DEFAULT_PETROL_PRICE))
-        mobil_price = float(prefs.get('mobil_price', DEFAULT_MOBIL_PRICE))
+        petrol_price = float(entry.get('petrol_price', prefs.get('petrol_price', DEFAULT_PETROL_PRICE)))
+        mobil_price = float(entry.get('mobil_price', prefs.get('mobil_price', DEFAULT_MOBIL_PRICE)))
         updates = {}
         if field == "km":
             updates['total_km'] = int(val)
@@ -278,10 +279,14 @@ async def handle_new_value(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif field == "end":
             updates['odo_end'] = int(val)
         elif field == "petrol":
+            petrol_price = float(prefs.get('petrol_price', DEFAULT_PETROL_PRICE))
             updates['petrol_liters'] = val
+            updates['petrol_price'] = petrol_price
             updates['petrol_cost'] = calculate_petrol_cost(val, petrol_price)
         elif field == "mobil":
+            mobil_price = float(prefs.get('mobil_price', DEFAULT_MOBIL_PRICE))
             updates['mobil_liters'] = val
+            updates['mobil_price'] = mobil_price
             updates['mobil_cost'] = calculate_mobil_cost(val, mobil_price)
             
         temp_entry = entry.copy()
@@ -682,9 +687,10 @@ async def handle_update_old_confirm(update: Update, context: ContextTypes.DEFAUL
         cost_field = 'petrol_cost' if key == 'petrol_price' else 'mobil_cost'
         liters_field = 'petrol_liters' if key == 'petrol_price' else 'mobil_liters'
         
-        # Apply across ALL entries, not just the current month — the user
-        # confirmed they want the new price propagated to the full log sheet.
-        entries = await get_entries(user_id)
+        # Price propagation is intentionally limited to the Dhaka current month.
+        # Historical months must remain frozen unless edited directly.
+        month, year = current_month_year()
+        entries = await get_entries(user_id, month, year)
         updated_count = 0
         for entry in entries:
             liters = entry.get(liters_field, 0)
@@ -694,13 +700,23 @@ async def handle_update_old_confirm(update: Update, context: ContextTypes.DEFAUL
                 else:
                     new_cost = calculate_mobil_cost(liters, value_float)
                 
-                old_total = entry.get('total_cost', 0)
-                old_cost = entry.get(cost_field, 0)
-                delta = new_cost - old_cost
+                updated_entry = entry.copy()
+                updated_entry[key] = value_float
+                updated_entry[cost_field] = new_cost
+                total_cost = calculate_total_entry_cost(
+                    updated_entry.get('entry_type', 'REGULAR'),
+                    updated_entry.get('petrol_liters', 0),
+                    updated_entry.get('mobil_liters', 0),
+                    updated_entry.get('da_amount'),
+                    updated_entry.get('transport_fee', 0),
+                    petrol_price=updated_entry.get('petrol_price'),
+                    mobil_price=updated_entry.get('mobil_price'),
+                )
                 
                 await update_entry_and_cascade(user_id, entry['id'], {
+                    key: value_float,
                     cost_field: new_cost,
-                    'total_cost': old_total + delta
+                    'total_cost': total_cost
                 })
                 updated_count += 1
         
