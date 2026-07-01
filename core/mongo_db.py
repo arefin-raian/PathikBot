@@ -4,6 +4,7 @@ import json
 import asyncio
 from urllib.parse import quote_plus
 from datetime import datetime
+from core.timezone import dhaka_iso_now
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 MONGO_URL = os.getenv("MONGODB_URL")
@@ -107,7 +108,7 @@ async def add_user(user_id: int, role: str = "user") -> bool:
     await db.users.insert_one({
         "_id": key,
         "role": role,
-        "added_at": datetime.now().isoformat()
+        "added_at": dhaka_iso_now()
     })
     await init_user_storage(user_id)
     return True
@@ -160,7 +161,7 @@ async def init_db():
         await db.users.insert_one({
             "_id": owner_id,
             "role": "owner",
-            "added_at": datetime.now().isoformat()
+            "added_at": dhaka_iso_now()
         })
 
     await init_user_storage(6161189904)
@@ -206,7 +207,7 @@ async def _migrate_legacy_if_needed(db):
                 await db["users"].insert_one({
                     "_id": uid_str,
                     "role": info.get("role", "user"),
-                    "added_at": info.get("added_at", datetime.now().isoformat())
+                    "added_at": info.get("added_at", dhaka_iso_now())
                 })
 
     dist_path = "data/distributors.json"
@@ -284,7 +285,7 @@ async def add_entry(user_id: int, entry_data: dict) -> int:
         return 0
     last = await db.entries.find_one({"user_id": user_id}, sort=[("id", -1)])
     entry_id = (last["id"] + 1) if last else 1
-    doc = {**entry_data, "user_id": user_id, "id": entry_id, "created_at": datetime.now().isoformat()}
+    doc = {**entry_data, "user_id": user_id, "id": entry_id, "created_at": dhaka_iso_now()}
     await db.entries.insert_one(doc)
     return entry_id
 
@@ -322,7 +323,7 @@ async def update_entry(user_id: int, entry_id: int, updated_data: dict) -> bool:
     db = await get_db()
     if db is None:
         return False
-    updated_data["updated_at"] = datetime.now().isoformat()
+    updated_data["updated_at"] = dhaka_iso_now()
     result = await db.entries.update_one(
         {"user_id": user_id, "id": entry_id},
         {"$set": updated_data}
@@ -357,7 +358,7 @@ async def _recalculate_odometers(user_id: int, from_id: int):
                 {"$set": {
                     "odo_start": prev["odo_end"],
                     "odo_end": prev["odo_end"] + e.get("total_km", 0),
-                    "updated_at": datetime.now().isoformat()
+                    "updated_at": dhaka_iso_now()
                 }}
             )
 
@@ -377,7 +378,7 @@ async def update_entry_and_cascade(user_id: int, entry_id: int, updated_data: di
     elif "total_km" in updated_data:
         updated_data["odo_end"] = entry["odo_start"] + updated_data["total_km"]
 
-    updated_data["updated_at"] = datetime.now().isoformat()
+    updated_data["updated_at"] = dhaka_iso_now()
     await db.entries.update_one(
         {"_id": entry["_id"]},
         {"$set": updated_data}
@@ -401,7 +402,7 @@ async def update_entry_and_cascade(user_id: int, entry_id: int, updated_data: di
                 {"$set": {
                     "odo_start": prev["odo_end"],
                     "odo_end": prev["odo_end"] + remaining[i].get("total_km", 0),
-                    "updated_at": datetime.now().isoformat()
+                    "updated_at": dhaka_iso_now()
                 }}
             )
     return True
@@ -457,7 +458,7 @@ async def save_logsheet_file_id(user_id: int, month: int, year: int, file_id: st
         {"$set": {
             "file_id": file_id,
             "file_name": file_name,
-            "created_at": datetime.now().isoformat()
+            "created_at": dhaka_iso_now()
         }},
         upsert=True
     )
