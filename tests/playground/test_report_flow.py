@@ -166,3 +166,253 @@ class TestReportFlow:
         assert result is None
         mock_docx.assert_called_once()
         mock_odt.assert_called_once()
+
+
+class TestStripBlankPages:
+    """Bug 2 safety net: ``_strip_blank_pages`` removes template-artifact
+    blank pages from ODT-converted PDFs. These tests mock pypdf's PdfReader /
+    PdfWriter so we can exercise the page-classification logic without needing
+    LibreOffice or a real PDF fixture."""
+
+    @staticmethod
+    def _blank_page():
+        class _Blank:
+            def extract_text(self):
+                return ""
+            def get(self, key, default=None):
+                return {}
+        return _Blank()
+
+    @staticmethod
+    def _text_page(text):
+        class _Text:
+            def __init__(self, t):
+                self._t = t
+            def extract_text(self):
+                return self._t
+            def get(self, key, default=None):
+                return {}
+        return _Text(text)
+
+    @staticmethod
+    def _xobject_only_page():
+        """A page with only an embedded image: no extractable text but a
+        /XObject resource. Must NOT be classified as blank."""
+        class _ImagePage:
+            def extract_text(self):
+                return ""
+            def get(self, key, default=None):
+                if key == "/Resources":
+                    return {"/XObject": True}
+                return default
+        return _ImagePage()
+
+    def test_strip_removes_blank_pages_around_text(self, monkeypatch, tmp_path):
+        from bot.handlers import report
+        import pypdf
+
+        pdf = tmp_path / "out.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n")
+
+        # Mirrors the failing layout: frame-anchor pages on either side of
+        # real content pages.
+        pages = [
+            self._blank_page(),
+            self._text_page("page 1 content"),
+            self._blank_page(),
+            self._text_page("page 3 content"),
+        ]
+
+        monkeypatch.setattr(
+            pypdf, "PdfReader",
+            lambda path: type("_R", (), {"pages": pages})(),
+        )
+
+        written_writers = []
+
+        def _writer_factory():
+            class _Writer:
+                def __init__(self):
+                    self.pages = []
+                    written_writers.append(self)
+                def add_page(self, p):
+                    self.pages.append(p)
+                def write(self, fh):
+                    fh.write(b"%PDF-stripped")
+            return _Writer()
+        monkeypatch.setattr(pypdf, "PdfWriter", _writer_factory)
+
+        report._strip_blank_pages(str(pdf))
+
+        assert len(written_writers) == 1
+        assert len(written_writers[0].pages) == 2
+        assert pdf.read_bytes() == b"%PDF-stripped"
+
+    def test_strip_keeps_page_with_xobject_only(self, monkeypatch, tmp_path):
+        """Image-only pages (no extractable text, has /XObject) must NOT be
+        removed — otherwise image-heavy reports would lose content."""
+        from bot.handlers import report
+        import pypdf
+
+        pdf = tmp_path / "out.pdf"
+        original = b"%PDF-original\n"
+        pdf.write_bytes(original)
+
+        pages = [self._xobject_only_page(), self._xobject_only_page()]
+
+        monkeypatch.setattr(
+            pypdf, "PdfReader",
+            lambda path: type("_R", (), {"pages": pages})(),
+        )
+        monkeypatch.setattr(pypdf, "PdfWriter", lambda: type("_W", (), {
+            "pages": [],
+            "add_page": lambda self, p: None,
+            "write": lambda self, fh: None,
+        })())
+
+        report._strip_blank_pages(str(pdf))
+
+        # Nothing should have been written (no blank pages existed).
+        assert pdf.read_bytes() == original
+
+    def test_strip_does_not_write_empty_pdf(self, monkeypatch, tmp_path):
+        """If every page classifies as blank, leave the file alone rather
+        than rewrite it as zero pages (Bijoy glyph pages sometimes extract
+        as empty text — better to keep the original than to truncate it)."""
+        from bot.handlers import report
+        import pypdf
+
+        pdf = tmp_path / "out.pdf"
+        original = b"%PDF-original-keeps-blank-pages\n"
+        pdf.write_bytes(original)
+
+        pages = [self._blank_page(), self._blank_page()]
+        write_calls = []
+
+        class _Writer:
+            def __init__(self):
+                self.pages = []
+            def add_page(self, p):
+                self.pages.append(p)
+            def write(self, fh):
+                write_calls.append(fh)
+
+        monkeypatch.setattr(
+            pypdf, "PdfReader",
+            lambda path: type("_R", (), {"pages": pages})(),
+        )
+        monkeypatch.setattr(pypdf, "PdfWriter", _Writer)
+
+        report._strip_blank_pages(str(pdf))
+
+        assert write_calls == [], (
+            "_strip_blank_pages must not write a 0-page PDF — "
+            "would silently truncate the file."
+        )
+        assert pdf.read_bytes() == original
+
+    def test_strip_leaves_file_alone_when_nothing_changes(self, monkeypatch, tmp_path):
+        """Conservation guarantee: a (text page) → (text page) PDF must be
+        byte-identical before and after, since no blank page exists."""
+        from bot.handlers import report
+        import pypdf
+
+        pdf = tmp_path / "out.pdf"
+        original = b"%PDF-text-only\n"
+        pdf.write_bytes(original)
+
+        pages = [self._text_page("a"), self._text_page("b")]
+        write_calls = []
+
+        class _Writer:
+            def __init__(self):
+                self.pages = []
+            def add_page(self, p):
+                self.pages.append(p)
+            def write(self, fh):
+                write_calls.append(fh)
+
+        monkeypatch.setattr(
+            pypdf, "PdfReader",
+            lambda path: type("_R", (), {"pages": pages})(),
+        )
+        monkeypatch.setattr(pypdf, "PdfWriter", _Writer)
+
+        report._strip_blank_pages(str(pdf))
+
+        assert write_calls == []
+        assert pdf.read_bytes() == original
+
+    def test_strip_handles_unreadable_pdf_without_raising(self, monkeypatch, tmp_path):
+        """A corrupt/unreadable PDF must not bubble up; the PDF stays as-is
+        and the conversion path still has the (un-stripped) file to send."""
+        from bot.handlers import report
+        import pypdf
+
+        pdf = tmp_path / "out.pdf"
+        original = b"%PDF-unreadable\n"
+        pdf.write_bytes(original)
+
+        def _bad_reader(_):
+            raise RuntimeError("not a PDF")
+        monkeypatch.setattr(pypdf, "PdfReader", _bad_reader)
+        # PdfWriter should never be reached.
+        def _should_not_be_called():
+            raise AssertionError("PdfWriter must not be invoked when PdfReader fails")
+        monkeypatch.setattr(pypdf, "PdfWriter", _should_not_be_called)
+
+        report._strip_blank_pages(str(pdf))
+
+        assert pdf.read_bytes() == original
+
+    def test_convert_to_pdf_invokes_strip_after_jpype_success(
+        self, monkeypatch, tmp_path,
+    ):
+        """End-to-end wiring: when jpype conversion succeeds,
+        `_strip_blank_pages` MUST run (this is the actual fix path)."""
+        from bot.handlers import report
+
+        called = []
+        monkeypatch.setattr(
+            report, "_convert_via_jpype",
+            lambda i, o: called.append(("jpype", i, o)) or None,
+        )
+        monkeypatch.setattr(
+            report, "_convert_via_libreoffice",
+            lambda i, o: called.append(("lo", i, o)) or (_ for _ in ()).throw(
+                AssertionError("LibreOffice path should not run on jpype success")
+            ),
+        )
+        monkeypatch.setattr(
+            report, "_strip_blank_pages",
+            lambda p: called.append(("strip", p)),
+        )
+
+        report._convert_to_pdf(str(tmp_path / "in.odt"), str(tmp_path / "out.pdf"))
+
+        assert [c[0] for c in called] == ["jpype", "strip"]
+
+    def test_convert_to_pdf_invokes_strip_after_libreoffice_fallback(
+        self, monkeypatch, tmp_path,
+    ):
+        """When jpype fails, LibreOffice runs, AND `_strip_blank_pages`
+        still runs afterwards."""
+        from bot.handlers import report
+
+        called = []
+        monkeypatch.setattr(
+            report, "_convert_via_jpype",
+            lambda i, o: (_ for _ in ()).throw(RuntimeError("no JVM")),
+        )
+        monkeypatch.setattr(
+            report, "_convert_via_libreoffice",
+            lambda i, o: called.append(("lo", i, o)),
+        )
+        monkeypatch.setattr(
+            report, "_strip_blank_pages",
+            lambda p: called.append(("strip", p)),
+        )
+
+        report._convert_to_pdf(str(tmp_path / "in.odt"), str(tmp_path / "out.pdf"))
+
+        assert [c[0] for c in called] == ["lo", "strip"]

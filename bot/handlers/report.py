@@ -339,16 +339,19 @@ def _find_jvm_dll() -> str:
 
 def _convert_to_pdf(input_path: str, pdf_path: str) -> None:
     """Convert DOCX/ODT to PDF. Tries Aspose.Words (JPype + JAR) first,
-    falls back to LibreOffice headless if JVM is unavailable."""
+    falls back to LibreOffice headless if JVM is unavailable. After
+    conversion, blank pages produced by the floating-frame ODT template
+    (an `svg:frame` artifact where empty anchor paragraphs get pushed
+    onto their own page) are stripped via `_strip_blank_pages`."""
     try:
         _convert_via_jpype(input_path, pdf_path)
-        return
     except Exception as jvm_err:
         import logging
         logging.getLogger(__name__).warning(
             f"JVM/Aspose conversion failed, falling back to LibreOffice: {jvm_err}"
         )
-    _convert_via_libreoffice(input_path, pdf_path)
+        _convert_via_libreoffice(input_path, pdf_path)
+    _strip_blank_pages(pdf_path)
 
 
 def _convert_via_jpype(input_path: str, pdf_path: str) -> None:
@@ -416,3 +419,54 @@ def _ensure_fonts_installed() -> None:
         subprocess.run(["fc-cache", "-f"], capture_output=True, timeout=30)
     elif installed and system == "Darwin":
         subprocess.run(["atsutil", "databases", "-remove"], capture_output=True, timeout=30)
+
+
+def _strip_blank_pages(pdf_path: str) -> None:
+    """Drop pages with no text and no drawings — layout artifacts from the
+    floating-frame ODT template.
+
+    The 4E/3PET/dummy tables in `template_variants/ODT/*` are laid out as
+    floating ``draw:frame`` elements with absolute ``svg:y`` positions copied
+    verbatim from the master template. For an 8-entry variant like
+    ``3HE_4E_3PET2_0EST``, page 1 fills with the inline 3HE rows, the empty
+    frame-anchor paragraphs spill onto page 2, and the floating frames
+    render on pages 3–4. Page 2 ends up containing only invisible anchor
+    paragraphs, leaving a blank sheet that pushes every later page down by
+    one. We detect and remove those pages here.
+
+    A page is considered "blank" iff ``extract_text()`` yields nothing AND
+    ``/Resources`` has no ``/XObject`` (so any page with real text — Bijoy
+    / SutonnyMJ glyphs included — or any embedded image is preserved).
+    Does nothing if pypdf isn't installed or if no blank pages exist.
+    Never writes an empty PDF.
+    """
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError:
+        return
+    try:
+        reader = PdfReader(pdf_path)
+    except Exception as read_err:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"_strip_blank_pages: failed to read {pdf_path}: {read_err}"
+        )
+        return
+    writer = PdfWriter()
+    for page in reader.pages:
+        text = (page.extract_text() or "").strip()
+        has_xobject = "/XObject" in page.get("/Resources", {})
+        if not text and not has_xobject:
+            continue
+        writer.add_page(page)
+    # Only rewrite when ALL of the following hold: at least one page remains,
+    # we actually removed something, AND less than half the pages were
+    # classified as blank. The ratio guard protects against pypdf's text
+    # extractor returning empty for legitimate Bijoy / SutonnyMJ glyph
+    # pages — in that case the heuristic is clearly wrong and we'd rather
+    # keep the original PDF than silently truncate it.
+    kept = len(writer.pages)
+    total = len(reader.pages)
+    if 0 < kept < total and kept * 2 >= total:
+        with open(pdf_path, "wb") as f:
+            writer.write(f)

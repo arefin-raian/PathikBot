@@ -5,6 +5,7 @@ pytz
 aiofiles
 aiosqlite
 lxml
+pypdf
 motor>=3.5
 pymongo>=4.0
 jpype1

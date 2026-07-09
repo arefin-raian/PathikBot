@@ -1,4 +1,5 @@
 import asyncio
+import ast
 import html
 from telegram import Update, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -64,6 +65,57 @@ def normalize_number(text: str) -> str:
     en_digits = '0123456789'
     return text.translate(str.maketrans(bn_digits, en_digits))
 
+# Operators allowed by `_safe_eval_arith`. Anything else in the AST tree
+# raises ValueError, so user input can never reach `exec`, attribute access,
+# name lookups, comprehensions, etc.
+_SAFE_BIN_OPS = {
+    ast.Add: lambda a, b: a + b,
+    ast.Sub: lambda a, b: a - b,
+    ast.Mult: lambda a, b: a * b,
+    ast.Div: lambda a, b: a / b,
+}
+_SAFE_UNARY_OPS = {
+    ast.UAdd: lambda a: +a,
+    ast.USub: lambda a: -a,
+}
+
+
+def _eval_arith_node(node):
+    """Recursively evaluate an AST node made only of numbers + arithmetic ops."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+    if isinstance(node, ast.Expression):
+        return _eval_arith_node(node.body)
+    if isinstance(node, ast.BinOp) and type(node.op) in _SAFE_BIN_OPS:
+        return _SAFE_BIN_OPS[type(node.op)](
+            _eval_arith_node(node.left), _eval_arith_node(node.right)
+        )
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _SAFE_UNARY_OPS:
+        return _SAFE_UNARY_OPS[type(node.op)](_eval_arith_node(node.operand))
+    raise ValueError(f"disallowed expression node: {type(node).__name__}")
+
+
+def _safe_eval_arith(expr: str):
+    """Safely evaluate a sanitized arithmetic expression containing only
+    digits, ``+-*/`` and parentheses. Replaces ``eval`` for sanitized user
+    input in `handle_distance` so accidental injection cannot reach Python's
+    full eval semantics even if the input filter is bypassed."""
+    if not expr:
+        raise ValueError("empty expression")
+    tree = ast.parse(expr, mode="eval")
+    return _eval_arith_node(tree)
+
+
+def _clear_user_data_keep_sticky(context):
+    """Wipe ``context.user_data`` down to only the sticky month / year used
+    by the new-entry flow's auto-advance logic. Used at every flow exit so
+    non-sticky in-flight state never leaks into the next conversation."""
+    to_keep = ['selected_month', 'selected_year']
+    kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
+    context.user_data.clear()
+    context.user_data.update(kept_data)
+
+
 async def delete_previous_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, exclude: int = None):
     """Delete messages to keep the chat clean."""
     msg_ids = context.user_data.get('messages_to_delete', [])
@@ -121,12 +173,9 @@ def pop_history(context):
 async def start_new_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start the conversation for a new entry."""
     if not await require_auth(update, context): return ConversationHandler.END
-    context.user_data['_user_id'] = update.effective_user.id
-    # Keep month/year for sticky logic but clear everything else
-    to_keep = ['selected_month', 'selected_year']
-    kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
-    context.user_data.clear()
-    context.user_data.update(kept_data)
+    # Clear non-sticky state from the previous flow, keep month/year for
+    # sticky auto-advance, then re-anchor this user's user_id.
+    _clear_user_data_keep_sticky(context)
     context.user_data['_user_id'] = update.effective_user.id
 
     # If sticky month is in the past (new month has started), auto-advance to current month
@@ -350,8 +399,8 @@ async def handle_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         raw_text = normalize_number(update.message.text)
         clean_text = "".join(c for c in raw_text if c in "0123456789+-*/.()")
-        dist = int(eval(clean_text))
-        
+        dist = int(_safe_eval_arith(clean_text))
+
         context.user_data['total_km'] = dist
         context.user_data['odo_end'] = context.user_data['odo_start'] + dist
         
@@ -978,19 +1027,13 @@ async def save_entry_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
                 text=S('new_entry.back_to_menu_prompt'),
                 reply_markup=menu_kb
             )
-            to_keep = ['selected_month', 'selected_year']
-            kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
-            context.user_data.clear()
-            context.user_data.update(kept_data)
+            _clear_user_data_keep_sticky(context)
             return ConversationHandler.END
     else:
         await delete_previous_messages(update, context, exclude=query.message.message_id)
         schedule_message_cleanup(context, update.effective_chat.id)
         await query.edit_message_text(S('new_entry.save_discarded'), reply_markup=BACK_TO_MENU)
-        to_keep = ['selected_month', 'selected_year']
-        kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
-        context.user_data.clear()
-        context.user_data.update(kept_data)
+        _clear_user_data_keep_sticky(context)
         return ConversationHandler.END
 
 async def handle_last_tour_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1058,29 +1101,34 @@ async def handle_last_tour_confirm(update: Update, context: ContextTypes.DEFAULT
             text=S('new_entry.back_to_menu_prompt'),
             reply_markup=BACK_TO_MENU
         )
-        
-    to_keep = ['selected_month', 'selected_year']
-    kept_data = {k: context.user_data[k] for k in to_keep if k in context.user_data}
-    context.user_data.clear()
-    context.user_data.update(kept_data)
+
+    _clear_user_data_keep_sticky(context)
     return ConversationHandler.END
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Cancel the conversation."""
-    exclude_id = update.callback_query.message.message_id if update.callback_query else None
-    await delete_previous_messages(update, context, exclude=exclude_id)
-    schedule_message_cleanup(context, update.effective_chat.id)
-    msg = S('new_entry.cancelled')
-    if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=BACK_TO_MENU)
-    else:
-        await update.message.reply_text(msg, reply_markup=BACK_TO_MENU)
+async def _exit_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Fallback that exits the new-entry flow cleanly via the main menu.
+
+    Triggered by ``^main_menu$`` (back-to-menu button), ``^cancel$``
+    (in-flow cancel button), and the ``/cancel`` command. Without this
+    fallback, tapping "back to menu" mid-flow leaves the user's
+    ConversationHandler internally active, so the next tap on "New Entry"
+    matches nothing (``allow_reentry`` defaults to False) until the
+    process restarts.
+
+    Also clears non-sticky ``user_data`` so stale state from this flow
+    doesn't leak into the next one — only ``selected_month`` /
+    ``selected_year`` are kept, matching the cleanup in
+    `save_entry_callback`.
+    """
+    from bot.handlers.start import main_menu_callback
+    await main_menu_callback(update, context)
+    _clear_user_data_keep_sticky(context)
     return ConversationHandler.END
 
 def get_new_entry_handler():
     return ConversationHandler(
         entry_points=[
-            CallbackQueryHandler(start_new_entry, pattern="^new_entry$"), 
+            CallbackQueryHandler(start_new_entry, pattern="^new_entry$"),
             CommandHandler("newentry", start_new_entry),
             CommandHandler("new", start_new_entry)
         ],
@@ -1129,6 +1177,11 @@ def get_new_entry_handler():
                 CallbackQueryHandler(handle_back_to_confirm_transport, pattern="^back$")
             ],
         },
-        fallbacks=[CommandHandler("cancel", cancel), CallbackQueryHandler(cancel, pattern="^cancel$")]
+        fallbacks=[
+            CallbackQueryHandler(_exit_to_menu, pattern="^main_menu$"),
+            CallbackQueryHandler(_exit_to_menu, pattern="^cancel$"),
+            CommandHandler("cancel", _exit_to_menu),
+        ],
+        allow_reentry=True,
     )
 
