@@ -333,7 +333,8 @@ async def handle_date_selection(update: Update, context: ContextTypes.DEFAULT_TY
             push_history(context, CONFIRM_TRANSPORT_FEE)
             await query.edit_message_text(
                 S('new_entry.transport_confirm', transport_fee=to_bn_number(transport_fee)),
-                reply_markup=get_yes_no_keyboard("transport")
+                reply_markup=get_yes_no_keyboard("transport"),
+                parse_mode='HTML'
             )
             return CONFIRM_TRANSPORT_FEE
     elif query.data == "cancel":
