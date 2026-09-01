@@ -33,6 +33,7 @@
     "entry_type": {
       "regular": "🛵 রেগুলার ফিল্ড ট্যুর",
       "meeting": "🏢 মাসিক মিটিং এন্ট্রি",
+      "khata": "📋 খাতা মিলানো",
       "cancel": "🔙 বাতিল করুন"
     },
     "month_selection": {
@@ -224,6 +225,8 @@
     "no_entries": "এই মাসের জন্য এখনো কোনো এন্ট্রি যোগ করা হয়নি।",
     "entry_header_regular": "<blockquote><b>#{index} ফিল্ড ট্যুর — </b>{date}<b>                 </b></blockquote>",
     "entry_header_meeting": "<blockquote><b>#{index} মাসিক মিটিং — </b>{date}<b>                 </b></blockquote>",
+    "entry_header_khata": "<blockquote><b>#{index} খাতা মিলানো — </b>{date}<b>                 </b></blockquote>",
+    "entry_body_khata": "মিটার শুরু: <b>{odo_start}</b>\nমিটার শেষ: <b>{odo_end}</b>\nদূরত্ব: <b>{total_km}</b> কিমি\n<blockquote expandable>\nDA বিল: <b>{da_amount}</b> টাকা                        \nযাতায়াত ভাড়া: <b>{transport_fee}</b> টাকা\nবিবরণ: {venue}\nমোট খরচ: <b>{total_cost}</b> টাকা\n</blockquote>",
     "entry_body_regular": "মিটার শুরু: <b>{odo_start}</b>\nমিটার শেষ: <b>{odo_end}</b>\nদূরত্ব: <b>{total_km}</b> কিমি\n{petrol_line}{mobil_line}DA বিল: <b>{da_amount}</b> টাকা\nমোট খরচ: <b>{total_cost}</b> টাকা\n{distributors_block}",
     "entry_body_meeting": "মিটার শুরু: <b>{odo_start}</b>\nমিটার শেষ: <b>{odo_end}</b>\nদূরত্ব: <b>{total_km}</b> কিমি\n<blockquote expandable>\nDA বিল: <b>{da_amount}</b> টাকা                        \nযাতায়াত ভাড়া: <b>{transport_fee}</b> টাকা\nবিবরণ: {venue}\nমোট খরচ: <b>{total_cost}</b> টাকা\n</blockquote>",
     "entry_petrol_line": "তেল: <b>{liters}</b> লি = <b>{cost}</b> টাকা\n",

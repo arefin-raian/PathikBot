@@ -49,6 +49,18 @@ async def send_entry_message(context, chat_id, user_id, i, e, first_entry=False,
                 total_cost=to_bn_number(e['total_cost']),
                 distributors_block=dist_block)
         )
+    elif e['entry_type'] == 'KHATA_MILANO':
+        text = (
+            S('summary.entry_header_khata', index=to_bn_number(i), date=dt_str) + "\n" +
+            S('summary.entry_body_khata',
+                odo_start=to_bn_number(e['odo_start']),
+                odo_end=to_bn_number(e['odo_end']),
+                total_km=to_bn_number(e['total_km']),
+                da_amount=to_bn_number(e['da_amount']),
+                transport_fee=to_bn_number(e.get('transport_fee', 0)),
+                venue=e.get('venue', ''),
+                total_cost=to_bn_number(e['total_cost']))
+        )
     else:
         text = (
             S('summary.entry_header_meeting', index=to_bn_number(i), date=dt_str) + "\n" +

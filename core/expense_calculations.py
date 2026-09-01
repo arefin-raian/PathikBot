@@ -26,6 +26,8 @@ def calculate_total_entry_cost(entry_type, petrol_liters=0, mobil_liters=0, da_a
 
     if entry_type == 'MONTHLY_MEETING':
         return int(transport_fee)
+    elif entry_type == 'KHATA_MILANO':
+        return da_amount + int(transport_fee)
     else:
         petrol_cost = calculate_petrol_cost(petrol_liters, petrol_price)
         mobil_cost = calculate_mobil_cost(mobil_liters, mobil_price)
@@ -54,6 +56,10 @@ def calculate_summary(entries):
         if e_type == 'MONTHLY_MEETING':
             meeting_count += 1
             total_others += entry.get('transport_fee', 0)
+        elif e_type == 'KHATA_MILANO':
+            meeting_count += 1
+            total_others += entry.get('transport_fee', 0)
+            total_da += entry.get('da_amount', 0)
         else:
             tour_count += 1
             total_km += km

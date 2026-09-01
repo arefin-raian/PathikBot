@@ -239,6 +239,22 @@ async def handle_type_selection(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             await query.edit_message_text(S('new_entry.month_prompt'), reply_markup=get_month_selection_keyboard())
             return SELECT_MONTH
+    elif query.data == "type_khata":
+        context.user_data['entry_type'] = 'KHATA_MILANO'
+        context.user_data['venue'] = "রংপুর সেলস সেন্টার"
+        push_history(context, SELECT_MONTH)
+        if 'selected_month' in context.user_data:
+            month = context.user_data['selected_month']
+            year = context.user_data['selected_year']
+            last_day = await get_last_day_in_month(user_id, month, year)
+            await query.edit_message_text(
+                S('keyboards.date_selection.title_with_month', month_name=MONTHS_BN_FULL[month], year=to_bn_number(year)),
+                reply_markup=get_date_selection_keyboard(year, month, last_day=last_day)
+            )
+            return SELECT_DATE
+        else:
+            await query.edit_message_text(S('new_entry.month_prompt'), reply_markup=get_month_selection_keyboard())
+            return SELECT_MONTH
     elif query.data == "cancel":
         await query.edit_message_text(S('common.cancelled_plain'), reply_markup=BACK_TO_MENU)
         return ConversationHandler.END
@@ -822,8 +838,14 @@ async def handle_transport_confirm(update: Update, context: ContextTypes.DEFAULT
         context.user_data['petrol_cost'] = 0
         context.user_data['mobil_liters'] = 0
         context.user_data['mobil_cost'] = 0
-        context.user_data['da_amount'] = 0
-        context.user_data['others_designation'] = S('new_entry.da_skip')
+        # KHATA_MILANO gets DA (like regular tours); MONTHLY_MEETING does not
+        if context.user_data.get('entry_type') == 'KHATA_MILANO':
+            prefs = await get_user_prefs(user_id)
+            context.user_data['da_amount'] = int(prefs.get('da_amount', 200))
+            context.user_data['others_designation'] = ''
+        else:
+            context.user_data['da_amount'] = 0
+            context.user_data['others_designation'] = S('new_entry.da_skip')
         push_history(context, CONFIRM_ENTRY)
         return await show_confirmation(update, context)
 
@@ -898,6 +920,18 @@ async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 da_amount=to_bn_number(data['da_amount']),
                 total_cost=to_bn_number(cost),
                 distributors_block=dist_block)
+        )
+    elif data['entry_type'] == 'KHATA_MILANO':
+        summary = (
+            S('summary.entry_header_khata', index="", date=date_bn) + "\n" +
+            S('summary.entry_body_khata',
+                odo_start=to_bn_number(data['odo_start']),
+                odo_end=to_bn_number(data['odo_end']),
+                total_km=to_bn_number(data['total_km']),
+                da_amount=to_bn_number(data['da_amount']),
+                transport_fee=to_bn_number(data.get('transport_fee', 0)),
+                venue=data.get('venue', ''),
+                total_cost=to_bn_number(cost))
         )
     else:
         summary = (

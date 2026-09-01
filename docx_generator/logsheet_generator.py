@@ -265,7 +265,7 @@ def fill_row(row, entry: dict):
 
         mb = entry.get('manager_bijoy')
         if mb:
-            if entry['entry_type'] == 'MONTHLY_MEETING':
+            if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
                 set_cell(cells[11], "gvwmK wgwUs")
             else:
                 set_cell(cells[11], mb)
@@ -287,7 +287,7 @@ def fill_row(row, entry: dict):
 
         mb = entry.get('manager_bijoy')
         if mb:
-            if entry['entry_type'] == 'MONTHLY_MEETING':
+            if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
                 set_cell(cells[9], "gvwmK wgwUs")
             else:
                 set_cell(cells[9], mb)
@@ -329,7 +329,7 @@ def fill_summary(summary_tbl, entries):
 
     total_tours   = len(entries)
     friday_tours  = sum(1 for e in entries if datetime.strptime(e['date'],'%Y-%m-%d').weekday() == 4)
-    meeting_count = sum(1 for e in entries if e.get('entry_type') == 'MONTHLY_MEETING')
+    meeting_count = sum(1 for e in entries if e.get('entry_type') in ('MONTHLY_MEETING', 'KHATA_MILANO'))
     mgr_tours     = sum(1 for e in entries if e.get('others_designation') and e['entry_type'] == 'REGULAR')
     under50       = sum(1 for e in entries if e.get('total_km', 0) < 50 and e['entry_type'] == 'REGULAR')
     net_tours     = max(0, total_tours - friday_tours - meeting_count)
@@ -414,7 +414,7 @@ def _convert_entry(entry: dict, serial: int) -> dict:
         'date': entry['date'],
     }
 
-    if entry['entry_type'] == 'MONTHLY_MEETING':
+    if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
         venue_b = convert_to_bijoy(entry.get('venue', ''))
         fee = int(entry.get('transport_fee', 0))
         # FIX: Convert only the Bengali part of the ভাড়া label separately,

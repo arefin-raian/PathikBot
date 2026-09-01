@@ -85,6 +85,7 @@ def get_entry_type_keyboard():
     keyboard = [
         [InlineKeyboardButton(b['regular'], callback_data="type_regular")],
         [InlineKeyboardButton(b['meeting'], callback_data="type_meeting")],
+        [InlineKeyboardButton(b['khata'], callback_data="type_khata")],
         [InlineKeyboardButton(b['cancel'], callback_data="cancel")]
     ]
     return InlineKeyboardMarkup(keyboard)
