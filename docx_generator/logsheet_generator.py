@@ -264,11 +264,10 @@ def fill_row(row, entry: dict):
         set_cell(cells[10], fmt_taka(entry['total_cost']))
 
         mb = entry.get('manager_bijoy')
-        if mb:
-            if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
-                set_cell(cells[11], "gvwmK wgwUs")
-            else:
-                set_cell(cells[11], mb)
+        if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
+            set_cell(cells[11], mb or "")
+        elif mb:
+            set_cell(cells[11], mb)
 
     elif n >= 10:
         # ── Compact layout (page 2+, no odo columns) ─────────────────────
@@ -286,11 +285,10 @@ def fill_row(row, entry: dict):
         set_cell(cells[8],  fmt_taka(entry['total_cost']))
 
         mb = entry.get('manager_bijoy')
-        if mb:
-            if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
-                set_cell(cells[9], "gvwmK wgwUs")
-            else:
-                set_cell(cells[9], mb)
+        if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
+            set_cell(cells[9], mb or "")
+        elif mb:
+            set_cell(cells[9], mb)
 
     # Fewer than 10 cells → unrecognised row shape, skip silently
 
@@ -425,9 +423,6 @@ def _convert_entry(entry: dict, serial: int) -> dict:
         # also makes the intent clearer and avoids any future encoding issues.
         transport_label_b = convert_to_bijoy("যাতায়াত ও আসা যাওয়ার ভাড়া")
         transport_b = f"{transport_label_b} = {fee}/-"
-        # FIX: Use two separate paragraph entries instead of joining with "|"
-        # so set_multi_paragraph_cell() renders them on separate lines in the
-        # cell, which matches the visual layout of the original template.
         result['distributors_runs'] = [f"{venue_b}; {transport_b}"]
         result['manager_bijoy'] = "" if entry['entry_type'] == 'KHATA_MILANO' else "gvwmK wgwUs"
     else:

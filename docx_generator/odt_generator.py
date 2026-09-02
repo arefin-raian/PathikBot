@@ -322,11 +322,10 @@ def fill_row(row, entry: dict):
         set_cell_simple(cells[10], fmt_taka(entry['total_cost']))
 
         mb = entry.get('manager_bijoy')
-        if mb:
-            if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
-                set_cell_simple(cells[11], "gvwmK wgwUs")
-            else:
-                set_cell_simple(cells[11], mb)
+        if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
+            set_cell_simple(cells[11], mb or "")
+        elif mb:
+            set_cell_simple(cells[11], mb)
 
     elif n >= 10:
         set_cell_simple(cells[0], f"{entry['serial']:02d}")
@@ -343,11 +342,10 @@ def fill_row(row, entry: dict):
         set_cell_simple(cells[8], fmt_taka(entry['total_cost']))
 
         mb = entry.get('manager_bijoy')
-        if mb:
-            if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
-                set_cell_simple(cells[9], "gvwmK wgwUs")
-            else:
-                set_cell_simple(cells[9], mb)
+        if entry['entry_type'] in ('MONTHLY_MEETING', 'KHATA_MILANO'):
+            set_cell_simple(cells[9], mb or "")
+        elif mb:
+            set_cell_simple(cells[9], mb)
 
 
 def fill_total_row(total_row, entries):
