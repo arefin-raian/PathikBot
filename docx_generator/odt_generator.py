@@ -462,8 +462,8 @@ def _convert_entry(entry: dict, serial: int) -> dict:
         fee = int(entry.get('transport_fee', 0))
         transport_label_b = convert_to_bijoy("যাতায়াত ও আসা যাওয়ার ভাড়া")
         transport_b = f"{transport_label_b} = {fee}/-"
-        result['distributors_runs'] = [venue_b, transport_b]
-        result['manager_bijoy'] = "gvwmK wgwUs"
+        result['distributors_runs'] = [f"{venue_b}; {transport_b}"]
+        result['manager_bijoy'] = "" if entry['entry_type'] == 'KHATA_MILANO' else "gvwmK wgwUs"
     else:
         raw_names = entry.get('distributors_raw', [])
         MESSRS_VARIANTS = ('মেসার্স ', 'মেসার্স', 'messrs ', 'messrs')

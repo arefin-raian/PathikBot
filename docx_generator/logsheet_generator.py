@@ -428,8 +428,8 @@ def _convert_entry(entry: dict, serial: int) -> dict:
         # FIX: Use two separate paragraph entries instead of joining with "|"
         # so set_multi_paragraph_cell() renders them on separate lines in the
         # cell, which matches the visual layout of the original template.
-        result['distributors_runs'] = [venue_b, transport_b]
-        result['manager_bijoy'] = "gvwmK wgwUs"
+        result['distributors_runs'] = [f"{venue_b}; {transport_b}"]
+        result['manager_bijoy'] = "" if entry['entry_type'] == 'KHATA_MILANO' else "gvwmK wgwUs"
     else:
         raw_names = entry.get('distributors_raw', [])
         # Build full Unicode text block and convert via bangla.plus website
